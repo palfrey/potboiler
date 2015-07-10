@@ -6,13 +6,21 @@
    [me.raynes.fs :as fs])
 )
 
-(defmacro do-with-db [body]
-  `(let [db-dir# (fs/temp-dir "level-db-test")
-      db# (makedb db-dir#)]
-    (~body db#)
-    (closedb db#)
-    (level/destroy-db db-dir#)
+(defmacro non-lazy-for [& body]
+  `(doall (for ~@body))
+)
+
+(defmacro do-with-dbs [many body]
+  `(let [db-dirs# (map (fn [x#] (fs/temp-dir "level-db-test")) (range ~many))
+      dbs# (map #(makedb %) db-dirs#)]
+    (apply ~body dbs#)
+    (non-lazy-for [db# dbs#] (closedb db#))
+    (non-lazy-for [dir# db-dirs#] (level/destroy-db dir#))
   )
+)
+
+(defmacro do-with-db [body]
+  `(do-with-dbs 1 ~body)
 )
 
 (do-with-db
@@ -50,4 +58,20 @@
      (fact "historical items are retrievable" (getitem db simplekey) => "foo")
    )
  )
+)
+
+(do-with-dbs 2
+ (fn [db1 db2]
+   (let [startval (uuid)]
+     (initdb db1 startval)
+     (initdb db2 startval)
+
+     (fact "two dbs have same startkey" (startkey db1) => (startkey db2))
+
+     (additem db1 "bar")
+     (additem db2 "bar")
+
+     (fact "two dbs with same added items have same master" (masterkey db1) => (masterkey db2))
+    )
+  )
 )

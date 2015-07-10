@@ -67,15 +67,17 @@
 
 (def hashfn sha256)
 
-(defn initdb [db]
-  (let [identifier (uuid)
-        startval (uuid)
-        startkey (hashfn startval)]
-    (level/put db
-               id identifier
-               start startkey
-               startkey startval
-               master startkey)
+(defn initdb
+  ([db] (initdb db (uuid)))
+  ([db startval]
+    (let [identifier (uuid)
+          startkey (hashfn startval)]
+      (level/put db
+                 id identifier
+                 start startkey
+                 startkey startval
+                 master startkey)
+    )
   )
 )
 
