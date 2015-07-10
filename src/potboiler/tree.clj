@@ -6,9 +6,15 @@
   [clojure.edn :as edn])
 )
 
-(def master "MASTER")
+(defmacro def- [id value]
+  `(def ^{:public false} ~id ~value)
+)
 
-(def start "START")
+(def- master "MASTER")
+
+(def- start "START")
+
+(def- id "ID")
 
 (defn makedb [dir]
   (level/create-db dir {
@@ -53,14 +59,20 @@
   (level/get db start)
 )
 
-(defn- uuid [] (str (java.util.UUID/randomUUID)))
+(defn dbid [db]
+  (level/get db id)
+)
+
+(defn uuid [] (str (java.util.UUID/randomUUID)))
 
 (def hashfn sha256)
 
 (defn initdb [db]
-  (let [startval (uuid)
+  (let [identifier (uuid)
+        startval (uuid)
         startkey (hashfn startval)]
     (level/put db
+               id identifier
                start startkey
                startkey startval
                master startkey)

@@ -19,6 +19,7 @@
  (fn [db]
    (fact "empty db has no master" (masterkey db) => nil)
    (fact "empty db has no start key" (startkey db) => nil)
+   (fact "empty db has no identity" (dbid db) => nil)
    )
 )
 
@@ -28,6 +29,7 @@
 
     (fact "init sets start" (startkey db) =not=> nil)
     (fact "init sets master" (masterkey db) =not=> nil)
+    (fact "init sets id" (dbid db) =not=>  nil)
     (fact "initial db has master == start" (startkey db) => (masterkey db))
    )
 )
