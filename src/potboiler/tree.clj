@@ -3,7 +3,9 @@
    [pandect.algo.sha256 :refer :all]
    [clj-leveldb :as level]
    [puget.printer :as puget]
-  [clojure.edn :as edn])
+   [clojure.edn :as edn]
+   [clojure.tools.logging :as log]
+  )
 )
 
 (defmacro def- [id value]
@@ -16,8 +18,20 @@
 
 (def- id "ID")
 
+(defn set-sender [db newfn]
+  (assoc db :sendfn newfn)
+)
+
+(defn add-neighbour [db neighbour-id]
+  (assoc db :nodes (conj (:nodes db) neighbour-id))
+)
+
+(defn- getdb [db]
+  (:db db)
+)
+
 (defn closedb [db]
-  (.close db)
+  (-> db getdb .close)
 )
 
 (defn tostr [value]
@@ -33,15 +47,15 @@
 )
 
 (defn getitem [db key]
-  (-> (getobject db key) :value fromstr)
+  (-> (getobject (getdb db) key) :value fromstr)
 )
 
 (defn parentkey [db key]
-  (-> (getobject db key) :parent)
+  (-> (getobject (getdb db) key) :parent)
 )
 
 (defn masterkey [db]
-  (level/get db master)
+  (level/get (getdb db) master)
 )
 
 (defn masteritem [db]
@@ -49,11 +63,11 @@
 )
 
 (defn startkey [db]
-  (level/get db start)
+  (level/get (getdb db) start)
 )
 
 (defn dbid [db]
-  (level/get db id)
+  (level/get (getdb db) id)
 )
 
 (defn uuid [] (str (java.util.UUID/randomUUID)))
@@ -81,10 +95,15 @@
                    :key-decoder byte-streams/to-string
                    :val-decoder byte-streams/to-string
                    })]
-      (if (nil? (dbid db))
+      (if (nil? (dbid {:db db}))
         (initdb db startval)
       )
-      db
+      {:db db :nodes []
+        :sendfn (fn [dest msg]
+          (log/infof "Sending message %s to %s" msg dest)
+          true
+        )
+      }
     )
   )
 )
@@ -96,8 +115,9 @@
         storage {:hash valuehash :value canonvalue :parent oldmaster}
         masterhash (sha256 (str valuehash oldmaster))
         ]
-    (level/put db
+    (level/put (getdb db)
                masterhash (tostr storage)
                master masterhash)
+    (reduce + 0 (map #(if ((:sendfn db) % storage) 1 0) (:nodes db)))
   )
 )
