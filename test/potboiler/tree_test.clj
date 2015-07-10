@@ -10,12 +10,15 @@
   `(doall (for ~@body))
 )
 
-(defmacro do-with-dbs [many body]
-  `(let [db-dirs# (map (fn [x#] (fs/temp-dir "level-db-test")) (range ~many))
-      dbs# (map #(makedb %) db-dirs#)]
-    (apply ~body dbs#)
-    (non-lazy-for [db# dbs#] (closedb db#))
-    (non-lazy-for [dir# db-dirs#] (level/destroy-db dir#))
+(defmacro do-with-dbs
+  ([many body] `(do-with-dbs ~many (map (fn [x#] (uuid)) (range ~many)) ~body))
+  ([many uuids body]
+    `(let [db-dirs# (map (fn [x#] (fs/temp-dir "level-db-test")) (range ~many))
+        dbs# (map #(loaddb %1 %2) db-dirs# ~uuids)]
+      (apply ~body dbs#)
+      (non-lazy-for [db# dbs#] (closedb db#))
+      (non-lazy-for [dir# db-dirs#] (level/destroy-db dir#))
+    )
   )
 )
 
@@ -24,17 +27,7 @@
 )
 
 (do-with-db
- (fn [db]
-   (fact "empty db has no master" (masterkey db) => nil)
-   (fact "empty db has no start key" (startkey db) => nil)
-   (fact "empty db has no identity" (dbid db) => nil)
-   )
-)
-
-(do-with-db
   (fn [db]
-    (initdb db)
-
     (fact "init sets start" (startkey db) =not=> nil)
     (fact "init sets master" (masterkey db) =not=> nil)
     (fact "init sets id" (dbid db) =not=>  nil)
@@ -44,7 +37,6 @@
 
 (do-with-db
  (fn [db]
-   (initdb db)
    (additem db "foo")
 
    (fact "one key db has master != start" (startkey db) =not=> (masterkey db))
@@ -60,18 +52,15 @@
  )
 )
 
-(do-with-dbs 2
- (fn [db1 db2]
-   (let [startval (uuid)]
-     (initdb db1 startval)
-     (initdb db2 startval)
-
+(let [startval (uuid)]
+  (do-with-dbs 2 [startval startval]
+   (fn [db1 db2]
      (fact "two dbs have same startkey" (startkey db1) => (startkey db2))
 
      (additem db1 "bar")
      (additem db2 "bar")
 
      (fact "two dbs with same added items have same master" (masterkey db1) => (masterkey db2))
-    )
+   )
   )
 )

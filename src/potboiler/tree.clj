@@ -16,13 +16,6 @@
 
 (def- id "ID")
 
-(defn makedb [dir]
-  (level/create-db dir {
-                 :key-decoder byte-streams/to-string
-                 :val-decoder byte-streams/to-string
-                 })
-)
-
 (defn closedb [db]
   (.close db)
 )
@@ -67,7 +60,7 @@
 
 (def hashfn sha256)
 
-(defn initdb
+(defn- initdb
   ([db] (initdb db (uuid)))
   ([db startval]
     (let [identifier (uuid)
@@ -77,6 +70,21 @@
                  start startkey
                  startkey startval
                  master startkey)
+    )
+  )
+)
+
+(defn loaddb
+  ([dir] (loaddb dir (uuid)))
+  ([dir startval]
+    (let [db (level/create-db dir {
+                   :key-decoder byte-streams/to-string
+                   :val-decoder byte-streams/to-string
+                   })]
+      (if (nil? (dbid db))
+        (initdb db startval)
+      )
+      db
     )
   )
 )
