@@ -1,17 +1,27 @@
 (ns potboiler.systems
-  (:require [system.core :refer [defsystem]]
+  (:require [com.stuartsierra.component :as component]
             (system.components
-             [http-kit :refer [new-web-server]]
              [repl-server :refer [new-repl-server]])
             [environ.core :refer [env]]
             [potboiler.leveldb :refer [new-database]]
-            [potboiler.handler :refer [app]]))
+            [potboiler.handler :refer [app]]
+            [potboiler.http-kit :refer [new-web-server]]))
 
-(defsystem dev-system
-  [:web (new-web-server (Integer. (env :http-port)) app)
-   :db (new-database (env :db-path))])
+(defn dev-system []
+  (component/system-map
+     :db (new-database (env :db-path))
 
-(defsystem prod-system
-  [:web (new-web-server (Integer. (env :http-port)) app)
-   :db (new-database (env :db-path))
-   :repl-server (new-repl-server (Integer. (env :repl-port)))])
+   :web (component/using
+          (new-web-server (Integer. (env :http-port)) app)
+          [:db])
+  )
+)
+
+(defn prod-system []
+  (component/system-map
+  :db (new-database (env :db-path))
+   :web (component/using
+         (new-web-server (Integer. (env :http-port)) app)
+         [:db]
+         )
+   :repl-server (new-repl-server (Integer. (env :repl-port)))))

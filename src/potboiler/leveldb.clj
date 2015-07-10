@@ -6,7 +6,12 @@
   component/Lifecycle
 
   (start [component]
-    (let [conn (level/create-db (:db-path component) {})]
+    (let [conn (level/create-db
+                (:db-path component)
+                {
+                 :key-decoder byte-streams/to-string
+                 :val-decoder byte-streams/to-string
+                 })]
       (assoc component :connection conn)))
 
   (stop [component]

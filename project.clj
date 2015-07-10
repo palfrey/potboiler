@@ -11,8 +11,16 @@
                  [environ "1.0.0"]
                  [factual/clj-leveldb "0.1.1"]
                  [http-kit "2.1.19"]
-                 [de.ubercode.clostache/clostache "1.4.0"]]
-  :plugins [[lein-environ "1.0.0"]]
+                 [de.ubercode.clostache/clostache "1.4.0"]
+                 [cheshire "5.5.0"]
+                 [org.clojure/tools.logging "0.3.1"]
+                 [pandect "0.5.2"]
+                 [com.novemberain/langohr "3.2.0"]
+                 [mvxcvi/puget "0.8.1"]
+                 [midje "1.6.3"]
+                 [me.raynes/fs "1.4.6"]]
+  :plugins [[lein-environ "1.0.0"]
+            [lein-midje "3.1.3"]]
   :offline? true
   :profiles {:dev {:source-paths ["dev"]
                    :env {:http-port 3000
