@@ -39,7 +39,7 @@
 
    (fact "one key db has master != start" (startkey db) =not=> (masterkey db))
    (fact "items are retrievable" (masteritem db) => "foo")
-   (fact "parents are discoverable" (parentkeys db (masterkey db)) => [(startkey db)])
+   (fact "parents are discoverable" (parentkey db (masterkey db)) => (startkey db))
 
    (let [simplekey (masterkey db)]
      (additem db {:a "bar"})

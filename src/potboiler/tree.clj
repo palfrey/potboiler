@@ -37,8 +37,8 @@
   (-> (getobject db key) :value fromstr)
 )
 
-(defn parentkeys [db key]
-  (-> (getobject db key) :parents)
+(defn parentkey [db key]
+  (-> (getobject db key) :parent)
 )
 
 (defn masterkey [db]
@@ -71,7 +71,7 @@
   (let [canonvalue (tostr value)
         valuehash (hashfn canonvalue)
         oldmaster (masterkey db)
-        storage {:hash valuehash :value canonvalue :parents [oldmaster]}
+        storage {:hash valuehash :value canonvalue :parent oldmaster}
         masterhash (sha256 (str valuehash oldmaster))
         ]
     (level/put db
