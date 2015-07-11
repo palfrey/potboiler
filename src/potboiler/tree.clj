@@ -22,6 +22,10 @@
   (assoc db :sendfn newfn)
 )
 
+(defn set-receiver [db newfn]
+  (assoc db :recvfn newfn)
+)
+
 (defn add-neighbour [db neighbour-id]
   (assoc db :nodes (conj (:nodes db) neighbour-id))
 )
@@ -43,15 +47,15 @@
 )
 
 (defn- getobject [db key]
-  (-> (level/get db key) fromstr)
+  (-> (level/get (getdb db) key) fromstr)
 )
 
 (defn getitem [db key]
-  (-> (getobject (getdb db) key) :value fromstr)
+  (-> (getobject db key) :value fromstr)
 )
 
 (defn parentkey [db key]
-  (-> (getobject (getdb db) key) :parent)
+  (-> (getobject db key) :parent)
 )
 
 (defn masterkey [db]
@@ -103,9 +107,16 @@
           (log/infof "Sending message %s to %s" msg dest)
           true
         )
+       :recvfn (fn [src msg]
+          (log/infof "Receiving message %s from %s" msg src)
+        )
       }
     )
   )
+)
+
+(defn sendmsg [db dest msgtype msg]
+  ((:sendfn db) dest (assoc msg :sender (dbid db) :msgtype msgtype))
 )
 
 (defn additem [db value]
@@ -115,9 +126,25 @@
         storage {:hash valuehash :value canonvalue :parent oldmaster}
         masterhash (sha256 (str valuehash oldmaster))
         ]
+    (log/infof "Adding '%s' resulting in new masterhash %s" value masterhash)
     (level/put (getdb db)
                masterhash (tostr storage)
                master masterhash)
-    (reduce + 0 (map #(if ((:sendfn db) % storage) 1 0) (:nodes db)))
+    (reduce + 0 (map #(if (sendmsg db % :new-commit (assoc storage :master masterhash)) 1 0) (filter #(not= (dbid db) %) (:nodes db))))
+  )
+)
+
+(defn add-from-other [db msg]
+  (case (:msgtype msg)
+    :new-commit
+      (cond
+        (= (masterkey db) (:master msg))
+          (log/infof "Ignoring applied message %s" msg)
+        (= (masterkey db) (:parent msg))
+          (additem db (-> msg :value fromstr))
+        :default
+          (sendmsg db (:sender msg) :current-master (assoc (getobject db (masterkey db)) :master (masterkey db)))
+      )
+    (log/errorf "Unknown message type: %s %s" (:msgtype msg) msg)
   )
 )
