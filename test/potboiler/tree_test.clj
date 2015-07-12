@@ -75,7 +75,7 @@
     (fact "two dbs with same added items have same master" (masterkey db1) => (masterkey db2))
 
     (let [msgstore (atom [])
-          senddb (set-sender db1 (fn [dest msg] (compare-and-set! msgstore @msgstore (conj @msgstore {:dest dest :msg msg}))))
+          senddb (set-node-sender db1 (fn [dest msg] (compare-and-set! msgstore @msgstore (conj @msgstore {:dest dest :msg msg}))))
           neighbourdb (add-neighbour senddb (dbid db2))]
 
       (fact "additem sends messages to one node" (additem neighbourdb "foo") => 1)
@@ -103,11 +103,11 @@
                                 )
                       )
           n1 (-> db1
-                 (#(set-sender % (mk-sendfn (dbid %))))
+                 (#(set-node-sender % (mk-sendfn (dbid %))))
                  (#(set-receiver % (mk-recvfn (dbid %))))
                  (#(add-neighbour % (dbid db2))))
           n2 (-> db2
-                 (#(set-sender % (mk-sendfn (dbid %))))
+                 (#(set-node-sender % (mk-sendfn (dbid %))))
                  (#(set-receiver % (mk-recvfn (dbid %))))
                  (#(add-neighbour % (dbid db1))))
           ]

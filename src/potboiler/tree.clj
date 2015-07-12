@@ -164,7 +164,7 @@
         (= (masterkey db) (:parent msg))
           (additem db (-> msg :value fromstr))
         :default
-          (sendmsg db (:sender msg) :current-master (assoc (getobject db (masterkey db)) :master (masterkey db)))
+          (send-to-node db (:sender msg) :current-master (assoc (getobject db (masterkey db)) :master (masterkey db)))
       )
     :current-master
       (if (-> (getobject db (:master msg)) nil? not)
@@ -185,7 +185,7 @@
                   (recur (cons (assoc (getobject db current) :master masterhash) msgs) (parentkey db current))
               )
             ) ((fn [msgs]
-                (doall (map #(sendmsg db (:sender msg) :new-commit %) msgs))
+                (doall (map #(send-to-node db (:sender msg) :new-commit %) msgs))
                 )))
           )
         )
