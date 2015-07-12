@@ -126,7 +126,7 @@
         storage {:hash valuehash :value canonvalue :parent oldmaster}
         masterhash (sha256 (str valuehash oldmaster))
         ]
-    (log/infof "Adding '%s' resulting in new masterhash %s" value masterhash)
+    (log/debugf "Adding '%s' resulting in new masterhash %s" value masterhash)
     (level/put (getdb db)
                masterhash (tostr storage)
                master masterhash)
@@ -139,11 +139,36 @@
     :new-commit
       (cond
         (= (masterkey db) (:master msg))
-          (log/infof "Ignoring applied message %s" msg)
+          (log/debugf "Ignoring applied message %s" msg)
         (= (masterkey db) (:parent msg))
           (additem db (-> msg :value fromstr))
         :default
           (sendmsg db (:sender msg) :current-master (assoc (getobject db (masterkey db)) :master (masterkey db)))
+      )
+    :current-master
+      (if (-> (getobject db (:master msg)) nil? not)
+        (do
+          (log/infof "Have master %s %s" (:master msg) msg)
+          (let [masterhash (masterkey db)]
+            (-> (loop [msgs []
+                   current masterhash]
+              (cond
+                (= (:master msg) current)
+                  msgs
+                (= (startkey db) current)
+                  (do
+                    (log/errorf "Hit startkey. Possible different start key?")
+                    []
+                  )
+                :default
+                  (recur (cons (assoc (getobject db current) :master masterhash) msgs) (parentkey db current))
+              )
+            ) ((fn [msgs]
+                (doall (map #(sendmsg db (:sender msg) :new-commit %) msgs))
+                )))
+          )
+        )
+        (log/errorf "Can't find master %s" (:master msg))
       )
     (log/errorf "Unknown message type: %s %s" (:msgtype msg) msg)
   )

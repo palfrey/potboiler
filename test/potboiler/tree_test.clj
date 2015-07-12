@@ -86,7 +86,7 @@
     (let [nodes (atom (apply merge (map #(hash-map (dbid %) %) [db1 db2])))
           mk-sendfn (fn [src] (fn [dest msg]
                                 (do
-                                  (log/infof "Sending message %s from %s -> %s" msg src dest)
+                                  (log/debugf "Sending message %s from %s -> %s" msg src dest)
                                   (->> dest (get @nodes) :recvfn (#(% src msg)))
                                 )))
           mk-recvfn (fn [dest] (fn [src msg]
@@ -109,6 +109,9 @@
       (additem n1 "blah")
       (fact "additem gets sent to other" (masterkey n1) => (masterkey n2))
 
+      (additem db1 "foo") ; adds item to non-sending db to simulate disconnected
+      (additem n1 "foo2") ; and then add one to the sending db
+      (fact "nodes can be updated if they get out of date" (masterkey n1) => (masterkey n2))
     )
   )
 )
