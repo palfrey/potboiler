@@ -128,12 +128,12 @@
 )
 
 (defn send-to-node [db dest msgtype msg]
-  (log/infof "Sending %s %s" dest msgtype)
+  (log/debugf "Sending %s -> %s %s %s" (dbid db) dest msgtype msg)
   ((:send-to-node db) dest (assoc msg :sender (dbid db) :msgtype msgtype))
 )
 
 (defn send-to-client [db dest action data]
-  (log/infof "Sending %s %s" dest action data)
+  (log/debugf "Sending %s %s %s" dest action data)
   ((:send-to-client db) dest {:action action :data data})
 )
 
@@ -144,7 +144,7 @@
         storage {:hash valuehash :value canonvalue :parent oldmaster}
         masterhash (sha256 (str valuehash oldmaster))
         ]
-    (log/debugf "Adding '%s' resulting in new masterhash %s" value masterhash)
+    (log/debugf "%s: Adding '%s' resulting in new masterhash %s" (dbid db) value masterhash)
     (level/put (getdb db)
                masterhash (tostr storage)
                master masterhash)
@@ -169,7 +169,7 @@
     :current-master
       (if (-> (getobject db (:master msg)) nil? not)
         (do
-          (log/infof "Have master %s %s" (:master msg) msg)
+          (log/debugf "Have master %s %s" (:master msg) msg)
           (let [masterhash (masterkey db)]
             (-> (loop [msgs []
                    current masterhash]
@@ -189,7 +189,7 @@
                 )))
           )
         )
-        (log/errorf "Can't find master %s" (:master msg))
+        (log/errorf "%s: Can't find master %s" (dbid db) (:master msg))
       )
     (log/errorf "Unknown message type: %s %s" (:msgtype msg) msg)
   )
