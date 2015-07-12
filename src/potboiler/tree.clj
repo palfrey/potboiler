@@ -16,7 +16,7 @@
 
 (def- start "START")
 
-(def- id "ID")
+(def id "ID")
 
 (defn set-node-sender [db newfn]
   (assoc db :send-to-node newfn)

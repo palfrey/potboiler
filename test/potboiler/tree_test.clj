@@ -11,11 +11,17 @@
   `(doall (for ~@body))
 )
 
+(def names ["Alpha" "Bravo" "Charlie"])
+
 (defmacro do-with-dbs
   ([many body] `(do-with-dbs ~many (map (fn [x#] (uuid)) (range ~many)) ~body))
   ([many uuids body]
     `(let [db-dirs# (map (fn [x#] (fs/temp-dir "level-db-test")) (range ~many))
-        dbs# (map #(loaddb %1 %2) db-dirs# ~uuids)]
+        dbs# (map #(let [db# (loaddb %1 %2)]
+                     (level/put (:db db#) id %3)
+                     db#)
+                     db-dirs# ~uuids names)]
+      (log/debugf "New databases")
       (apply ~body dbs#)
       (non-lazy-for [db# dbs#] (closedb db#))
       (non-lazy-for [dir# db-dirs#] (level/destroy-db dir#))
