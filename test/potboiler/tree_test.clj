@@ -115,3 +115,21 @@
     )
   )
 )
+
+(do-with-db
+  (fn [db]
+    (let [client (uuid)
+          recv-msg (atom {client []})
+          mk-sendfn (fn [src] (fn [dest msg]
+            (do
+              (log/debugf "Sending message %s from %s -> %s" msg src dest)
+              (compare-and-set! recv-msg @recv-msg (assoc-in @recv-msg [dest] (conj (get-in @recv-msg [dest] []) msg)))
+            )))
+          sender-node (set-client-sender db (mk-sendfn (dbid db)))
+          sender-node (add-client sender-node client)
+          ]
+      (additem sender-node "foo")
+      (fact "Clients get sent stuff" @recv-msg => {client [{:action :apply :data "foo"}]})
+    )
+  )
+)

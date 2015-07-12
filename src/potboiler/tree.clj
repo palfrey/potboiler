@@ -18,8 +18,16 @@
 
 (def- id "ID")
 
-(defn set-sender [db newfn]
-  (assoc db :sendfn newfn)
+(defn set-node-sender [db newfn]
+  (assoc db :send-to-node newfn)
+)
+
+(defn set-client-sender [db newfn]
+  (assoc db :send-to-client newfn)
+)
+
+(defn add-client [db client-id]
+  (assoc db :clients (conj (:clients db) client-id))
 )
 
 (defn set-receiver [db newfn]
@@ -102,12 +110,16 @@
       (if (nil? (dbid {:db db}))
         (initdb db startval)
       )
-      {:db db :nodes []
-        :sendfn (fn [dest msg]
+      {:db db :nodes [] :clients []
+        :send-to-node (fn [dest msg]
           (log/infof "Sending message %s to %s" msg dest)
           true
         )
-       :recvfn (fn [src msg]
+        :send-to-client (fn [dest msg]
+          (log/infof "Sending message %s to %s" msg dest)
+          true
+        )
+        :recvfn (fn [src msg]
           (log/infof "Receiving message %s from %s" msg src)
         )
       }
@@ -115,8 +127,14 @@
   )
 )
 
-(defn sendmsg [db dest msgtype msg]
-  ((:sendfn db) dest (assoc msg :sender (dbid db) :msgtype msgtype))
+(defn send-to-node [db dest msgtype msg]
+  (log/infof "Sending %s %s" dest msgtype)
+  ((:send-to-node db) dest (assoc msg :sender (dbid db) :msgtype msgtype))
+)
+
+(defn send-to-client [db dest action data]
+  (log/infof "Sending %s %s" dest action data)
+  ((:send-to-client db) dest {:action action :data data})
 )
 
 (defn additem [db value]
@@ -130,7 +148,10 @@
     (level/put (getdb db)
                masterhash (tostr storage)
                master masterhash)
-    (reduce + 0 (map #(if (sendmsg db % :new-commit (assoc storage :master masterhash)) 1 0) (filter #(not= (dbid db) %) (:nodes db))))
+    (+
+      (reduce + 0 (map #(if (send-to-node db % :new-commit (assoc storage :master masterhash)) 1 0) (filter #(not= (dbid db) %) (:nodes db))))
+      (reduce + 0 (map #(if (send-to-client db % :apply value) 1 0) (:clients db)))
+    )
   )
 )
 
