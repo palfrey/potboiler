@@ -118,6 +118,13 @@
       (additem db1 "foo") ; adds item to non-sending db to simulate disconnected
       (additem n1 "foo2") ; and then add one to the sending db
       (fact "nodes can be updated if they get out of date" (masterkey n1) => (masterkey n2))
+      (fact "history is good on non-up-to-date node" (history n2) => ["blah" "foo" "foo2"])
+
+      ; Add to both disconnected dbs
+      (additem db1 "foo3")
+      (additem db2 "bar3")
+
+      (fact "divergent nodes have differing history" (history n1) =not=> (history n2))
     )
   )
 )

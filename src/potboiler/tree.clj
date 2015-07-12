@@ -196,3 +196,12 @@
     (log/errorf "Unknown message type: %s %s" (:msgtype msg) msg)
   )
 )
+
+(defn history [db]
+  (loop [data [] current (masterkey db)]
+    (if (= current (startkey db))
+      data
+      (recur (cons (getitem db current) data) (parentkey db current))
+    )
+  )
+)
