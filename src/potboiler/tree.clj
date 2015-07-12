@@ -161,6 +161,8 @@
       (cond
         (= (masterkey db) (:master msg))
           (log/debugf "Ignoring applied message %s" msg)
+        (-> (getobject db (:master msg)) nil? not)
+          (log/debugf "%s   Ignoring already applied msg %s" (dbid db) msg)
         (= (masterkey db) (:parent msg))
           (additem db (-> msg :value fromstr))
         :default
