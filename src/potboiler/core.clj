@@ -3,7 +3,8 @@
   (:require
    [reloaded.repl :refer [system init start stop go reset]]
    [potboiler.systems :refer [prod-system]]
-   [clojure.tools.logging :as log]))
+   [taoensso.timbre :as timbre]
+   [clojure.string :as str]))
 
 (defn -main
   "Start a production system."
@@ -15,4 +16,21 @@
 (Thread/setDefaultUncaughtExceptionHandler
  (reify Thread$UncaughtExceptionHandler
    (uncaughtException [_ thread ex]
-     (log/error ex "Uncaught exception on" (.getName thread)))))
+     (timbre/error ex "Uncaught exception on" (.getName thread)))))
+
+(defn default-output-fn
+  "Default (fn [data]) -> string output fn.
+  You can modify default options with `(partial default-output-fn <opts-map>)`."
+  ([data] (default-output-fn nil data))
+  ([{:keys [no-stacktrace? stacktrace-fonts] :as opts} data]
+   (let [{:keys [level ?err_ vargs_ msg_ ?ns-str hostname_ timestamp_]} data]
+     (str
+       (force timestamp_) " "
+       (str/upper-case (name level))  " "
+       "[" (or ?ns-str "?ns") "] - "
+       (force msg_)
+       (when-not no-stacktrace?
+         (when-let [err (force ?err_)]
+           (str "\n" (timbre/stacktrace err opts))))))))
+
+(timbre/merge-config! {:level :info :output-fn default-output-fn})

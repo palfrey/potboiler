@@ -17,8 +17,9 @@
                  [pandect "0.5.2"]
                  [com.novemberain/langohr "3.2.0"]
                  [mvxcvi/puget "0.8.1"]
-                 [midje "1.6.3"]
-                 [me.raynes/fs "1.4.6"]]
+                 [midje "1.7.0"]
+                 [me.raynes/fs "1.4.6"]
+                 [com.taoensso/timbre "4.0.2"]]
   :plugins [[lein-environ "1.0.0"]
             [lein-midje "3.1.3"]]
   :offline? true

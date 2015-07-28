@@ -4,7 +4,7 @@
    [clj-leveldb :as level]
    [puget.printer :as puget]
    [clojure.edn :as edn]
-   [clojure.tools.logging :as log]
+   [taoensso.timbre :as timbre]
   )
 )
 
@@ -110,17 +110,17 @@
       (if (nil? (dbid {:db db}))
         (initdb db startval)
       )
-      {:db db :nodes [] :clients []
+      {:db db :nodes {} :clients []
         :send-to-node (fn [dest msg]
-          (log/infof "Sending message %s to %s" msg dest)
+          (timbre/infof "Sending message %s to %s" msg dest)
           true
         )
         :send-to-client (fn [dest msg]
-          (log/infof "Sending message %s to %s" msg dest)
+          (timbre/infof "Sending message %s to %s" msg dest)
           true
         )
         :recvfn (fn [src msg]
-          (log/infof "Receiving message %s from %s" msg src)
+          (timbre/infof "Receiving message %s from %s" msg src)
         )
       }
     )
@@ -128,12 +128,12 @@
 )
 
 (defn send-to-node [db dest msgtype msg]
-  (log/debugf "Sending %s -> %s %s %s" (dbid db) dest msgtype msg)
+  (timbre/debugf "Sending %s -> %s %s %s" (dbid db) dest msgtype msg)
   ((:send-to-node db) dest (assoc msg :sender (dbid db) :msgtype msgtype))
 )
 
 (defn send-to-client [db dest action data]
-  (log/debugf "Sending %s %s %s" dest action data)
+  (timbre/debugf "Sending %s %s %s" dest action data)
   ((:send-to-client db) dest {:action action :data data})
 )
 
@@ -144,7 +144,7 @@
         storage {:hash valuehash :value canonvalue :parent oldmaster}
         masterhash (sha256 (str valuehash oldmaster))
         ]
-    (log/debugf "%s: Adding '%s' resulting in new masterhash %s" (dbid db) value masterhash)
+    (timbre/debugf "%s: Adding '%s' resulting in new masterhash %s" (dbid db) value masterhash)
     (level/put (getdb db)
                masterhash (tostr storage)
                master masterhash)
@@ -159,10 +159,10 @@
   (case (:msgtype msg)
     :new-commit
       (cond
-        (= (masterkey db) (:master msg))
-          (log/debugf "Ignoring applied message %s" msg)
-        (-> (getobject db (:master msg)) nil? not)
-          (log/debugf "%s   Ignoring already applied msg %s" (dbid db) msg)
+        (= (masterkey db) (:masterhash msg))
+          (timbre/debugf "Ignoring applied message %s" msg)
+        (-> (getobject db (:masterhash msg)) nil? not)
+          (timbre/debugf "%s: Ignoring already applied msg %s" (dbid db) msg)
         (= (masterkey db) (:parent msg))
           (additem db (-> msg :value fromstr))
         :default
@@ -191,9 +191,9 @@
                 )))
           )
         )
-        (log/errorf "%s: Can't find master %s" (dbid db) (:master msg))
+        (timbre/infof "%s: Need more messages %s" (dbid db) msg)
       )
-    (log/errorf "Unknown message type: %s %s" (:msgtype msg) msg)
+    (timbre/errorf "%s: Unknown message type: %s %s" (dbid db) (:msgtype msg) msg)
   )
 )
 
