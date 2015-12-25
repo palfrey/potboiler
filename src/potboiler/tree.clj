@@ -8,6 +8,10 @@
   )
 )
 
+(defmacro non-lazy-for [& body]
+  `(doall (for ~@body))
+)
+
 (defmacro def- [id value]
   `(def ^{:public false} ~id ~value)
 )
@@ -34,8 +38,8 @@
   (assoc db :recvfn newfn)
 )
 
-(defn add-neighbour [db neighbour-id]
-  (assoc db :nodes (conj (:nodes db) neighbour-id))
+(defn add-neighbour [db neighbour-id master-hash]
+  (assoc db :nodes (assoc (:nodes db) neighbour-id {:id neighbour-id :master master-hash}))
 )
 
 (defn- getdb [db]
@@ -141,17 +145,46 @@
   (let [canonvalue (tostr value)
         valuehash (hashfn canonvalue)
         oldmaster (masterkey db)
-        storage {:hash valuehash :value canonvalue :parent oldmaster}
         masterhash (sha256 (str valuehash oldmaster))
+        storage {:masterhash masterhash :valuehash valuehash :value canonvalue :parent oldmaster}
         ]
     (timbre/debugf "%s: Adding '%s' resulting in new masterhash %s" (dbid db) value masterhash)
     (level/put (getdb db)
                masterhash (tostr storage)
                master masterhash)
     (+
-      (reduce + 0 (map #(if (send-to-node db % :new-commit (assoc storage :master masterhash)) 1 0) (filter #(not= (dbid db) %) (:nodes db))))
+      (reduce + 0 (map #(if (send-to-node db % :new-commit (assoc storage :master masterhash)) 1 0) (filter #(not= (dbid db) %) (keys (:nodes db)))))
       (reduce + 0 (map #(if (send-to-client db % :apply value) 1 0) (:clients db)))
     )
+  )
+)
+
+(defn update-to-current [db dest dest-master]
+  (let [masterhash (masterkey db)]
+    (-> (loop
+          [msgs []
+           current masterhash]
+          (cond
+            (= dest-master current)
+              msgs
+            (= (startkey db) current)
+              (do
+                (timbre/errorf "Hit startkey. Possible different start key for %s?" dest)
+                []
+              )
+            :default
+              (recur (cons (assoc (getobject db current) :master masterhash) msgs) (parentkey db current))
+          )
+        ) ((fn [msgs]
+             (doall (map #(send-to-node db dest :new-commit %) msgs))
+             )))
+  )
+)
+
+(defn greatest [x y]
+  (if (= -1 (compare x y)) ; y only goes first if x is less. equal returns x y order
+    y
+    x
   )
 )
 
@@ -171,30 +204,29 @@
     :current-master
       (if (-> (getobject db (:master msg)) nil? not)
         (do
-          (log/debugf "Have master %s %s" (:master msg) msg)
-          (let [masterhash (masterkey db)]
-            (-> (loop [msgs []
-                   current masterhash]
-              (cond
-                (= (:master msg) current)
-                  msgs
-                (= (startkey db) current)
-                  (do
-                    (log/errorf "Hit startkey. Possible different start key?")
-                    []
-                  )
-                :default
-                  (recur (cons (assoc (getobject db current) :master masterhash) msgs) (parentkey db current))
-              )
-            ) ((fn [msgs]
-                (doall (map #(send-to-node db (:sender msg) :new-commit %) msgs))
-                )))
+          (timbre/debugf "Have master %s %s" (:master msg) msg)
+          (update-to-current db (:sender msg) (:master msg))
+        )
+        (send-to-node db (:sender msg) :ancestor-commit (assoc (getobject db (parentkey db (masterkey db))) :master (masterkey db)))
+        ;(timbre/errorf "%s: Can't find master %s" (dbid db) (:master msg))
+      )
+    :ancestor-commit
+      (if (-> (getobject db (:masterhash msg)) nil? not)
+        (do
+          (timbre/infof "%s: Have common ancestor %s" (dbid db) (:masterhash msg))
+          (let [winning-id (greatest (dbid db) (:sender msg))
+                local-win (= winning-id (dbid db))
+                ]
+            (timbre/infof "%s: Won? %s" (dbid db) local-win)
+            (send-to-node db (:sender msg) :common-ancestor {:winner winning-id :common-ancestor (:masterhash msg)})
           )
         )
         (timbre/infof "%s: Need more messages %s" (dbid db) msg)
       )
     (timbre/errorf "%s: Unknown message type: %s %s" (dbid db) (:msgtype msg) msg)
   )
+  ;(timbre/debugf "Message %s" msg)
+  (assoc-in db [:nodes (:sender msg) :master] (:master msg))
 )
 
 (defn history [db]
@@ -202,6 +234,17 @@
     (if (= current (startkey db))
       data
       (recur (cons (getitem db current) data) (parentkey db current))
+    )
+  )
+)
+
+(defn resync [db]
+  (non-lazy-for [node (vals (:nodes db))]
+    (if (not= (:master node) (masterkey db))
+      (do
+        (timbre/infof "%s: %s is out of date, so updating" (dbid db) (:id node))
+        (update-to-current db (:id node) (:master node))
+      )
     )
   )
 )

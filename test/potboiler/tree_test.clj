@@ -7,10 +7,6 @@
    [clojure.tools.logging :as log])
 )
 
-(defmacro non-lazy-for [& body]
-  `(doall (for ~@body))
-)
-
 (def names ["Alpha" "Bravo" "Charlie"])
 
 (defmacro do-with-dbs
@@ -76,7 +72,7 @@
 
     (let [msgstore (atom [])
           senddb (set-node-sender db1 (fn [dest msg] (compare-and-set! msgstore @msgstore (conj @msgstore {:dest dest :msg msg}))))
-          neighbourdb (add-neighbour senddb (dbid db2))]
+          neighbourdb (add-neighbour senddb (dbid db2) (masterkey db2))]
 
       (fact "additem sends messages to one node" (additem neighbourdb "foo") => 1)
       (fact "message get sent" (count @msgstore) => 1)
@@ -92,12 +88,12 @@
     (let [nodes (atom (apply merge (map #(hash-map (dbid %) %) [db1 db2])))
           mk-sendfn (fn [src] (fn [dest msg]
                                 (do
-                                  (log/debugf "Sending message %s from %s -> %s" msg src dest)
+                                  ;(log/debugf "Sending message %s from %s -> %s" msg src dest)
                                   (->> dest (get @nodes) :recvfn (#(% src msg)))
                                 )))
           mk-recvfn (fn [dest] (fn [src msg]
                                  (do
-                                   (log/debugf "Receiving message %s from %s to %s" msg src dest)
+                                   ;(log/debugf "Receiving message %s from %s to %s" msg src dest)
                                    (->> dest (get @nodes) (#(add-from-other % msg)))
                                   )
                                 )
@@ -105,11 +101,11 @@
           n1 (-> db1
                  (#(set-node-sender % (mk-sendfn (dbid %))))
                  (#(set-receiver % (mk-recvfn (dbid %))))
-                 (#(add-neighbour % (dbid db2))))
+                 (#(add-neighbour % (dbid db2) (masterkey db1))))
           n2 (-> db2
                  (#(set-node-sender % (mk-sendfn (dbid %))))
                  (#(set-receiver % (mk-recvfn (dbid %))))
-                 (#(add-neighbour % (dbid db1))))
+                 (#(add-neighbour % (dbid db1) (masterkey db1))))
           ]
       (compare-and-set! nodes @nodes (apply merge (map #(hash-map (dbid %) %) [n1 n2])))
       (additem n1 "blah")
@@ -125,6 +121,11 @@
       (additem db2 "bar3")
 
       (fact "divergent nodes have differing history" (history n1) =not=> (history n2))
+
+      ; Now try to resync
+      (resync n1)
+      (fact "divergent nodes can resync" (masterkey n1) => (masterkey n2))
+      (fact "resynced nodes have good history" (history n2) => ["blah" "foo" "foo2" "foo3" "bar3"])
     )
   )
 )
