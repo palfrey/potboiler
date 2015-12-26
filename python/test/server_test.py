@@ -6,6 +6,8 @@ import server
 import tempfile
 import json
 import uuid
+import string
+import zmq
 
 JSONEncoder_olddefault = json.JSONEncoder.default
 def JSONEncoder_newdefault(self, o):
@@ -27,25 +29,50 @@ class ServerTest(testing.TestBase):
 		self.ports = []
 		while True:
 			port = st.integers(min_value=2000).example()
-			if port in self.ports:
-				continue
-			self.ports.append(port)
-			break
-		self.info = server.make_api(tempfile.mkdtemp(), port)
+			try:
+				self.info = server.make_api(tempfile.mkdtemp(), port)
+				break
+			except zmq.error.ZMQError as e:
+				if e.msg == "Address already in use":
+					continue
+				else:
+					raise
 		self.api = self.info["api"]
 		self.existing_stores = []
 
 	def after(self):
 		self.info["event"].set()
+		self.info["clients"].clear()
 
 	@given(st.text(min_size = 1))
 	def test_clients_dislikes_args(self, s):
 		res = self.simulate_request("/clients", body = s)
 		self.assertEqual(self.srmock.status, falcon.HTTP_400)
 
-	def test_clients_is_empty(self):
+	def get_client_list(self):
 		res = self.simulate_request("/clients")
 		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+		data = json.loads(res[0].decode("utf-8"))
+		return data
+
+	def test_clients_works(self):
+		data = self.get_client_list()
+		self.assertEqual(type(data), list)
+		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+
+	@given(st.fixed_dictionaries({
+		'host': st.text(alphabet=list(string.ascii_letters) + list(string.digits) + ["-"], min_size = 1),
+		'port': st.integers(min_value = 1)
+	}))
+	def test_clients_can_be_added(self, s):
+		assume(not s["host"].startswith("-"))
+		existing_clients = self.get_client_list()
+		res = self.simulate_request("/clients", body = json.dumps(s), method = 'PUT')
+		note(res)
+		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+		clients_now = self.get_client_list()
+		new_clients = [x for x in clients_now if x not in existing_clients]
+		self.assertEqual([[s["host"], s["port"]]], new_clients)
 
 	@given(st.text())
 	def test_store_cant_decode_random_text(self, s):

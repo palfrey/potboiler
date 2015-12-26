@@ -12,8 +12,10 @@ def UUID(value):
 	return uuid.UUID(value)
 
 class Client:
-	def __init__(self, zmq):
+	def __init__(self, zmq, host, port):
 		self.zmq = zmq
+		self.host = host
+		self.port = port
 
 class JSONResource:
 	def check_req(self, req):
@@ -21,23 +23,23 @@ class JSONResource:
 			data = json.loads(req.stream.read().decode("utf-8"))
 			if type(data) != dict:
 				raise falcon.HTTPBadRequest("Invalid JSON", "Request was not a JSON dictionary")
-			StoreResource.schema(data)
+			self.schema(data)
 			return data
 		except ValueError:
 			raise falcon.HTTPBadRequest("Invalid JSON", "Request was not valid JSON")
 		except MultipleInvalid as e:
-			raise falcon.HTTPInvalidParam("Invalid keys", e.msg)
+			raise falcon.HTTPBadRequest("Invalid keys", str(e))
 
 class ClientResource(JSONResource):
-	def __init__(self, context, poller):
-		self.clients = []
+	def __init__(self, context, poller, clients):
+		self.clients = clients
 		self.context = context
 		self.poller = poller
 
 	def on_get(self, req, resp):
 		if len(req.stream.read()) > 0:
 			raise falcon.HTTPBadRequest("clients accepts no arguments", "Gave a body to a method that doesn't accept one")
-		return self.clients
+		resp.body = json.dumps(list(self.clients.keys()))
 
 	schema = Schema({
 		Required("host"): All(str, Length(min=1)),
@@ -46,10 +48,11 @@ class ClientResource(JSONResource):
 
 	def on_put(self, req, resp):
 		data = self.check_req(req)
-		zmq = self.context.socket(zmq.SUB)
-		zmq.connect("tcp://{host}:{port}".format(**data))
-		self.poller.append(zmq)
-		self.clients.append(Client(zmq))
+		conn = self.context.socket(zmq.SUB)
+		host, port = data["host"], data["port"]
+		conn.connect("tcp://{host}:{port}".format(**data))
+		self.poller.register(conn)
+		self.clients[(host,port)] = Client(conn, host, port)
 
 class StoreResource(JSONResource):
 	def __init__(self, db):
@@ -84,14 +87,15 @@ def ZMQ(poller, event):
 			break
 		except zmq.error.ContextTerminated:
 			break
-		print ("socks", socks)
+		raise Exception("socks", socks)
 
 def make_api(db_path = "./db", port = "5555"):
 	api = falcon.API()
 	db = leveldb.LevelDB(db_path, paranoid_checks = True)
 	context = zmq.Context.instance()
 	poller = zmq.Poller()
-	api.add_route('/clients', ClientResource(context, poller))
+	client_list = {}
+	api.add_route('/clients', ClientResource(context, poller, client_list))
 	api.add_route('/store', StoreResource(db))
 	clients = context.socket(zmq.ROUTER)
 	clients.bind("tcp://*:" + str(port))
@@ -99,7 +103,7 @@ def make_api(db_path = "./db", port = "5555"):
 	event = threading.Event()
 	thread = threading.Thread(target=ZMQ, args=(poller, event), daemon = True)
 	thread.start()
-	return {"api": api, "context": context, "thread": thread, "event": event}
+	return {"api": api, "context": context, "thread": thread, "event": event, "db": db, "clients": client_list}
 
 if __name__ == "__main__":
 	api = make_api()["api"]
