@@ -4,11 +4,13 @@ gunicorn
 hypothesis
 leveldb
 psycopg2
-pytest-cov
-pytest-xdist
-pytest
 wheel
 zmq
 
 # for rebuilding requirements.txt
 pip-tools
+
+sniffer
+MacFSEvents
+
+voluptuous
