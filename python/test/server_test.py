@@ -34,6 +34,15 @@ class ServerTest(testing.TestBase):
 		self.api = server.make_api(tempfile.mkdtemp(), port)
 		self.existing_stores = []
 
+	@given(st.text(min_size = 1))
+	def test_clients_dislikes_args(self, s):
+		res = self.simulate_request("/clients", body = s)
+		self.assertEqual(self.srmock.status, falcon.HTTP_400)
+
+	def test_clients_is_empty(self):
+		res = self.simulate_request("/clients")
+		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+
 	@given(st.text())
 	def test_store_cant_decode_random_text(self, s):
 		res = self.simulate_request("/store", body = s, method = 'PUT')
@@ -48,7 +57,7 @@ class ServerTest(testing.TestBase):
 	def test_store_likes_proper_stores(self, s):
 		assume(s["entry_id"] not in self.existing_stores)
 		res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
-		note(self.srmock.__dict__)
+		note(res)
 		self.assertEqual(self.srmock.status, falcon.HTTP_200)
 		self.existing_stores.append(s["entry_id"])
 

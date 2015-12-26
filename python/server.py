@@ -15,7 +15,29 @@ class Client:
     def __init__(self):
         self.zmq = None
 
-class StoreResource:
+class JSONResource:
+    def check_req(self, req):
+        try:
+            data = json.loads(req.stream.read().decode("utf-8"))
+            if type(data) != dict:
+                raise falcon.HTTPBadRequest("Invalid JSON", "Request was not a JSON dictionary")
+            StoreResource.schema(data)
+            return data
+        except ValueError:
+            raise falcon.HTTPBadRequest("Invalid JSON", "Request was not valid JSON")
+        except MultipleInvalid as e:
+            raise falcon.HTTPInvalidParam("Invalid keys", e.msg)
+
+class ClientResource(JSONResource):
+    def __init__(self):
+        self.clients = []
+
+    def on_get(self, req, resp):
+        if len(req.stream.read()) > 0:
+            raise falcon.HTTPBadRequest("clients accepts no arguments", "Gave a body to a method that doesn't accept one")
+        return self.clients
+
+class StoreResource(JSONResource):
     def __init__(self, db):
         self.db = db
 
@@ -27,21 +49,13 @@ class StoreResource:
     })
 
     def on_put(self, req, resp):
+        data = self.check_req(req)
+        key = data["entry_id"].encode("utf-8")
         try:
-            data = json.loads(req.stream.read().decode("utf-8"))
-            if type(data) != dict:
-                raise falcon.HTTPBadRequest("Invalid JSON", "Request was not a JSON dictionary")
-            StoreResource.schema(data)
-            key = data["entry_id"].encode("utf-8")
-            try:
-                existing = self.db.Get(key)
-                raise falcon.HTTPConflict("Duplicate key", "Already have entry for %s" % key)
-            except KeyError:
-                self.db.Put(key, json.dumps(data["data"]).encode("utf-8"))
-        except ValueError:
-            raise falcon.HTTPBadRequest("Invalid JSON", "Request was not valid JSON")
-        except MultipleInvalid as e:
-            raise falcon.HTTPInvalidParam("Invalid keys", e.msg)
+            existing = self.db.Get(key)
+            raise falcon.HTTPConflict("Duplicate key", "Already have entry for %s" % key)
+        except KeyError:
+            self.db.Put(key, json.dumps(data["data"]).encode("utf-8"))
 
 def ZMQ(poller):
 	while True:
@@ -57,6 +71,7 @@ def ZMQ(poller):
 def make_api(db_path = "./db", port = "5555"):
     api = falcon.API()
     db = leveldb.LevelDB(db_path, paranoid_checks = True)
+    api.add_route('/clients', ClientResource())
     api.add_route('/store', StoreResource(db))
     context = zmq.Context.instance()
     clients = context.socket(zmq.ROUTER)
