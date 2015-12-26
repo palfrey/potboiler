@@ -16,6 +16,7 @@ class Client:
 		self.zmq = zmq
 		self.host = host
 		self.port = port
+		self.tables = {}
 
 class JSONResource:
 	def check_req(self, req):
@@ -39,7 +40,7 @@ class ClientResource(JSONResource):
 	def on_get(self, req, resp):
 		if len(req.stream.read()) > 0:
 			raise falcon.HTTPBadRequest("clients accepts no arguments", "Gave a body to a method that doesn't accept one")
-		resp.body = json.dumps(list(self.clients.keys()))
+		resp.body = json.dumps(dict([("%s:%s"%k, self.clients[k].tables) for k in self.clients.keys()]))
 
 	schema = Schema({
 		Required("host"): All(str, Length(min=1)),

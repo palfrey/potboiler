@@ -1,8 +1,9 @@
+import potboiler
+
 import falcon.testing as testing
 import falcon
 from hypothesis import given, note, assume
 import hypothesis.strategies as st
-import server
 import tempfile
 import json
 import uuid
@@ -30,10 +31,10 @@ class ServerTest(testing.TestBase):
 		while True:
 			port = st.integers(min_value=2000).example()
 			try:
-				self.info = server.make_api(tempfile.mkdtemp(), port)
+				self.info = potboiler.make_api(tempfile.mkdtemp(), port)
 				break
 			except zmq.error.ZMQError as e:
-				if e.msg == "Address already in use":
+				if e.strerror == "Address already in use":
 					continue
 				else:
 					raise
@@ -57,22 +58,20 @@ class ServerTest(testing.TestBase):
 
 	def test_clients_works(self):
 		data = self.get_client_list()
-		self.assertEqual(type(data), list)
+		self.assertEqual(type(data), dict)
 		self.assertEqual(self.srmock.status, falcon.HTTP_200)
 
 	@given(st.fixed_dictionaries({
-		'host': st.text(alphabet=list(string.ascii_letters) + list(string.digits) + ["-"], min_size = 1),
+		'host': st.text(alphabet=string.ascii_letters + string.digits + "-", min_size = 3, average_size = 5),
 		'port': st.integers(min_value = 1)
 	}))
 	def test_clients_can_be_added(self, s):
 		assume(not s["host"].startswith("-"))
-		existing_clients = self.get_client_list()
 		res = self.simulate_request("/clients", body = json.dumps(s), method = 'PUT')
-		note(res)
 		self.assertEqual(self.srmock.status, falcon.HTTP_200)
 		clients_now = self.get_client_list()
-		new_clients = [x for x in clients_now if x not in existing_clients]
-		self.assertEqual([[s["host"], s["port"]]], new_clients)
+		note("now: %r" % clients_now)
+		self.assertTrue("{host}:{port}".format(**s) in clients_now.keys())
 
 	@given(st.text())
 	def test_store_cant_decode_random_text(self, s):
@@ -88,7 +87,7 @@ class ServerTest(testing.TestBase):
 	def test_store_likes_proper_stores(self, s):
 		assume(s["entry_id"] not in self.existing_stores)
 		res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
-		note(res)
+		note("res: %r" % res)
 		self.assertEqual(self.srmock.status, falcon.HTTP_200)
 		self.existing_stores.append(s["entry_id"])
 
