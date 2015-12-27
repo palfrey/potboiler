@@ -27,7 +27,6 @@ valid_msg = st.fixed_dictionaries({
 
 class ServerTest(testing.TestBase):
 	def before(self):
-		self.ports = []
 		while True:
 			port = st.integers(min_value=2000).example()
 			try:
@@ -39,7 +38,7 @@ class ServerTest(testing.TestBase):
 				else:
 					raise
 		self.api = self.info["api"]
-		self.existing_stores = []
+		self.existing_stores = list(self.info["db"].RangeIter(include_value = False))
 
 	def after(self):
 		self.info["event"].set()
@@ -83,20 +82,41 @@ class ServerTest(testing.TestBase):
 		res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
 		self.assertEqual(self.srmock.status, falcon.HTTP_400)
 
+	def store_item(self, msg):
+		if msg["entry_id"] not in self.existing_stores:
+			res = self.simulate_request("/store", body = json.dumps(msg), method = 'PUT')
+			note("res: %r" % res)
+			note("db: %r" % list(self.info["db"].RangeIter(include_value = False)))
+			self.assertEqual(self.srmock.status, falcon.HTTP_200)
+			self.existing_stores.append(msg["entry_id"])
+
 	@given(valid_msg)
 	def test_store_likes_proper_stores(self, s):
-		assume(s["entry_id"] not in self.existing_stores)
-		res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
-		note("res: %r" % res)
-		self.assertEqual(self.srmock.status, falcon.HTTP_200)
-		self.existing_stores.append(s["entry_id"])
+		self.store_item(s)
 
 	@given(valid_msg)
 	def test_store_forbids_double_store(self, s):
-		assume(s["entry_id"] not in self.existing_stores)
-		res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
-		note(self.srmock.__dict__)
-		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+		self.store_item(s)
 		res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
 		self.assertEqual(self.srmock.status, falcon.HTTP_409)
-		self.existing_stores.append(s["entry_id"])
+
+	def test_can_get_tables(self):
+		res = self.simulate_request("/tables")
+		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+		data = json.loads(res[0].decode("utf-8"))
+		self.assertEqual(dict, type(data))
+
+	@given(valid_msg)
+	def test_can_get_tables(self, msg):
+		assume(msg["entry_id"] not in self.existing_stores)
+		res = self.simulate_request("/store", body = json.dumps(msg), method = 'PUT')
+		note("res: %r" % res)
+		note("db: %r" % list(self.info["db"].RangeIter(include_value = False)))
+		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+		self.existing_stores.append(msg["entry_id"])
+		res = self.simulate_request("/tables")
+		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+		data = json.loads(res[0].decode("utf-8"))
+		self.assertEqual(dict, type(data))
+		note("Data: %r" % data)
+		self.assertTrue(msg["table"] in data.keys())
