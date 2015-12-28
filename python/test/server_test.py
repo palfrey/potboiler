@@ -18,12 +18,16 @@ json.JSONEncoder.default = JSONEncoder_newdefault
 
 json_st = st.recursive(st.floats() | st.booleans() | st.text() | st.none(), lambda children: st.lists(children) | st.dictionaries(st.text(), children))
 
-valid_msg = st.fixed_dictionaries({
-	'table': st.text(min_size=1),
-	'id': st.uuids(),
-	'entry_id': st.uuids(),
-	'data': st.dictionaries(st.text(), st.floats() | st.booleans() | st.text() | st.none())
-})
+def msg_gen(table):
+	return st.fixed_dictionaries({
+		'table': table,
+		'id': st.uuids(),
+		'entry_id': st.uuids(),
+		'data': st.dictionaries(st.text(), st.floats() | st.booleans() | st.text() | st.none())
+	})
+
+valid_msg = msg_gen(st.text(min_size=1))
+same_table_msg = st.text(min_size=1).flatmap(lambda t: msg_gen(st.just(t)))
 
 class ServerTest(testing.TestBase):
 	def before(self):
@@ -43,6 +47,7 @@ class ServerTest(testing.TestBase):
 	def after(self):
 		self.info["event"].set()
 		self.info["clients"].clear()
+		self.info["db"] = None
 
 	@given(st.text(min_size = 1))
 	def test_clients_dislikes_args(self, s):
@@ -119,4 +124,18 @@ class ServerTest(testing.TestBase):
 		data = json.loads(res[0].decode("utf-8"))
 		self.assertEqual(dict, type(data))
 		note("Data: %r" % data)
-		self.assertTrue(msg["table"] in data.keys())
+		self.assertIn(msg["table"], data.keys())
+		#self.assertIn("key", data[msg["table"]].keys())
+		#self.assertIsNotNone(msg["table"])
+
+	@given(same_table_msg, same_table_msg)
+	def test_multiple_table_insert(self, first, second):
+		self.store_item(first)
+		self.store_item(second)
+		res = self.simulate_request("/tables")
+		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+		data = json.loads(res[0].decode("utf-8"))
+		self.assertEqual(dict, type(data))
+		note("Data: %r" % data)
+		self.assertTrue(first["table"] in data.keys())
+		#raise Exception("%r - %r"%(first, second))
