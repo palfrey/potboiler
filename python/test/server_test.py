@@ -9,6 +9,7 @@ import json
 import uuid
 import string
 import zmq
+import contextlib
 
 JSONEncoder_olddefault = json.JSONEncoder.default
 def JSONEncoder_newdefault(self, o):
@@ -49,6 +50,12 @@ class ServerTest(testing.TestBase):
 		self.info["clients"].clear()
 		self.info["db"] = None
 
+	@contextlib.contextmanager
+	def withDB(self):
+		self.before()
+		yield
+		self.after()
+
 	@given(st.text(min_size = 1))
 	def test_clients_dislikes_args(self, s):
 		res = self.simulate_request("/clients", body = s)
@@ -88,22 +95,23 @@ class ServerTest(testing.TestBase):
 		self.assertEqual(self.srmock.status, falcon.HTTP_400)
 
 	def store_item(self, msg):
-		if msg["entry_id"] not in self.existing_stores:
-			res = self.simulate_request("/store", body = json.dumps(msg), method = 'PUT')
-			note("res: %r" % res)
-			note("db: %r" % list(self.info["db"].RangeIter(include_value = False)))
-			self.assertEqual(self.srmock.status, falcon.HTTP_200)
-			self.existing_stores.append(msg["entry_id"])
+		res = self.simulate_request("/store", body = json.dumps(msg), method = 'PUT')
+		note("res: %r" % res)
+		note("db: %r" % list(self.info["db"].RangeIter(include_value = False)))
+		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+		self.existing_stores.append(msg["entry_id"])
 
 	@given(valid_msg)
 	def test_store_likes_proper_stores(self, s):
-		self.store_item(s)
+		with self.withDB():
+			self.store_item(s)
 
 	@given(valid_msg)
 	def test_store_forbids_double_store(self, s):
-		self.store_item(s)
-		res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
-		self.assertEqual(self.srmock.status, falcon.HTTP_409)
+		with self.withDB():
+			self.store_item(s)
+			res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
+			self.assertEqual(self.srmock.status, falcon.HTTP_409)
 
 	def test_can_get_tables(self):
 		res = self.simulate_request("/tables")
@@ -113,29 +121,29 @@ class ServerTest(testing.TestBase):
 
 	@given(valid_msg)
 	def test_can_get_tables(self, msg):
-		assume(msg["entry_id"] not in self.existing_stores)
-		res = self.simulate_request("/store", body = json.dumps(msg), method = 'PUT')
-		note("res: %r" % res)
-		note("db: %r" % list(self.info["db"].RangeIter(include_value = False)))
-		self.assertEqual(self.srmock.status, falcon.HTTP_200)
-		self.existing_stores.append(msg["entry_id"])
-		res = self.simulate_request("/tables")
-		self.assertEqual(self.srmock.status, falcon.HTTP_200)
-		data = json.loads(res[0].decode("utf-8"))
-		self.assertEqual(dict, type(data))
-		note("Data: %r" % data)
-		self.assertIn(msg["table"], data.keys())
-		#self.assertIn("key", data[msg["table"]].keys())
-		#self.assertIsNotNone(msg["table"])
+		with self.withDB():
+			res = self.simulate_request("/store", body = json.dumps(msg), method = 'PUT')
+			note("res: %r" % res)
+			note("db: %r" % list(self.info["db"].RangeIter(include_value = False)))
+			self.assertEqual(self.srmock.status, falcon.HTTP_200)
+			self.existing_stores.append(msg["entry_id"])
+			res = self.simulate_request("/tables")
+			self.assertEqual(self.srmock.status, falcon.HTTP_200)
+			data = json.loads(res[0].decode("utf-8"))
+			self.assertEqual(dict, type(data))
+			note("Data: %r" % data)
+			self.assertIn(msg["table"], data.keys())
+			self.assertIn("key", data[msg["table"]].keys())
 
 	@given(same_table_msg, same_table_msg)
 	def test_multiple_table_insert(self, first, second):
-		self.store_item(first)
-		self.store_item(second)
-		res = self.simulate_request("/tables")
-		self.assertEqual(self.srmock.status, falcon.HTTP_200)
-		data = json.loads(res[0].decode("utf-8"))
-		self.assertEqual(dict, type(data))
-		note("Data: %r" % data)
-		self.assertTrue(first["table"] in data.keys())
+		with self.withDB():
+			self.store_item(first)
+			self.store_item(second)
+			res = self.simulate_request("/tables")
+			self.assertEqual(self.srmock.status, falcon.HTTP_200)
+			data = json.loads(res[0].decode("utf-8"))
+			self.assertEqual(dict, type(data))
+			note("Data: %r" % data)
+			self.assertTrue(first["table"] in data.keys())
 		#raise Exception("%r - %r"%(first, second))
