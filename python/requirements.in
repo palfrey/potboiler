@@ -7,10 +7,12 @@ psycopg2
 wheel
 zmq
 
+voluptuous
+pytest
+pytest-xdist
+
 # for rebuilding requirements.txt
 pip-tools
 
 sniffer
 MacFSEvents
-
-voluptuous
