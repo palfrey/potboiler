@@ -44,22 +44,33 @@ class ServerTest(testing.TestBase):
 					raise
 		self.api = self.info["api"]
 		self.existing_stores = list(self.info["db"].RangeIter(include_value = False))
-
-	def after(self):
-		self.info["event"].set()
-		self.info["clients"].clear()
-		self.info["db"] = None
+		self.db = self.info["db"]
 
 	@contextlib.contextmanager
 	def withDB(self):
-		self.before()
-		yield
-		self.after()
+		try:
+			# Clear out any existing keys
+			keys = list(self.db.RangeIter(include_value = False))
+			for k in keys:
+				if k == potboiler.table_key:
+					value = json.loads(self.db.Get(k).decode("utf-8"))
+					if value != {}:
+						self.db.Put(k, "{}".encode("utf-8"))
+					continue
+				else:
+					self.db.Delete(k)
+			yield
+		finally:
+			if not hasattr(self, "info"):
+				return
+			self.info["event"].set()
+			self.info["clients"].clear()
 
 	@given(st.text(min_size = 1))
 	def test_clients_dislikes_args(self, s):
-		res = self.simulate_request("/clients", body = s)
-		self.assertEqual(self.srmock.status, falcon.HTTP_400)
+		with self.withDB():
+			res = self.simulate_request("/clients", body = s)
+			self.assertEqual(self.srmock.status, falcon.HTTP_400)
 
 	def get_client_list(self):
 		res = self.simulate_request("/clients")
@@ -68,31 +79,35 @@ class ServerTest(testing.TestBase):
 		return data
 
 	def test_clients_works(self):
-		data = self.get_client_list()
-		self.assertEqual(type(data), dict)
-		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+		with self.withDB():
+			data = self.get_client_list()
+			self.assertEqual(type(data), dict)
+			self.assertEqual(self.srmock.status, falcon.HTTP_200)
 
 	@given(st.fixed_dictionaries({
 		'host': st.text(alphabet=string.ascii_letters + string.digits + "-", min_size = 3, average_size = 5),
 		'port': st.integers(min_value = 1)
 	}))
 	def test_clients_can_be_added(self, s):
-		assume(not s["host"].startswith("-"))
-		res = self.simulate_request("/clients", body = json.dumps(s), method = 'PUT')
-		self.assertEqual(self.srmock.status, falcon.HTTP_200)
-		clients_now = self.get_client_list()
-		note("now: %r" % clients_now)
-		self.assertTrue("{host}:{port}".format(**s) in clients_now.keys())
+		with self.withDB():
+			assume(not s["host"].startswith("-"))
+			res = self.simulate_request("/clients", body = json.dumps(s), method = 'PUT')
+			self.assertEqual(self.srmock.status, falcon.HTTP_200)
+			clients_now = self.get_client_list()
+			note("now: %r" % clients_now)
+			self.assertTrue("{host}:{port}".format(**s) in clients_now.keys())
 
 	@given(st.text())
 	def test_store_cant_decode_random_text(self, s):
-		res = self.simulate_request("/store", body = s, method = 'PUT')
-		self.assertEqual(self.srmock.status, falcon.HTTP_400)
+		with self.withDB():
+			res = self.simulate_request("/store", body = s, method = 'PUT')
+			self.assertEqual(self.srmock.status, falcon.HTTP_400)
 
 	@given(json_st)
 	def test_store_doesnt_like_random_json(self, s):
-		res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
-		self.assertEqual(self.srmock.status, falcon.HTTP_400)
+		with self.withDB():
+			res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
+			self.assertEqual(self.srmock.status, falcon.HTTP_400)
 
 	def store_item(self, msg):
 		res = self.simulate_request("/store", body = json.dumps(msg), method = 'PUT')

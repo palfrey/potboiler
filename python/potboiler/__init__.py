@@ -78,8 +78,8 @@ class StoreResource(JSONResource):
 			self.db.Put(key, json.dumps(data["data"]).encode("utf-8"))
 			tables = json.loads(self.db.Get(table_key).decode("utf-8"))
 			if data["table"] not in tables:
-				tables[data["table"]] = {}
-				self.db.Put(table_key, json.dumps(tables).encode("utf-8"))
+				tables[data["table"]] = {"key": data["entry_id"]}
+			self.db.Put(table_key, json.dumps(tables).encode("utf-8"))
 
 
 class TableResource(JSONResource):
