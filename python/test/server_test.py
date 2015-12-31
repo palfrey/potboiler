@@ -137,22 +137,20 @@ class ServerTest(testing.TestBase):
 	@given(valid_msg)
 	def test_can_get_tables(self, msg):
 		with self.withDB():
-			res = self.simulate_request("/store", body = json.dumps(msg), method = 'PUT')
-			note("res: %r" % res)
-			note("db: %r" % list(self.info["db"].RangeIter(include_value = False)))
-			self.assertEqual(self.srmock.status, falcon.HTTP_200)
-			self.existing_stores.append(msg["entry_id"])
+			self.store_item(msg)
 			res = self.simulate_request("/tables")
 			self.assertEqual(self.srmock.status, falcon.HTTP_200)
 			data = json.loads(res[0].decode("utf-8"))
 			self.assertEqual(dict, type(data))
-			note("Data: %r" % data)
+			note("Table data: %r" % data)
 			self.assertIn(msg["table"], data.keys())
 			self.assertIn("key", data[msg["table"]].keys())
+			self.assertEqual(str(msg["entry_id"]), data[msg["table"]]["key"])
 
 	@given(same_table_msg, same_table_msg)
 	def test_multiple_table_insert(self, first, second):
 		with self.withDB():
+			second["table"] = first["table"]
 			self.store_item(first)
 			self.store_item(second)
 			res = self.simulate_request("/tables")
@@ -161,4 +159,4 @@ class ServerTest(testing.TestBase):
 			self.assertEqual(dict, type(data))
 			note("Data: %r" % data)
 			self.assertTrue(first["table"] in data.keys())
-		#raise Exception("%r - %r"%(first, second))
+			self.assertEqual(str(second["entry_id"]), data[first["table"]]["key"])
