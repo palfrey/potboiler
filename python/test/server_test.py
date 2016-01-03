@@ -146,11 +146,13 @@ class ServerTest(testing.TestBase):
 			self.assertIn(msg["table"], data.keys())
 			self.assertIn("key", data[msg["table"]].keys())
 			self.assertEqual(str(msg["entry_id"]), data[msg["table"]]["key"])
+			self.assertIn("previous", data[msg["table"]].keys())
+			self.assertEqual(None, data[msg["table"]]["previous"])
 
 	@given(same_table_msg, same_table_msg)
 	def test_multiple_table_insert(self, first, second):
 		with self.withDB():
-			second["table"] = first["table"]
+			table = second["table"] = first["table"]
 			self.store_item(first)
 			self.store_item(second)
 			res = self.simulate_request("/tables")
@@ -159,4 +161,5 @@ class ServerTest(testing.TestBase):
 			self.assertEqual(dict, type(data))
 			note("Data: %r" % data)
 			self.assertTrue(first["table"] in data.keys())
-			self.assertEqual(str(second["entry_id"]), data[first["table"]]["key"])
+			self.assertEqual(str(second["entry_id"]), data[table]["key"])
+			self.assertEqual(str(first["entry_id"]), data[table]["previous"])
