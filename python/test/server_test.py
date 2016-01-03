@@ -28,7 +28,8 @@ def msg_gen(kind):
 	})
 
 valid_msg = msg_gen(st.text(min_size=1))
-same_kind_msg = st.text(min_size=1).flatmap(lambda t: msg_gen(st.just(t)))
+def same_kind_msg(count):
+	return st.text(min_size=1).flatmap(lambda t: st.lists(msg_gen(st.just(t)), min_size = count, max_size = count))
 
 class ServerTest(testing.TestBase):
 	def before(self):
@@ -149,10 +150,11 @@ class ServerTest(testing.TestBase):
 			self.assertIn("previous", data[msg["kind"]].keys())
 			self.assertEqual(None, data[msg["kind"]]["previous"])
 
-	@given(same_kind_msg, same_kind_msg)
-	def test_multiple_kind_insert(self, first, second):
+	@given(same_kind_msg(2))
+	def test_multiple_kind_insert(self, items):
+		first, second = items
 		with self.withDB():
-			kind = second["kind"] = first["kind"]
+			kind = first["kind"] # always the same as second["kind"]
 			self.store_item(first)
 			self.store_item(second)
 			res = self.simulate_request("/kinds")
