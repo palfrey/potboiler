@@ -8,7 +8,7 @@ import json
 from voluptuous import Schema, Required, All, Length, MultipleInvalid, Extra, Range
 import uuid
 
-table_key = b"_tables"
+kind_key = b"_kinds"
 
 def UUID(value):
 	return uuid.UUID(value)
@@ -18,7 +18,7 @@ class Client:
 		self.zmq = zmq
 		self.host = host
 		self.port = port
-		self.tables = {}
+		self.kinds = {}
 
 class JSONResource:
 	def check_req(self, req):
@@ -42,7 +42,7 @@ class ClientResource(JSONResource):
 	def on_get(self, req, resp):
 		if len(req.stream.read()) > 0:
 			raise falcon.HTTPBadRequest("clients accepts no arguments", "Gave a body to a method that doesn't accept one")
-		resp.body = json.dumps(dict([("%s:%s"%k, self.clients[k].tables) for k in self.clients.keys()]))
+		resp.body = json.dumps(dict([("%s:%s"%k, self.clients[k].kinds) for k in self.clients.keys()]))
 
 	schema = Schema({
 		Required("host"): All(str, Length(min=1)),
@@ -62,7 +62,7 @@ class StoreResource(JSONResource):
 		self.db = db
 
 	schema = Schema({
-		Required("table"): All(str, Length(min=1)),
+		Required("kind"): All(str, Length(min=1)),
 		Required("id"): UUID,
 		Required("entry_id"): UUID,
 		Required("data"): {Extra: object}
@@ -76,20 +76,20 @@ class StoreResource(JSONResource):
 			raise falcon.HTTPConflict("Duplicate key", "Already have entry for %s: %s" % (data["entry_id"], existing))
 		except KeyError:
 			self.db.Put(key, json.dumps(data["data"]).encode("utf-8"))
-			tables = json.loads(self.db.Get(table_key).decode("utf-8"))
-			if data["table"] not in tables:
-				tables[data["table"]] = {"key": data["entry_id"], "previous": None}
+			kinds = json.loads(self.db.Get(kind_key).decode("utf-8"))
+			if data["kind"] not in kinds:
+				kinds[data["kind"]] = {"key": data["entry_id"], "previous": None}
 			else:
-				tables[data["table"]] = {"key": data["entry_id"], "previous": tables[data["table"]]["key"]}
-			self.db.Put(table_key, json.dumps(tables).encode("utf-8"))
+				kinds[data["kind"]] = {"key": data["entry_id"], "previous": kinds[data["kind"]]["key"]}
+			self.db.Put(kind_key, json.dumps(kinds).encode("utf-8"))
 
 
-class TableResource(JSONResource):
+class KindResource(JSONResource):
 	def __init__(self, db):
 		self.db = db
 
 	def on_get(self, req, resp):
-		resp.body = self.db.Get(table_key)
+		resp.body = self.db.Get(kind_key)
 
 def ZMQ(poller, event):
 	while True:
@@ -110,16 +110,16 @@ def make_api(db_path = "./db", port = "5555"):
 	api = falcon.API()
 	db = leveldb.LevelDB(db_path, paranoid_checks = True)
 	try:
-		db.Get(table_key)
+		db.Get(kind_key)
 		raise Exception
 	except KeyError:
-		db.Put(table_key, json.dumps({}).encode("utf-8"))
+		db.Put(kind_key, json.dumps({}).encode("utf-8"))
 	context = zmq.Context.instance()
 	poller = zmq.Poller()
 	client_list = {}
 	api.add_route('/clients', ClientResource(context, poller, client_list))
 	api.add_route('/store', StoreResource(db))
-	api.add_route('/tables', TableResource(db))
+	api.add_route('/kinds', KindResource(db))
 	clients = context.socket(zmq.ROUTER)
 	clients.bind("tcp://*:" + str(port))
 	poller.register(clients, zmq.POLLIN)

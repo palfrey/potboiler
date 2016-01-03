@@ -19,16 +19,16 @@ json.JSONEncoder.default = JSONEncoder_newdefault
 
 json_st = st.recursive(st.floats() | st.booleans() | st.text() | st.none(), lambda children: st.lists(children) | st.dictionaries(st.text(), children))
 
-def msg_gen(table):
+def msg_gen(kind):
 	return st.fixed_dictionaries({
-		'table': table,
+		'kind': kind,
 		'id': st.uuids(),
 		'entry_id': st.uuids(),
 		'data': st.dictionaries(st.text(), st.floats() | st.booleans() | st.text() | st.none())
 	})
 
 valid_msg = msg_gen(st.text(min_size=1))
-same_table_msg = st.text(min_size=1).flatmap(lambda t: msg_gen(st.just(t)))
+same_kind_msg = st.text(min_size=1).flatmap(lambda t: msg_gen(st.just(t)))
 
 class ServerTest(testing.TestBase):
 	def before(self):
@@ -52,7 +52,7 @@ class ServerTest(testing.TestBase):
 			# Clear out any existing keys
 			keys = list(self.db.RangeIter(include_value = False))
 			for k in keys:
-				if k == potboiler.table_key:
+				if k == potboiler.kind_key:
 					value = json.loads(self.db.Get(k).decode("utf-8"))
 					if value != {}:
 						self.db.Put(k, "{}".encode("utf-8"))
@@ -128,38 +128,38 @@ class ServerTest(testing.TestBase):
 			res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
 			self.assertEqual(self.srmock.status, falcon.HTTP_409)
 
-	def test_can_get_tables(self):
-		res = self.simulate_request("/tables")
+	def test_can_get_kinds(self):
+		res = self.simulate_request("/kinds")
 		self.assertEqual(self.srmock.status, falcon.HTTP_200)
 		data = json.loads(res[0].decode("utf-8"))
 		self.assertEqual(dict, type(data))
 
 	@given(valid_msg)
-	def test_can_get_tables(self, msg):
+	def test_can_get_kinds(self, msg):
 		with self.withDB():
 			self.store_item(msg)
-			res = self.simulate_request("/tables")
+			res = self.simulate_request("/kinds")
 			self.assertEqual(self.srmock.status, falcon.HTTP_200)
 			data = json.loads(res[0].decode("utf-8"))
 			self.assertEqual(dict, type(data))
-			note("Table data: %r" % data)
-			self.assertIn(msg["table"], data.keys())
-			self.assertIn("key", data[msg["table"]].keys())
-			self.assertEqual(str(msg["entry_id"]), data[msg["table"]]["key"])
-			self.assertIn("previous", data[msg["table"]].keys())
-			self.assertEqual(None, data[msg["table"]]["previous"])
+			note("kind data: %r" % data)
+			self.assertIn(msg["kind"], data.keys())
+			self.assertIn("key", data[msg["kind"]].keys())
+			self.assertEqual(str(msg["entry_id"]), data[msg["kind"]]["key"])
+			self.assertIn("previous", data[msg["kind"]].keys())
+			self.assertEqual(None, data[msg["kind"]]["previous"])
 
-	@given(same_table_msg, same_table_msg)
-	def test_multiple_table_insert(self, first, second):
+	@given(same_kind_msg, same_kind_msg)
+	def test_multiple_kind_insert(self, first, second):
 		with self.withDB():
-			table = second["table"] = first["table"]
+			kind = second["kind"] = first["kind"]
 			self.store_item(first)
 			self.store_item(second)
-			res = self.simulate_request("/tables")
+			res = self.simulate_request("/kinds")
 			self.assertEqual(self.srmock.status, falcon.HTTP_200)
 			data = json.loads(res[0].decode("utf-8"))
 			self.assertEqual(dict, type(data))
 			note("Data: %r" % data)
-			self.assertTrue(first["table"] in data.keys())
-			self.assertEqual(str(second["entry_id"]), data[table]["key"])
-			self.assertEqual(str(first["entry_id"]), data[table]["previous"])
+			self.assertTrue(first["kind"] in data.keys())
+			self.assertEqual(str(second["entry_id"]), data[kind]["key"])
+			self.assertEqual(str(first["entry_id"]), data[kind]["previous"])
