@@ -10,6 +10,12 @@ import uuid
 
 kind_key = b"_kinds"
 
+JSONEncoder_olddefault = json.JSONEncoder.default
+def JSONEncoder_newdefault(self, o):
+	if isinstance(o, uuid.UUID): return str(o)
+	return JSONEncoder_olddefault(self, o)
+json.JSONEncoder.default = JSONEncoder_newdefault
+
 def UUID(value):
 	return uuid.UUID(value)
 

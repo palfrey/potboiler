@@ -11,12 +11,6 @@ import string
 import zmq
 import contextlib
 
-JSONEncoder_olddefault = json.JSONEncoder.default
-def JSONEncoder_newdefault(self, o):
-	if isinstance(o, uuid.UUID): return str(o)
-	return JSONEncoder_olddefault(self, o)
-json.JSONEncoder.default = JSONEncoder_newdefault
-
 json_st = st.recursive(st.floats() | st.booleans() | st.text() | st.none(), lambda children: st.lists(children) | st.dictionaries(st.text(), children))
 
 def msg_gen(kind):
