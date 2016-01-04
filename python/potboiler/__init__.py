@@ -9,6 +9,8 @@ from voluptuous import Schema, Required, All, Length, MultipleInvalid, Extra, Ra
 import uuid
 
 kind_key = b"_kinds"
+self_key = b"_self"
+stores_key = b"_stores"
 
 JSONEncoder_olddefault = json.JSONEncoder.default
 def JSONEncoder_newdefault(self, o):
@@ -66,6 +68,7 @@ class ClientResource(JSONResource):
 class StoreResource(JSONResource):
 	def __init__(self, db):
 		self.db = db
+		self.self_key = db.Get(self_key)
 
 	schema = Schema({
 		Required("kind"): All(str, Length(min=1)),
@@ -73,6 +76,9 @@ class StoreResource(JSONResource):
 		Required("entry_id"): UUID,
 		Required("data"): {Extra: object}
 	})
+
+	def on_get(self, req, resp):
+		resp.body = self.db.Get(stores_key).decode("utf-8")
 
 	def on_put(self, req, resp):
 		data = self.check_req(req)
@@ -112,14 +118,20 @@ def ZMQ(poller, event):
 			break
 		raise Exception("socks", socks)
 
+def setup_key(db, key, value):
+	try:
+		db.Get(key)
+	except KeyError:
+		db.Put(key, json.dumps(value).encode("utf-8"))
+
 def make_api(db_path = "./db", port = "5555"):
 	api = falcon.API()
 	db = leveldb.LevelDB(db_path, paranoid_checks = True)
-	try:
-		db.Get(kind_key)
-		raise Exception
-	except KeyError:
-		db.Put(kind_key, json.dumps({}).encode("utf-8"))
+
+	setup_key(db, kind_key, {})
+	setup_key(db, self_key, uuid.uuid4())
+	setup_key(db, stores_key, {})
+
 	context = zmq.Context.instance()
 	poller = zmq.Poller()
 	client_list = {}

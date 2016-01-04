@@ -159,3 +159,9 @@ class ServerTest(testing.TestBase):
 			self.assertTrue(first["kind"] in data.keys())
 			self.assertEqual(str(second["entry_id"]), data[kind]["key"])
 			self.assertEqual(str(first["entry_id"]), data[kind]["previous"])
+
+	def test_get_store_list(self):
+		res = self.simulate_request("/store")
+		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+		data = json.loads(res[0].decode("utf-8"))
+		self.assertEqual(dict, type(data), res[0].decode("utf-8"))
