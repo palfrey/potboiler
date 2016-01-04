@@ -11,6 +11,7 @@ voluptuous
 pytest
 pytest-xdist
 testtools
+prospector
 
 # for rebuilding requirements.txt
 pip-tools

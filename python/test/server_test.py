@@ -87,7 +87,7 @@ class ServerTest(testing.TestBase):
 		with self.withDB():
 			assume(not s["host"].startswith("-"))
 			res = self.simulate_request("/clients", body = json.dumps(s), method = 'PUT')
-			self.assertEqual(self.srmock.status, falcon.HTTP_200)
+			self.assertEqual(self.srmock.status, falcon.HTTP_201)
 			clients_now = self.get_client_list()
 			note("now: %r" % clients_now)
 			self.assertTrue("{host}:{port}".format(**s) in clients_now.keys())
@@ -108,7 +108,7 @@ class ServerTest(testing.TestBase):
 		res = self.simulate_request("/store", body = json.dumps(msg), method = 'PUT')
 		note("res: %r" % res)
 		note("db: %r" % list(self.info["db"].RangeIter(include_value = False)))
-		self.assertEqual(self.srmock.status, falcon.HTTP_200)
+		self.assertEqual(self.srmock.status, falcon.HTTP_201)
 		self.existing_stores.append(msg["entry_id"])
 
 	@given(valid_msg)

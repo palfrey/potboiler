@@ -6,32 +6,53 @@
 #
 apipkg==1.4               # via execnet
 argparse==1.4.0           # via unittest2
+astroid==1.4.3            # via pylint, pylint-celery, pylint-flask, pylint-plugin-utils, requirements-detector
 click==6.2                # via pip-tools
+colorama==0.3.5           # via pylint
 coverage==4.0.3
+dodgy==0.1.9              # via prospector
 execnet==1.4.1            # via pytest-xdist
 extras==0.0.3             # via testtools
 falcon==0.3.0
 first==2.0.1              # via pip-tools
 gunicorn==19.4.3
 hypothesis==1.18.1
+lazy-object-proxy==1.2.1  # via astroid
 leveldb==0.193
 linecache2==1.0.0         # via traceback2
+logilab-common==1.1.0     # via pylint-flask
+mccabe==0.3.1             # via prospector
 pbr==1.8.1                # via testtools
+pep257==0.7.0             # via prospector
+pep8-naming==0.3.3        # via prospector
+pep8==1.6.2               # via prospector
 pip-tools==1.4.2
+prospector==0.11.7
 psycopg2==2.6.1
 py==1.4.31                # via pytest, pytest-xdist
+pyflakes==1.0.0           # via prospector
+pylint-celery==0.3        # via prospector
+pylint-common==0.2.2      # via prospector
+pylint-django==0.7.1      # via prospector
+pylint-flask==0.1         # via prospector
+pylint-plugin-utils==0.2.3  # via prospector, pylint-celery, pylint-django, pylint-flask
+pylint==1.5.2             # via prospector, pylint-celery, pylint-common, pylint-django, pylint-flask, pylint-plugin-utils
 pytest-xdist==1.13.1
 pytest==2.8.5
 python-mimeparse==0.1.4   # via falcon, testtools
+pyyaml==3.11              # via prospector
 pyzmq==15.1.0             # via zmq
-six==1.10.0               # via falcon, pip-tools, unittest2
+requirements-detector==0.4.1  # via prospector
+setoptconf==0.2.0         # via prospector
+six==1.10.0               # via astroid, falcon, logilab-common, pip-tools, pylint, unittest2
 testtools==1.8.1
 traceback2==1.4.0         # via testtools, unittest2
 unittest2==1.1.0          # via testtools
 voluptuous==0.8.8
 wheel==0.26.0
+wrapt==1.10.6             # via astroid
 zmq==0.0.0
 
 # The following packages are commented out because they are
 # considered to be unsafe in a requirements file:
-# setuptools==19.2          # via voluptuous
+# setuptools==19.2          # via logilab-common, voluptuous

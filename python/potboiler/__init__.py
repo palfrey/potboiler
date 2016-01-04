@@ -2,9 +2,7 @@ import falcon
 import json
 import leveldb
 import zmq
-import time
 import threading
-import json
 from voluptuous import Schema, Required, All, Length, MultipleInvalid, Extra, Range
 import uuid
 
@@ -32,7 +30,7 @@ class JSONResource:
 	def check_req(self, req):
 		try:
 			data = json.loads(req.stream.read().decode("utf-8"))
-			if type(data) != dict:
+			if not isinstance(data, dict):
 				raise falcon.HTTPBadRequest("Invalid JSON", "Request was not a JSON dictionary")
 			self.schema(data)
 			return data
@@ -41,6 +39,11 @@ class JSONResource:
 		except MultipleInvalid as e:
 			raise falcon.HTTPBadRequest("Invalid keys", str(e))
 
+	def check_noargs(self, req):
+		if len(req.stream.read()) > 0:
+			raise falcon.HTTPBadRequest("accepts no arguments", "Gave a body to a method that doesn't accept one")
+
+
 class ClientResource(JSONResource):
 	def __init__(self, context, poller, clients):
 		self.clients = clients
@@ -48,8 +51,7 @@ class ClientResource(JSONResource):
 		self.poller = poller
 
 	def on_get(self, req, resp):
-		if len(req.stream.read()) > 0:
-			raise falcon.HTTPBadRequest("clients accepts no arguments", "Gave a body to a method that doesn't accept one")
+		self.check_noargs(req)
 		resp.body = json.dumps(dict([("%s:%s"%k, self.clients[k].kinds) for k in self.clients.keys()]))
 
 	schema = Schema({
@@ -64,6 +66,7 @@ class ClientResource(JSONResource):
 		conn.connect("tcp://{host}:{port}".format(**data))
 		self.poller.register(conn)
 		self.clients[(host,port)] = Client(conn, host, port)
+		resp.status = falcon.HTTP_CREATED
 
 class StoreResource(JSONResource):
 	def __init__(self, db):
@@ -78,6 +81,7 @@ class StoreResource(JSONResource):
 	})
 
 	def on_get(self, req, resp):
+		self.check_noargs(req)
 		resp.body = self.db.Get(stores_key).decode("utf-8")
 
 	def on_put(self, req, resp):
@@ -94,6 +98,7 @@ class StoreResource(JSONResource):
 			else:
 				kinds[data["kind"]] = {"key": data["entry_id"], "previous": kinds[data["kind"]]["key"]}
 			self.db.Put(kind_key, json.dumps(kinds).encode("utf-8"))
+			resp.status = falcon.HTTP_CREATED
 
 
 class KindResource(JSONResource):
@@ -101,6 +106,7 @@ class KindResource(JSONResource):
 		self.db = db
 
 	def on_get(self, req, resp):
+		self.check_noargs(req)
 		resp.body = self.db.Get(kind_key)
 
 def ZMQ(poller, event):
