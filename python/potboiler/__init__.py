@@ -71,7 +71,7 @@ class ClientResource(JSONResource):
 class StoreResource(JSONResource):
 	def __init__(self, db):
 		self.db = db
-		self.self_key = db.Get(self_key)
+		self.self_key = db.Get(self_key).decode("utf-8")
 
 	schema = Schema({
 		Required("kind"): All(str, Length(min=1)),
@@ -80,9 +80,12 @@ class StoreResource(JSONResource):
 		Required("data"): {Extra: object}
 	})
 
-	def on_get(self, req, resp):
+	def on_get(self, req, resp, key = None):
 		self.check_noargs(req)
-		resp.body = self.db.Get(stores_key).decode("utf-8")
+		if key is None:
+			resp.body = self.db.Get(stores_key).decode("utf-8")
+		else:
+			resp.body = self.db.Get(key.encode("utf-8")).decode("utf-8")
 
 	def on_put(self, req, resp):
 		data = self.check_req(req)
@@ -91,13 +94,21 @@ class StoreResource(JSONResource):
 			existing = self.db.Get(key).decode("utf-8")
 			raise falcon.HTTPConflict("Duplicate key", "Already have entry for %s: %s" % (data["entry_id"], existing))
 		except KeyError:
-			self.db.Put(key, json.dumps(data["data"]).encode("utf-8"))
+			self.db.Put(key, json.dumps(data).encode("utf-8"))
 			kinds = json.loads(self.db.Get(kind_key).decode("utf-8"))
 			if data["kind"] not in kinds:
 				kinds[data["kind"]] = {"key": data["entry_id"], "previous": None}
 			else:
 				kinds[data["kind"]] = {"key": data["entry_id"], "previous": kinds[data["kind"]]["key"]}
 			self.db.Put(kind_key, json.dumps(kinds).encode("utf-8"))
+
+			stores = json.loads(self.db.Get(stores_key).decode("utf-8"))
+			if self.self_key not in stores:
+				stores[self.self_key] = {"key": data["entry_id"], "previous": None}
+			else:
+				stores[self.self_key] = {"key": data["entry_id"], "previous": stores[self.self_key]["key"]}
+			self.db.Put(stores_key, json.dumps(stores).encode("utf-8"))
+
 			resp.status = falcon.HTTP_CREATED
 
 
@@ -143,6 +154,7 @@ def make_api(db_path = "./db", port = "5555"):
 	client_list = {}
 	api.add_route('/clients', ClientResource(context, poller, client_list))
 	api.add_route('/store', StoreResource(db))
+	api.add_route('/store/{key}', StoreResource(db))
 	api.add_route('/kinds', KindResource(db))
 	clients = context.socket(zmq.ROUTER)
 	clients.bind("tcp://*:" + str(port))

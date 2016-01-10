@@ -10,14 +10,15 @@ import uuid
 import string
 import zmq
 import contextlib
+import testtools.matchers as matchers
 
 json_st = st.recursive(st.floats() | st.booleans() | st.text() | st.none(), lambda children: st.lists(children) | st.dictionaries(st.text(), children))
 
 def msg_gen(kind):
 	return st.fixed_dictionaries({
 		'kind': kind,
-		'id': st.uuids(),
-		'entry_id': st.uuids(),
+		'id': st.uuids().map(lambda x: str(x)),
+		'entry_id': st.uuids().map(lambda x: str(x)),
 		'data': st.dictionaries(st.text(), st.floats() | st.booleans() | st.text() | st.none())
 	})
 
@@ -47,12 +48,12 @@ class ServerTest(testing.TestBase):
 			# Clear out any existing keys
 			keys = list(self.db.RangeIter(include_value = False))
 			for k in keys:
-				if k == potboiler.kind_key:
+				if k in [potboiler.kind_key, potboiler.stores_key]:
 					value = json.loads(self.db.Get(k).decode("utf-8"))
 					if value != {}:
 						self.db.Put(k, "{}".encode("utf-8"))
 					continue
-				else:
+				elif k != potboiler.self_key:
 					self.db.Delete(k)
 			yield
 		finally:
@@ -165,3 +166,20 @@ class ServerTest(testing.TestBase):
 		self.assertEqual(self.srmock.status, falcon.HTTP_200)
 		data = json.loads(res[0].decode("utf-8"))
 		self.assertEqual(dict, type(data), res[0].decode("utf-8"))
+
+	@given(valid_msg)
+	def test_msgs_get_stored(self, msg):
+		with self.withDB():
+			self.store_item(msg)
+			res = self.simulate_request("/store")
+			self.assertEqual(self.srmock.status, falcon.HTTP_200)
+			data = json.loads(res[0].decode("utf-8"))
+			self.assertEqual(1, len(data.keys()))
+			client_key = list(data.keys())[0]
+			note("Client key: %r" % client_key)
+			entry = data[client_key]
+			key = entry['key']
+			self.assertIsNone(entry["previous"])
+			stored_msg = self.simulate_request("/store/{0}".format(key))
+			self.assertEqual(self.srmock.status, falcon.HTTP_200)
+			self.assertThat(json.loads(stored_msg[0].decode("utf-8")), matchers.MatchesStructure.fromExample(msg))
