@@ -27,6 +27,15 @@ class Client:
 		self.kinds = {}
 
 class JSONResource:
+	def get_key(self, key):
+		return self.db.Get(key).decode("utf-8")
+
+	def get_json_key(self, key):
+		return json.loads(self.get_key(key))
+
+	def put_key(self, key, value):
+		self.db.Put(key, json.dumps(value).encode("utf-8"))
+
 	def check_req(self, req):
 		try:
 			data = json.loads(req.stream.read().decode("utf-8"))
@@ -71,7 +80,7 @@ class ClientResource(JSONResource):
 class StoreResource(JSONResource):
 	def __init__(self, db):
 		self.db = db
-		self.self_key = db.Get(self_key).decode("utf-8")
+		self.self_key = self.get_key(self_key)
 
 	schema = Schema({
 		Required("kind"): All(str, Length(min=1)),
@@ -83,31 +92,31 @@ class StoreResource(JSONResource):
 	def on_get(self, req, resp, key = None):
 		self.check_noargs(req)
 		if key is None:
-			resp.body = self.db.Get(stores_key).decode("utf-8")
+			resp.body = self.get_key(stores_key)
 		else:
-			resp.body = self.db.Get(key.encode("utf-8")).decode("utf-8")
+			resp.body = self.get_key(key.encode("utf-8"))
 
 	def on_put(self, req, resp):
 		data = self.check_req(req)
 		key = data["entry_id"].encode("utf-8")
 		try:
-			existing = self.db.Get(key).decode("utf-8")
+			existing = self.get_key(key)
 			raise falcon.HTTPConflict("Duplicate key", "Already have entry for %s: %s" % (data["entry_id"], existing))
 		except KeyError:
-			self.db.Put(key, json.dumps(data).encode("utf-8"))
-			kinds = json.loads(self.db.Get(kind_key).decode("utf-8"))
+			self.put_key(key, data)
+			kinds = self.get_json_key(kind_key)
 			if data["kind"] not in kinds:
 				kinds[data["kind"]] = {"key": data["entry_id"], "previous": None}
 			else:
 				kinds[data["kind"]] = {"key": data["entry_id"], "previous": kinds[data["kind"]]["key"]}
-			self.db.Put(kind_key, json.dumps(kinds).encode("utf-8"))
+			self.put_key(kind_key, kinds)
 
-			stores = json.loads(self.db.Get(stores_key).decode("utf-8"))
+			stores = self.get_json_key(stores_key)
 			if self.self_key not in stores:
 				stores[self.self_key] = {"key": data["entry_id"], "previous": None}
 			else:
 				stores[self.self_key] = {"key": data["entry_id"], "previous": stores[self.self_key]["key"]}
-			self.db.Put(stores_key, json.dumps(stores).encode("utf-8"))
+			self.put_key(stores_key, stores)
 
 			resp.status = falcon.HTTP_CREATED
 
