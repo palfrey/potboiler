@@ -180,6 +180,26 @@ class ServerTest(testing.TestBase):
 			entry = data[client_key]
 			key = entry['key']
 			self.assertIsNone(entry["previous"])
+			self.assertEqual(key, msg["entry_id"])
 			stored_msg = self.simulate_request("/store/{0}".format(key))
 			self.assertEqual(self.srmock.status, falcon.HTTP_200)
 			self.assertThat(json.loads(stored_msg[0].decode("utf-8")), matchers.MatchesStructure.fromExample(msg))
+
+	@given(valid_msg, valid_msg)
+	def test_msgs_get_stored(self, first, second):
+		assume(first["kind"] != second["kind"]) # should also work with this, but need to check it works without
+		with self.withDB():
+			self.store_item(first)
+			self.store_item(second)
+			res = self.simulate_request("/store")
+			self.assertEqual(self.srmock.status, falcon.HTTP_200)
+			data = json.loads(res[0].decode("utf-8"))
+			self.assertEqual(1, len(data.keys()))
+			client_key = list(data.keys())[0]
+			note("Client key: %r" % client_key)
+			entry = data[client_key]
+			key = entry['key']
+			self.assertEqual(entry["previous"], first["entry_id"])
+			stored_msg = self.simulate_request("/store/{0}".format(key))
+			self.assertEqual(self.srmock.status, falcon.HTTP_200)
+			self.assertThat(json.loads(stored_msg[0].decode("utf-8")), matchers.MatchesStructure.fromExample(second))
