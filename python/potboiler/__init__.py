@@ -5,10 +5,13 @@ import zmq
 import threading
 from voluptuous import Schema, Required, All, Length, MultipleInvalid, Extra, Range
 import uuid
+import logging
 
 kind_key = b"_kinds"
 self_key = b"_self"
 stores_key = b"_stores"
+
+log = logging.getLogger(__name__)
 
 JSONEncoder_olddefault = json.JSONEncoder.default
 def JSONEncoder_newdefault(self, o):
@@ -128,8 +131,14 @@ class StoreResource(JSONResource):
 			tosend["data"] = data
 			for key in self.clients.keys():
 				client = self.clients[key]
-				client.zmq.send_json(tosend)
-				client.kinds[self.self_key] = data["entry_id"]
+				previous = None
+				if self.self_key in client.kinds:
+					previous = client.kinds[self.self_key]
+				if previous == stores[self.self_key]["previous"]:
+					client.zmq.send_json(tosend)
+					client.kinds[self.self_key] = data["entry_id"]
+				else:
+					log.info("Not sending to %s because previous is %s rather than %s", key, stores[self.self_key]["previous"], previous)
 
 		resp.status = falcon.HTTP_CREATED
 

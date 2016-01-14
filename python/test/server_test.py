@@ -229,3 +229,19 @@ class ServerTest(testing.TestBase):
 			clients = self.get_client_list()
 			client = clients["127.0.0.1:1234"]
 			self.assertDictEqual({}, client)
+
+	@given(valid_msg, valid_msg)
+	def test_clients_dont_update_if_older(self, first, second):
+		with self.withDB():
+			self.store_item(first)
+			self.simulate_request("/clients", body = json.dumps({"host": "127.0.0.1", "port": 1234}), method = 'PUT')
+			self.assertEqual(self.srmock.status, falcon.HTTP_201)
+
+			clients = self.get_client_list()
+			client = clients["127.0.0.1:1234"]
+			self.assertDictEqual({}, client)
+
+			self.store_item(second)
+			clients = self.get_client_list()
+			client = clients["127.0.0.1:1234"]
+			self.assertDictEqual({}, client) # because out of date
