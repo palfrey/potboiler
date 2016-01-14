@@ -7,23 +7,20 @@ import hypothesis.strategies as st
 import tempfile
 import json
 import zmq
-import uuid
 import string
 import contextlib
 import testtools.matchers as matchers
 import math
-import time
-import unittest
 
 json_st = st.dictionaries(st.text(), st.floats() | st.booleans() | st.text() | st.none())
 
 def msg_gen(kind):
 	return st.fixed_dictionaries({
 		'kind': kind,
-		'id': st.uuids().map(lambda x: str(x)),
-		'entry_id': st.uuids().map(lambda x: str(x)),
+		'id': st.uuids().map(lambda x: str(x)),  # pylint: disable=unnecessary-lambda
+		'entry_id': st.uuids().map(lambda x: str(x)),  # pylint: disable=unnecessary-lambda
 		'data': st.dictionaries(st.text(), st.floats().filter(lambda x: not math.isnan(x)) | st.booleans() | st.text() | st.none())
-	})
+	}) # pylint: disable=unnecessary-lambda
 
 valid_msg = msg_gen(st.text(min_size=1))
 def same_kind_msg(count):
@@ -53,15 +50,14 @@ class ServerTest(testing.TestBase):
 			self.info["clients"].clear()
 			yield
 		finally:
-			if not hasattr(self, "info"):
-				return
-			self.info["event"].set()
-			self.info["clients"].clear()
+			if hasattr(self, "info"):
+				self.info["event"].set()
+				self.info["clients"].clear()
 
 	@given(st.text(min_size = 1))
 	def test_clients_dislikes_args(self, s):
 		with self.withDB():
-			res = self.simulate_request("/clients", body = s)
+			self.simulate_request("/clients", body = s)
 			self.assertEqual(self.srmock.status, falcon.HTTP_400)
 
 	def get_client_list(self):
@@ -83,7 +79,7 @@ class ServerTest(testing.TestBase):
 	def test_clients_can_be_added(self, s):
 		with self.withDB():
 			assume(not s["host"].startswith("-"))
-			res = self.simulate_request("/clients", body = json.dumps(s), method = 'PUT')
+			self.simulate_request("/clients", body = json.dumps(s), method = 'PUT')
 			self.assertEqual(self.srmock.status, falcon.HTTP_201)
 			clients_now = self.get_client_list()
 			note("now: %r" % clients_now)
@@ -92,13 +88,13 @@ class ServerTest(testing.TestBase):
 	@given(st.text())
 	def test_store_cant_decode_random_text(self, s):
 		with self.withDB():
-			res = self.simulate_request("/store", body = s, method = 'PUT')
+			self.simulate_request("/store", body = s, method = 'PUT')
 			self.assertEqual(self.srmock.status, falcon.HTTP_400)
 
 	@given(json_st)
 	def test_store_doesnt_like_random_json(self, s):
 		with self.withDB():
-			res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
+			self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
 			self.assertEqual(self.srmock.status, falcon.HTTP_400)
 
 	def store_item(self, msg):
@@ -117,7 +113,7 @@ class ServerTest(testing.TestBase):
 	def test_store_forbids_double_store(self, s):
 		with self.withDB():
 			self.store_item(s)
-			res = self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
+			self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
 			self.assertEqual(self.srmock.status, falcon.HTTP_409)
 
 	def test_can_get_kinds(self):
@@ -127,7 +123,7 @@ class ServerTest(testing.TestBase):
 		self.assertEqual(dict, type(data))
 
 	@given(valid_msg)
-	def test_can_get_kinds(self, msg):
+	def test_can_get_kinds_with_msg(self, msg):
 		with self.withDB():
 			self.store_item(msg)
 			res = self.simulate_request("/kinds")
@@ -182,7 +178,7 @@ class ServerTest(testing.TestBase):
 			self.assertThat(json.loads(stored_msg[0].decode("utf-8")), matchers.MatchesStructure.fromExample(msg))
 
 	@given(valid_msg, valid_msg)
-	def test_msgs_get_stored(self, first, second):
+	def test_msgs_get_stored_twice(self, first, second):
 		assume(first["kind"] != second["kind"]) # should also work with this, but need to check it works without
 		with self.withDB():
 			self.store_item(first)
@@ -205,18 +201,15 @@ class ServerTest(testing.TestBase):
 		socket = self.context.socket(zmq.PAIR)
 		socket.linger = 0
 		port = socket.bind_to_random_port("tcp://*", min_port = 2000)
-		local_url = "tcp://*:%d" % port
 		try:
 			with self.withDB():
-				res = self.simulate_request("/clients", body = json.dumps({"host": "127.0.0.1", "port": port}), method = 'PUT')
+				self.simulate_request("/clients", body = json.dumps({"host": "127.0.0.1", "port": port}), method = 'PUT')
 				self.assertEqual(self.srmock.status, falcon.HTTP_201)
-				start = time.time()
 				self.store_item(msg)
 				socks = socket.poll(timeout=1000)
 				if socks == 0:
 					raise Exception("Nothing ready!")
 				from_msg = socket.recv_json(flags=zmq.NOBLOCK)
-				#socket.send_string("Worked")
 				self.assertIsNotNone(from_msg)
 				self.assertDictEqual(from_msg["data"], msg)
 		finally:
