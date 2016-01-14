@@ -26,6 +26,9 @@ class Client:
 		self.port = port
 		self.kinds = {}
 
+	def __del__(self):
+		self.zmq.close()
+
 class JSONResource:
 	def get_key(self, key):
 		return self.db.Get(key).decode("utf-8")
@@ -70,17 +73,18 @@ class ClientResource(JSONResource):
 
 	def on_put(self, req, resp):
 		data = self.check_req(req)
-		conn = self.context.socket(zmq.SUB)
+		conn = self.context.socket(zmq.PAIR)
+		conn.linger = 0
 		host, port = data["host"], data["port"]
 		conn.connect("tcp://{host}:{port}".format(**data))
-		self.poller.register(conn)
 		self.clients[(host,port)] = Client(conn, host, port)
 		resp.status = falcon.HTTP_CREATED
 
 class StoreResource(JSONResource):
-	def __init__(self, db):
+	def __init__(self, db, clients):
 		self.db = db
 		self.self_key = self.get_key(self_key)
+		self.clients = clients
 
 	schema = Schema({
 		Required("kind"): All(str, Length(min=1)),
@@ -103,22 +107,29 @@ class StoreResource(JSONResource):
 			existing = self.get_key(key)
 			raise falcon.HTTPConflict("Duplicate key", "Already have entry for %s: %s" % (data["entry_id"], existing))
 		except KeyError:
-			self.put_key(key, data)
-			kinds = self.get_json_key(kind_key)
-			if data["kind"] not in kinds:
-				kinds[data["kind"]] = {"key": data["entry_id"], "previous": None}
-			else:
-				kinds[data["kind"]] = {"key": data["entry_id"], "previous": kinds[data["kind"]]["key"]}
-			self.put_key(kind_key, kinds)
+			pass
+		self.put_key(key, data)
+		kinds = self.get_json_key(kind_key)
+		if data["kind"] not in kinds:
+			kinds[data["kind"]] = {"key": data["entry_id"], "previous": None}
+		else:
+			kinds[data["kind"]] = {"key": data["entry_id"], "previous": kinds[data["kind"]]["key"]}
+		self.put_key(kind_key, kinds)
 
-			stores = self.get_json_key(stores_key)
-			if self.self_key not in stores:
-				stores[self.self_key] = {"key": data["entry_id"], "previous": None}
-			else:
-				stores[self.self_key] = {"key": data["entry_id"], "previous": stores[self.self_key]["key"]}
-			self.put_key(stores_key, stores)
+		stores = self.get_json_key(stores_key)
+		if self.self_key not in stores:
+			stores[self.self_key] = {"key": data["entry_id"], "previous": None}
+		else:
+			stores[self.self_key] = {"key": data["entry_id"], "previous": stores[self.self_key]["key"]}
+		self.put_key(stores_key, stores)
 
-			resp.status = falcon.HTTP_CREATED
+		if len(self.clients.keys()) > 0:
+			tosend = stores[self.self_key]
+			tosend["data"] = data
+			for key in self.clients.keys():
+				self.clients[key].zmq.send_json(tosend)
+
+		resp.status = falcon.HTTP_CREATED
 
 
 class KindResource(JSONResource):
@@ -150,7 +161,7 @@ def setup_key(db, key, value):
 	except KeyError:
 		db.Put(key, json.dumps(value).encode("utf-8"))
 
-def make_api(db_path = "./db", port = "5555"):
+def make_api(db_path = "./db"):
 	api = falcon.API()
 	db = leveldb.LevelDB(db_path, paranoid_checks = True)
 
@@ -158,16 +169,13 @@ def make_api(db_path = "./db", port = "5555"):
 	setup_key(db, self_key, uuid.uuid4())
 	setup_key(db, stores_key, {})
 
-	context = zmq.Context.instance()
+	context = zmq.Context.instance(io_threads = 10)
 	poller = zmq.Poller()
 	client_list = {}
 	api.add_route('/clients', ClientResource(context, poller, client_list))
-	api.add_route('/store', StoreResource(db))
-	api.add_route('/store/{key}', StoreResource(db))
+	api.add_route('/store', StoreResource(db, client_list))
+	api.add_route('/store/{key}', StoreResource(db, client_list))
 	api.add_route('/kinds', KindResource(db))
-	clients = context.socket(zmq.ROUTER)
-	clients.bind("tcp://*:" + str(port))
-	poller.register(clients, zmq.POLLIN)
 	event = threading.Event()
 	thread = threading.Thread(target=ZMQ, args=(poller, event), daemon = True)
 	thread.start()

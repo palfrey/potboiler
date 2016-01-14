@@ -3,13 +3,14 @@ gunicorn
 leveldb
 psycopg2
 wheel
-zmq
+pyzmq
 
 coverage
 hypothesis
 voluptuous
 pytest
 pytest-xdist
+pytest-timeout
 testtools
 prospector
 

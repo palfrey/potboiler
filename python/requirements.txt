@@ -16,7 +16,7 @@ extras==0.0.3             # via testtools
 falcon==0.3.0
 first==2.0.1              # via pip-tools
 gunicorn==19.4.3
-hypothesis==1.18.1
+hypothesis==2.0.0
 lazy-object-proxy==1.2.1  # via astroid
 leveldb==0.193
 linecache2==1.0.0         # via traceback2
@@ -37,11 +37,12 @@ pylint-django==0.7.1      # via prospector
 pylint-flask==0.1         # via prospector
 pylint-plugin-utils==0.2.3  # via prospector, pylint-celery, pylint-django, pylint-flask
 pylint==1.5.2             # via prospector, pylint-celery, pylint-common, pylint-django, pylint-flask, pylint-plugin-utils
+pytest-timeout==1.0.0
 pytest-xdist==1.13.1
 pytest==2.8.5
 python-mimeparse==0.1.4   # via falcon, testtools
 pyyaml==3.11              # via prospector
-pyzmq==15.1.0             # via zmq
+pyzmq==15.1.0
 requirements-detector==0.4.1  # via prospector
 setoptconf==0.2.0         # via prospector
 six==1.10.0               # via astroid, falcon, logilab-common, pip-tools, pylint, unittest2
@@ -51,7 +52,6 @@ unittest2==1.1.0          # via testtools
 voluptuous==0.8.8
 wheel==0.26.0
 wrapt==1.10.6             # via astroid
-zmq==0.0.0
 
 # The following packages are commented out because they are
 # considered to be unsafe in a requirements file:

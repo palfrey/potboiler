@@ -6,20 +6,23 @@ from hypothesis import given, note, assume
 import hypothesis.strategies as st
 import tempfile
 import json
+import zmq
 import uuid
 import string
-import zmq
 import contextlib
 import testtools.matchers as matchers
+import math
+import time
+import unittest
 
-json_st = st.recursive(st.floats() | st.booleans() | st.text() | st.none(), lambda children: st.lists(children) | st.dictionaries(st.text(), children))
+json_st = st.dictionaries(st.text(), st.floats() | st.booleans() | st.text() | st.none())
 
 def msg_gen(kind):
 	return st.fixed_dictionaries({
 		'kind': kind,
 		'id': st.uuids().map(lambda x: str(x)),
 		'entry_id': st.uuids().map(lambda x: str(x)),
-		'data': st.dictionaries(st.text(), st.floats() | st.booleans() | st.text() | st.none())
+		'data': st.dictionaries(st.text(), st.floats().filter(lambda x: not math.isnan(x)) | st.booleans() | st.text() | st.none())
 	})
 
 valid_msg = msg_gen(st.text(min_size=1))
@@ -28,19 +31,11 @@ def same_kind_msg(count):
 
 class ServerTest(testing.TestBase):
 	def before(self):
-		while True:
-			port = st.integers(min_value=2000).example()
-			try:
-				self.info = potboiler.make_api(tempfile.mkdtemp(), port)
-				break
-			except zmq.error.ZMQError as e:
-				if e.strerror == "Address already in use":
-					continue
-				else:
-					raise
+		self.info = potboiler.make_api(tempfile.mkdtemp())
 		self.api = self.info["api"]
 		self.existing_stores = list(self.info["db"].RangeIter(include_value = False))
 		self.db = self.info["db"]
+		self.context = self.info["context"]
 
 	@contextlib.contextmanager
 	def withDB(self):
@@ -55,6 +50,7 @@ class ServerTest(testing.TestBase):
 					continue
 				elif k != potboiler.self_key:
 					self.db.Delete(k)
+			self.info["clients"].clear()
 			yield
 		finally:
 			if not hasattr(self, "info"):
@@ -202,4 +198,26 @@ class ServerTest(testing.TestBase):
 			self.assertEqual(entry["previous"], first["entry_id"])
 			stored_msg = self.simulate_request("/store/{0}".format(key))
 			self.assertEqual(self.srmock.status, falcon.HTTP_200)
-			self.assertThat(json.loads(stored_msg[0].decode("utf-8")), matchers.MatchesStructure.fromExample(second))
+			self.assertDictEqual(json.loads(stored_msg[0].decode("utf-8")), second)
+
+	@given(valid_msg)
+	def test_clients_get_messages(self, msg):
+		socket = self.context.socket(zmq.PAIR)
+		socket.linger = 0
+		port = socket.bind_to_random_port("tcp://*", min_port = 2000)
+		local_url = "tcp://*:%d" % port
+		try:
+			with self.withDB():
+				res = self.simulate_request("/clients", body = json.dumps({"host": "127.0.0.1", "port": port}), method = 'PUT')
+				self.assertEqual(self.srmock.status, falcon.HTTP_201)
+				start = time.time()
+				self.store_item(msg)
+				socks = socket.poll(timeout=1000)
+				if socks == 0:
+					raise Exception("Nothing ready!")
+				from_msg = socket.recv_json(flags=zmq.NOBLOCK)
+				#socket.send_string("Worked")
+				self.assertIsNotNone(from_msg)
+				self.assertDictEqual(from_msg["data"], msg)
+		finally:
+			socket.close()
