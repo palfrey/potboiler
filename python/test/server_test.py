@@ -212,5 +212,20 @@ class ServerTest(testing.TestBase):
 				from_msg = socket.recv_json(flags=zmq.NOBLOCK)
 				self.assertIsNotNone(from_msg)
 				self.assertDictEqual(from_msg["data"], msg)
+
+				clients = self.get_client_list()
+				client = clients["127.0.0.1:%d" % port]
+				note("Client: %r" % client)
+				self.assertEqual(1, len(client.keys()))
+				client_key = list(client.keys())[0]
+				self.assertDictEqual({client_key: msg["entry_id"]}, client)
 		finally:
 			socket.close()
+
+	def test_clients_have_state(self):
+		with self.withDB():
+			self.simulate_request("/clients", body = json.dumps({"host": "127.0.0.1", "port": 1234}), method = 'PUT')
+			self.assertEqual(self.srmock.status, falcon.HTTP_201)
+			clients = self.get_client_list()
+			client = clients["127.0.0.1:1234"]
+			self.assertDictEqual({}, client)

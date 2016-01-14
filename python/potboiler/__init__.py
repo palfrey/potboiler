@@ -127,7 +127,9 @@ class StoreResource(JSONResource):
 			tosend = stores[self.self_key]
 			tosend["data"] = data
 			for key in self.clients.keys():
-				self.clients[key].zmq.send_json(tosend)
+				client = self.clients[key]
+				client.zmq.send_json(tosend)
+				client.kinds[self.self_key] = data["entry_id"]
 
 		resp.status = falcon.HTTP_CREATED
 
