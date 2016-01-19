@@ -245,3 +245,24 @@ class ServerTest(testing.TestBase):
 			clients = self.get_client_list()
 			client = clients["127.0.0.1:1234"]
 			self.assertDictEqual({}, client) # because out of date
+
+	@given(valid_msg)
+	def test_clients_can_be_updated(self, msg):
+		with self.withDB():
+			self.store_item(msg)
+			self.simulate_request("/clients", body = json.dumps({"host": "127.0.0.1", "port": 1234}), method = 'PUT')
+			self.assertEqual(self.srmock.status, falcon.HTTP_201)
+
+			clients = self.get_client_list()
+			client = clients["127.0.0.1:1234"]
+			self.assertDictEqual({}, client)
+
+			self.simulate_request("/update/127.0.0.1:1234", method = 'POST')
+			self.assertEqual(self.srmock.status, falcon.HTTP_200)
+
+			clients = self.get_client_list()
+			client = clients["127.0.0.1:1234"]
+			note("Client: %r" % client)
+			self.assertEqual(1, len(client.keys()))
+			client_key = list(client.keys())[0]
+			self.assertDictEqual({client_key: msg["entry_id"]}, client)

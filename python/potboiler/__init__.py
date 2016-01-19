@@ -27,7 +27,7 @@ class Client:
 		self.zmq = zmq
 		self.host = host
 		self.port = port
-		self.kinds = {}
+		self.stores = {}
 
 	def __del__(self):
 		self.zmq.close()
@@ -67,7 +67,7 @@ class ClientResource(JSONResource):
 
 	def on_get(self, req, resp):
 		self.check_noargs(req)
-		resp.body = json.dumps(dict([("%s:%s"%k, self.clients[k].kinds) for k in self.clients.keys()]))
+		resp.body = json.dumps(dict([(k, self.clients[k].stores) for k in self.clients.keys()]))
 
 	schema = Schema({
 		Required("host"): All(str, Length(min=1)),
@@ -80,7 +80,7 @@ class ClientResource(JSONResource):
 		conn.linger = 0
 		host, port = data["host"], data["port"]
 		conn.connect("tcp://{host}:{port}".format(**data))
-		self.clients[(host,port)] = Client(conn, host, port)
+		self.clients["%s:%d" %(host,port)] = Client(conn, host, port)
 		resp.status = falcon.HTTP_CREATED
 
 class StoreResource(JSONResource):
@@ -132,11 +132,11 @@ class StoreResource(JSONResource):
 			for key in self.clients.keys():
 				client = self.clients[key]
 				previous = None
-				if self.self_key in client.kinds:
-					previous = client.kinds[self.self_key]
+				if self.self_key in client.stores:
+					previous = client.stores[self.self_key]
 				if previous == stores[self.self_key]["previous"]:
 					client.zmq.send_json(tosend)
-					client.kinds[self.self_key] = data["entry_id"]
+					client.stores[self.self_key] = data["entry_id"]
 				else:
 					log.info("Not sending to %s because previous is %s rather than %s", key, stores[self.self_key]["previous"], previous)
 
@@ -150,6 +150,25 @@ class KindResource(JSONResource):
 	def on_get(self, req, resp):
 		self.check_noargs(req)
 		resp.body = self.db.Get(kind_key)
+
+class UpdateResource(JSONResource):
+	def __init__(self, db, client_list):
+		self.db = db
+		self.client_list = client_list
+
+	def on_post(self, req, resp, client_key):
+		self.check_noargs(req)
+		print(self.client_list.keys())
+		client = self.client_list[client_key]
+		stores = self.get_json_key(stores_key)
+		for s in stores:
+			if s not in client.stores:
+				tosend = stores[s]
+				tosend["data"] = self.get_json_key(stores[s]["key"].encode("utf-8"))
+				client.zmq.send_json(tosend)
+				client.stores[s] = tosend["key"]
+
+		resp.status = falcon.HTTP_OK
 
 def ZMQ(poller, event):
 	while True:
@@ -187,6 +206,7 @@ def make_api(db_path = "./db"):
 	api.add_route('/store', StoreResource(db, client_list))
 	api.add_route('/store/{key}', StoreResource(db, client_list))
 	api.add_route('/kinds', KindResource(db))
+	api.add_route('/update/{client_key}', UpdateResource(db, client_list))
 	event = threading.Event()
 	thread = threading.Thread(target=ZMQ, args=(poller, event), daemon = True)
 	thread.start()
