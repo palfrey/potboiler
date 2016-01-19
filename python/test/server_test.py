@@ -24,13 +24,13 @@ def msg_gen(kind):
 
 valid_msg = msg_gen(st.text(min_size=1))
 def same_kind_msg(count):
-	return st.text(min_size=1).flatmap(lambda t: st.lists(msg_gen(st.just(t)), min_size = count, max_size = count))
+	return st.text(min_size=1).flatmap(lambda t: st.lists(msg_gen(st.just(t)), min_size=count, max_size=count))
 
 class ServerTest(testing.TestBase):
 	def before(self):
 		self.info = potboiler.make_api(tempfile.mkdtemp())
 		self.api = self.info["api"]
-		self.existing_stores = list(self.info["db"].RangeIter(include_value = False))
+		self.existing_stores = list(self.info["db"].RangeIter(include_value=False))
 		self.db = self.info["db"]
 		self.context = self.info["context"]
 
@@ -38,7 +38,7 @@ class ServerTest(testing.TestBase):
 	def withDB(self):
 		try:
 			# Clear out any existing keys
-			keys = list(self.db.RangeIter(include_value = False))
+			keys = list(self.db.RangeIter(include_value=False))
 			for k in keys:
 				if k in [potboiler.kind_key, potboiler.stores_key]:
 					value = json.loads(self.db.Get(k).decode("utf-8"))
@@ -54,10 +54,10 @@ class ServerTest(testing.TestBase):
 				self.info["event"].set()
 				self.info["clients"].clear()
 
-	@given(st.text(min_size = 1))
+	@given(st.text(min_size=1))
 	def test_clients_dislikes_args(self, s):
 		with self.withDB():
-			self.simulate_request("/clients", body = s)
+			self.simulate_request("/clients", body=s)
 			self.assertEqual(self.srmock.status, falcon.HTTP_400)
 
 	def get_client_list(self):
@@ -73,13 +73,13 @@ class ServerTest(testing.TestBase):
 			self.assertEqual(self.srmock.status, falcon.HTTP_200)
 
 	@given(st.fixed_dictionaries({
-		'host': st.text(alphabet=string.ascii_letters + string.digits + "-", min_size = 3, average_size = 5),
-		'port': st.integers(min_value = 1)
+		'host': st.text(alphabet=string.ascii_letters + string.digits + "-", min_size=3, average_size=5),
+		'port': st.integers(min_value=1)
 	}))
 	def test_clients_can_be_added(self, s):
 		with self.withDB():
 			assume(not s["host"].startswith("-"))
-			self.simulate_request("/clients", body = json.dumps(s), method = 'PUT')
+			self.simulate_request("/clients", body=json.dumps(s), method='PUT')
 			self.assertEqual(self.srmock.status, falcon.HTTP_201)
 			clients_now = self.get_client_list()
 			note("now: %r" % clients_now)
@@ -88,19 +88,19 @@ class ServerTest(testing.TestBase):
 	@given(st.text())
 	def test_store_cant_decode_random_text(self, s):
 		with self.withDB():
-			self.simulate_request("/store", body = s, method = 'PUT')
+			self.simulate_request("/store", body=s, method='PUT')
 			self.assertEqual(self.srmock.status, falcon.HTTP_400)
 
 	@given(json_st)
 	def test_store_doesnt_like_random_json(self, s):
 		with self.withDB():
-			self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
+			self.simulate_request("/store", body=json.dumps(s), method='PUT')
 			self.assertEqual(self.srmock.status, falcon.HTTP_400)
 
 	def store_item(self, msg):
-		res = self.simulate_request("/store", body = json.dumps(msg), method = 'PUT')
+		res = self.simulate_request("/store", body=json.dumps(msg), method='PUT')
 		note("res: %r" % res)
-		note("db: %r" % list(self.info["db"].RangeIter(include_value = False)))
+		note("db: %r" % list(self.info["db"].RangeIter(include_value=False)))
 		self.assertEqual(self.srmock.status, falcon.HTTP_201)
 		self.existing_stores.append(msg["entry_id"])
 
@@ -113,7 +113,7 @@ class ServerTest(testing.TestBase):
 	def test_store_forbids_double_store(self, s):
 		with self.withDB():
 			self.store_item(s)
-			self.simulate_request("/store", body = json.dumps(s), method = 'PUT')
+			self.simulate_request("/store", body=json.dumps(s), method='PUT')
 			self.assertEqual(self.srmock.status, falcon.HTTP_409)
 
 	def test_can_get_kinds(self):
@@ -200,10 +200,10 @@ class ServerTest(testing.TestBase):
 	def test_clients_get_messages(self, msg):
 		socket = self.context.socket(zmq.PAIR)
 		socket.linger = 0
-		port = socket.bind_to_random_port("tcp://*", min_port = 2000)
+		port = socket.bind_to_random_port("tcp://*", min_port=2000)
 		try:
 			with self.withDB():
-				self.simulate_request("/clients", body = json.dumps({"host": "127.0.0.1", "port": port}), method = 'PUT')
+				self.simulate_request("/clients", body=json.dumps({"host": "127.0.0.1", "port": port}), method='PUT')
 				self.assertEqual(self.srmock.status, falcon.HTTP_201)
 				self.store_item(msg)
 				socks = socket.poll(timeout=1000)
@@ -224,7 +224,7 @@ class ServerTest(testing.TestBase):
 
 	def test_clients_have_state(self):
 		with self.withDB():
-			self.simulate_request("/clients", body = json.dumps({"host": "127.0.0.1", "port": 1234}), method = 'PUT')
+			self.simulate_request("/clients", body=json.dumps({"host": "127.0.0.1", "port": 1234}), method='PUT')
 			self.assertEqual(self.srmock.status, falcon.HTTP_201)
 			clients = self.get_client_list()
 			client = clients["127.0.0.1:1234"]
@@ -234,7 +234,7 @@ class ServerTest(testing.TestBase):
 	def test_clients_dont_update_if_older(self, first, second):
 		with self.withDB():
 			self.store_item(first)
-			self.simulate_request("/clients", body = json.dumps({"host": "127.0.0.1", "port": 1234}), method = 'PUT')
+			self.simulate_request("/clients", body=json.dumps({"host": "127.0.0.1", "port": 1234}), method='PUT')
 			self.assertEqual(self.srmock.status, falcon.HTTP_201)
 
 			clients = self.get_client_list()
@@ -250,14 +250,14 @@ class ServerTest(testing.TestBase):
 	def test_clients_can_be_updated(self, msg):
 		with self.withDB():
 			self.store_item(msg)
-			self.simulate_request("/clients", body = json.dumps({"host": "127.0.0.1", "port": 1234}), method = 'PUT')
+			self.simulate_request("/clients", body=json.dumps({"host": "127.0.0.1", "port": 1234}), method='PUT')
 			self.assertEqual(self.srmock.status, falcon.HTTP_201)
 
 			clients = self.get_client_list()
 			client = clients["127.0.0.1:1234"]
 			self.assertDictEqual({}, client)
 
-			self.simulate_request("/update/127.0.0.1:1234", method = 'POST')
+			self.simulate_request("/update/127.0.0.1:1234", method='POST')
 			self.assertEqual(self.srmock.status, falcon.HTTP_200)
 
 			clients = self.get_client_list()

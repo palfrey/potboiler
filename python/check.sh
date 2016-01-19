@@ -1,2 +1,2 @@
 #!/bin/sh
-prospector --profile prospector.yml
+prospector --profile prospector.yml potboiler/*.py test/*.py

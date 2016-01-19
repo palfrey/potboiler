@@ -96,7 +96,7 @@ class StoreResource(JSONResource):
 		Required("data"): {Extra: object}
 	})
 
-	def on_get(self, req, resp, key = None):
+	def on_get(self, req, resp, key=None):
 		self.check_noargs(req)
 		if key is None:
 			resp.body = self.get_key(stores_key)
@@ -175,7 +175,7 @@ def ZMQ(poller, event):
 		if event.is_set():
 			break
 		if len(poller.sockets) == 0:
-			event.wait(timeout = 5)
+			event.wait(timeout=5)
 			continue
 		try:
 			socks = dict(poller.poll())
@@ -191,15 +191,15 @@ def setup_key(db, key, value):
 	except KeyError:
 		db.Put(key, json.dumps(value).encode("utf-8"))
 
-def make_api(db_path = "./db"):
+def make_api(db_path="./db"):
 	api = falcon.API()
-	db = leveldb.LevelDB(db_path, paranoid_checks = True)
+	db = leveldb.LevelDB(db_path, paranoid_checks=True)
 
 	setup_key(db, kind_key, {})
 	setup_key(db, self_key, uuid.uuid4())
 	setup_key(db, stores_key, {})
 
-	context = zmq.Context.instance(io_threads = 10)
+	context = zmq.Context.instance()
 	poller = zmq.Poller()
 	client_list = {}
 	api.add_route('/clients', ClientResource(context, poller, client_list))
@@ -208,7 +208,7 @@ def make_api(db_path = "./db"):
 	api.add_route('/kinds', KindResource(db))
 	api.add_route('/update/{client_key}', UpdateResource(db, client_list))
 	event = threading.Event()
-	thread = threading.Thread(target=ZMQ, args=(poller, event), daemon = True)
+	thread = threading.Thread(target=ZMQ, args=(poller, event), daemon=True)
 	thread.start()
 	return {"api": api, "context": context, "thread": thread, "event": event, "db": db, "clients": client_list}
 

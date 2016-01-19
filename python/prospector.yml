@@ -1,5 +1,11 @@
-strictness: medium
-doc-warnings: false
-test-warnings: true
-autodetect: true
-member-warnings: false
+inherits:
+  - strictness_medium
+  - member_warnings
+
+pylint:
+  enable:
+    - bad-whitespace
+
+pep8:
+  enable:
+    - E251
