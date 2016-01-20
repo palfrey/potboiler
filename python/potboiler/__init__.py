@@ -100,7 +100,7 @@ class ClientResource(JSONResource):
 			try:
 				f = resolver.query(host, 'A')
 				result = loop.run_until_complete(f)
-				raise Exception(result)
+				ip = result[0].host
 			except UnicodeError as e: # hostname too long for IDNA
 				raise falcon.HTTPInvalidParam("Too long hostname", "host")
 			except aiodns.error.DNSError:
