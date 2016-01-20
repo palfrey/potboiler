@@ -4,6 +4,7 @@
 #
 #    pip-compile requirements.in
 #
+aiodns==1.0.0
 apipkg==1.4               # via execnet
 argparse==1.4.0           # via unittest2
 astroid==1.4.3            # via pylint, pylint-celery, pylint-flask, pylint-plugin-utils, requirements-detector
@@ -30,6 +31,7 @@ pip-tools==1.4.2
 prospector==0.11.7
 psycopg2==2.6.1
 py==1.4.31                # via pytest, pytest-xdist
+pycares==1.0.0            # via aiodns
 pyflakes==1.0.0           # via prospector
 pylint-celery==0.3        # via prospector
 pylint-common==0.2.2      # via prospector
@@ -40,6 +42,7 @@ pylint==1.5.2             # via prospector, pylint-celery, pylint-common, pylint
 pytest-timeout==1.0.0
 pytest-xdist==1.13.1
 pytest==2.8.5
+python-hosts==0.3.2
 python-mimeparse==0.1.4   # via falcon, testtools
 pyyaml==3.11              # via prospector
 pyzmq==15.1.0

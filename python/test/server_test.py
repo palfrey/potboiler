@@ -73,17 +73,40 @@ class ServerTest(testing.TestBase):
 			self.assertEqual(self.srmock.status, falcon.HTTP_200)
 
 	@given(st.fixed_dictionaries({
-		'host': st.text(alphabet=string.ascii_letters + string.digits + "-", min_size=3, average_size=5),
+		'host': st.text(alphabet=string.ascii_letters + string.digits + "-", min_size=3, average_size=5, max_size=63),
+		'port': st.integers(min_value=1)
+	}))
+	def test_bad_hosts_fail(self, s):
+		with self.withDB():
+			res = self.simulate_request("/clients", body=json.dumps(s), method='PUT')
+			note(res)
+			self.assertEqual(self.srmock.status, falcon.HTTP_400)
+			self.assertIn("DNS can\'t find host", res[0].decode("utf-8"))
+
+	@given(st.fixed_dictionaries({
+		'host': st.just('localhost'),
 		'port': st.integers(min_value=1)
 	}))
 	def test_clients_can_be_added(self, s):
 		with self.withDB():
-			assume(not s["host"].startswith("-"))
 			self.simulate_request("/clients", body=json.dumps(s), method='PUT')
+			note(self.srmock.status)
 			self.assertEqual(self.srmock.status, falcon.HTTP_201)
 			clients_now = self.get_client_list()
 			note("now: %r" % clients_now)
-			self.assertTrue("{host}:{port}".format(**s) in clients_now.keys())
+			self.assertIn("{host}:{port}".format(**s), clients_now.keys())
+
+	@given(st.fixed_dictionaries({
+		'host': st.text(alphabet=string.ascii_letters + string.digits + "-", min_size=64),
+		'port': st.integers(min_value=1)
+	}))
+	def test_idna_host_failure(self, s):
+		with self.withDB():
+			assume(not s["host"].startswith("-"))
+			res = self.simulate_request("/clients", body=json.dumps(s), method='PUT')
+			note(res)
+			self.assertEqual(self.srmock.status, falcon.HTTP_400)
+			self.assertIn("Too long hostname", res[0].decode("utf-8"))
 
 	@given(st.text())
 	def test_store_cant_decode_random_text(self, s):

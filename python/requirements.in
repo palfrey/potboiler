@@ -4,6 +4,8 @@ leveldb
 psycopg2
 wheel
 pyzmq
+aiodns
+python-hosts
 
 coverage
 hypothesis
