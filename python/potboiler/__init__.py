@@ -91,7 +91,6 @@ class ClientResource(JSONResource):
 				if x.entry_type == "comment":
 					continue
 				if host in x.names:
-					print("found", x)
 					ip = x.address
 					break
 		if ip == None:
@@ -103,10 +102,8 @@ class ClientResource(JSONResource):
 				result = loop.run_until_complete(f)
 				raise Exception(result)
 			except UnicodeError as e: # hostname too long for IDNA
-				print(e)
 				raise falcon.HTTPInvalidParam("Too long hostname", "host")
 			except aiodns.error.DNSError:
-				print("Bad dns", host)
 				raise falcon.HTTPInvalidParam("DNS can't find host", "host")
 		conn.connect("tcp://{host}:{port}".format(host = ip, port = port))
 		self.clients["%s:%d" %(host,port)] = Client(conn, host, port)

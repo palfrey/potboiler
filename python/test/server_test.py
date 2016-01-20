@@ -77,6 +77,10 @@ class ServerTest(testing.TestBase):
 		'port': st.integers(min_value=1)
 	}))
 	def test_bad_hosts_fail(self, s):
+		try:
+			assume(not int(s["host"], 16)) # matches as IP
+		except ValueError:
+			pass
 		with self.withDB():
 			res = self.simulate_request("/clients", body=json.dumps(s), method='PUT')
 			note(res)
