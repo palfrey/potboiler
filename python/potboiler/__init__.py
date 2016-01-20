@@ -93,19 +93,18 @@ class ClientResource(JSONResource):
 				if host in x.names:
 					ip = x.address
 					break
-		if ip == None:
-			res = err = None
+		if ip is None:
 			loop = asyncio.get_event_loop()
 			resolver = aiodns.DNSResolver(loop=loop)
 			try:
 				f = resolver.query(host, 'A')
 				result = loop.run_until_complete(f)
 				ip = result[0].host
-			except UnicodeError as e: # hostname too long for IDNA
+			except UnicodeError: # hostname too long for IDNA
 				raise falcon.HTTPInvalidParam("Too long hostname", "host")
 			except aiodns.error.DNSError:
 				raise falcon.HTTPInvalidParam("DNS can't find host", "host")
-		conn.connect("tcp://{host}:{port}".format(host = ip, port = port))
+		conn.connect("tcp://{ip}:{port}".format(ip=ip, port=port))
 		self.clients["%s:%d" %(host,port)] = Client(conn, host, port)
 		resp.status = falcon.HTTP_CREATED
 
