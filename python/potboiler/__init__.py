@@ -184,6 +184,8 @@ class UpdateResource(JSONResource):
 	def on_post(self, req, resp, client_key):
 		self.check_noargs(req)
 		print(self.client_list.keys())
+		if client_key not in self.client_list:
+			raise falcon.HTTPNotFound()
 		client = self.client_list[client_key]
 		stores = self.get_json_key(stores_key)
 		for s in stores:

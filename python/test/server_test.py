@@ -299,3 +299,8 @@ class ServerTest(testing.TestBase):
 			self.assertEqual(1, len(client.keys()))
 			client_key = list(client.keys())[0]
 			self.assertDictEqual({client_key: msg["entry_id"]}, client)
+
+	@given(st.text())
+	def test_update_fails_on_non_existent_client(self, client):
+		self.simulate_request("/update/%s" % client, method='POST')
+		self.assertEqual(self.srmock.status, falcon.HTTP_404)
