@@ -81,6 +81,7 @@ class ServerTest(testing.TestBase):
 			assume(not int(s["host"], 16)) # matches as IP
 		except ValueError:
 			pass
+		note("host: %r" % s["host"])
 		with self.withDB():
 			res = self.simulate_request("/clients", body=json.dumps(s), method='PUT')
 			note(res)
