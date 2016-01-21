@@ -224,22 +224,35 @@ class ServerTest(testing.TestBase):
 			self.assertEqual(self.srmock.status, falcon.HTTP_200)
 			self.assertDictEqual(json.loads(stored_msg[0].decode("utf-8")), second)
 
-	@given(valid_msg)
-	def test_clients_get_messages(self, msg):
+	def add_client(self, host="127.0.0.1", port=1234):
+		self.simulate_request("/clients", body=json.dumps({"host": host, "port": port}), method='PUT')
+		self.assertEqual(self.srmock.status, falcon.HTTP_201)
+
+	def make_client(self):
 		socket = self.context.socket(zmq.PAIR)
 		socket.linger = 0
 		port = socket.bind_to_random_port("tcp://*", min_port=2000)
+		return (socket, port)
+
+	def get_message(self, socket):
+		socks = socket.poll(timeout=1000)
+		if socks == 0:
+			raise Exception("Nothing ready!")
+		return socket.recv_json(flags=zmq.NOBLOCK)
+
+	def check_get_message(self, socket, message):
+		from_msg = self.get_message(socket)
+		self.assertIsNotNone(from_msg)
+		self.assertDictEqual(from_msg["data"], message)
+
+	@given(valid_msg)
+	def test_clients_get_messages(self, msg):
+		(socket, port) = self.make_client()
 		try:
 			with self.withDB():
-				self.simulate_request("/clients", body=json.dumps({"host": "127.0.0.1", "port": port}), method='PUT')
-				self.assertEqual(self.srmock.status, falcon.HTTP_201)
+				self.add_client(port=port)
 				self.store_item(msg)
-				socks = socket.poll(timeout=1000)
-				if socks == 0:
-					raise Exception("Nothing ready!")
-				from_msg = socket.recv_json(flags=zmq.NOBLOCK)
-				self.assertIsNotNone(from_msg)
-				self.assertDictEqual(from_msg["data"], msg)
+				self.check_get_message(socket, msg)
 
 				clients = self.get_client_list()
 				client = clients["127.0.0.1:%d" % port]
@@ -250,40 +263,32 @@ class ServerTest(testing.TestBase):
 		finally:
 			socket.close()
 
+	def check_empty_client_list(self, port=1234):
+		clients = self.get_client_list()
+		client = clients["127.0.0.1:%d" % port]
+		self.assertDictEqual({}, client)
+
 	def test_clients_have_state(self):
 		with self.withDB():
-			self.simulate_request("/clients", body=json.dumps({"host": "127.0.0.1", "port": 1234}), method='PUT')
-			self.assertEqual(self.srmock.status, falcon.HTTP_201)
-			clients = self.get_client_list()
-			client = clients["127.0.0.1:1234"]
-			self.assertDictEqual({}, client)
+			self.add_client()
+			self.check_empty_client_list()
 
 	@given(valid_msg, valid_msg)
 	def test_clients_dont_update_if_older(self, first, second):
 		with self.withDB():
 			self.store_item(first)
-			self.simulate_request("/clients", body=json.dumps({"host": "127.0.0.1", "port": 1234}), method='PUT')
-			self.assertEqual(self.srmock.status, falcon.HTTP_201)
-
-			clients = self.get_client_list()
-			client = clients["127.0.0.1:1234"]
-			self.assertDictEqual({}, client)
+			self.add_client()
+			self.check_empty_client_list()
 
 			self.store_item(second)
-			clients = self.get_client_list()
-			client = clients["127.0.0.1:1234"]
-			self.assertDictEqual({}, client) # because out of date
+			self.check_empty_client_list() # because out of date
 
 	@given(valid_msg)
 	def test_clients_can_be_updated(self, msg):
 		with self.withDB():
 			self.store_item(msg)
-			self.simulate_request("/clients", body=json.dumps({"host": "127.0.0.1", "port": 1234}), method='PUT')
-			self.assertEqual(self.srmock.status, falcon.HTTP_201)
-
-			clients = self.get_client_list()
-			client = clients["127.0.0.1:1234"]
-			self.assertDictEqual({}, client)
+			self.add_client()
+			self.check_empty_client_list()
 
 			self.simulate_request("/update/127.0.0.1:1234", method='POST')
 			self.assertEqual(self.srmock.status, falcon.HTTP_200)
