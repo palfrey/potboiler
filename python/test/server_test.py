@@ -219,7 +219,7 @@ class ServerTest(testing.TestBase):
 			note("Client key: %r" % client_key)
 			entry = data[client_key]
 			key = entry['key']
-			self.assertEqual(entry["previous"], first["entry_id"])
+			self.assertIsNotNone(entry["previous"])
 			stored_msg = self.simulate_request("/store/{0}".format(key))
 			self.assertEqual(self.srmock.status, falcon.HTTP_200)
 			self.assertDictEqual(json.loads(stored_msg[0].decode("utf-8")), second)
@@ -304,3 +304,27 @@ class ServerTest(testing.TestBase):
 	def test_update_fails_on_non_existent_client(self, client):
 		self.simulate_request("/update/%s" % client, method='POST')
 		self.assertEqual(self.srmock.status, falcon.HTTP_404)
+
+	@given(valid_msg, valid_msg)
+	def test_clients_can_be_updated_from_older(self, first, second):
+		(socket, port) = self.make_client()
+		with self.withDB():
+			self.store_item(first)
+			self.add_client(port=port)
+			self.check_empty_client_list(port)
+
+			self.store_item(second)
+			self.check_empty_client_list(port)
+
+			self.simulate_request("/update/127.0.0.1:%d" % port, method='POST')
+			self.assertEqual(self.srmock.status, falcon.HTTP_200)
+
+			self.check_get_message(socket, first)
+			self.check_get_message(socket, second)
+
+			clients = self.get_client_list()
+			client = clients["127.0.0.1:%d" % port]
+			note("Client: %r" % client)
+			self.assertEqual(1, len(client.keys()))
+			client_key = list(client.keys())[0]
+			self.assertDictEqual({client_key: second["entry_id"]}, client)

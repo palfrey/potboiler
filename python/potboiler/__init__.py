@@ -148,7 +148,9 @@ class StoreResource(JSONResource):
 		if self.self_key not in stores:
 			stores[self.self_key] = {"key": data["entry_id"], "previous": None}
 		else:
-			stores[self.self_key] = {"key": data["entry_id"], "previous": stores[self.self_key]["key"]}
+			old_store = str(uuid.uuid4())
+			self.put_key(old_store.encode("utf-8"), stores[self.self_key])
+			stores[self.self_key] = {"key": data["entry_id"], "previous": old_store}
 		self.put_key(stores_key, stores)
 
 		if len(self.clients.keys()) > 0:
@@ -190,10 +192,14 @@ class UpdateResource(JSONResource):
 		stores = self.get_json_key(stores_key)
 		for s in stores:
 			if s not in client.stores:
-				tosend = stores[s]
-				tosend["data"] = self.get_json_key(stores[s]["key"].encode("utf-8"))
-				client.zmq.send_json(tosend)
-				client.stores[s] = tosend["key"]
+				tosend = [stores[s]]
+				while tosend[0]["previous"] != None:
+					prev = self.get_json_key(tosend[0]["previous"].encode("utf-8"))
+					tosend.insert(0, prev)
+				for ts in tosend:
+					ts["data"] = self.get_json_key(ts["key"].encode("utf-8"))
+					client.zmq.send_json(ts)
+				client.stores[s] = tosend[-1]["key"]
 
 		resp.status = falcon.HTTP_OK
 
