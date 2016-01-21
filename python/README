@@ -1,0 +1,4 @@
+brew install watchman
+virtualenv --python=python3.5 ENV
+source ENV/bin/activate
+pip install requirements.txt
