@@ -1,0 +1,16 @@
+[package]
+name = "potboiler"
+version = "0.1.0"
+authors = ["Tom Parker <palfrey@tevp.net>"]
+
+[dependencies]
+hybrid-clocks = "0.2.1"
+uuid = "0.2.2"
+log = "*"
+log4rs = {version = ">= 0.3.3", features=["toml"]}
+pencil = "0.2.0"
+hyper = "*"
+url = "*"
+postgres = "0.11.7"
+schemamama = "0.0.11"
+schemamama_postgres = "0.0.8"
