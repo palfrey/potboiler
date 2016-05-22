@@ -1,7 +1,0 @@
-ENV/
-db/
-__pycache__/
-.coverage*
-
-# Possibly pull this back out later..
-.hypothesis/
