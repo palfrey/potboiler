@@ -1,0 +1,15 @@
+refresh_rate: 30
+appenders:
+    stdout:
+        kind: console
+root:
+    level: debug
+    appenders:
+        - stdout
+loggers:
+    hyper::server:
+        level: info
+    postgres:
+        level: info
+    mime:
+        level: info
