@@ -10,6 +10,6 @@ loggers:
     hyper::server:
         level: info
     postgres:
-        level: info
+        level: warn
     mime:
         level: info

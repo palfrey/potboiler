@@ -6,15 +6,18 @@ mod schema;
 #[macro_use] extern crate log;
 extern crate log4rs;
 
-extern crate pencil;
-use pencil::{Pencil, Request, Response, PencilResult};
-//use pencil::http_errors::BadRequest;
+extern crate iron;
+extern crate router;
+
+use iron::prelude::*;
+use iron::status;
+use router::Router;
 
 use std::env;
 
-fn log_status(request: &mut Request) -> PencilResult {
+fn log_status(request: &mut Request) -> IronResult<Response> {
     info!("{:?}", request);
-    Ok(Response::from("Hello World!"))
+    Ok(Response::with((status::Ok, "Hello World!")))
 }
 
 fn main() {
@@ -22,11 +25,9 @@ fn main() {
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let conn = postgres::Connection::connect(db_url, postgres::SslMode::None).expect("Needed a working DATABASE_URL");
     schema::up(&conn).unwrap();
-    let mut app = Pencil::new("");
-    app.set_debug(true);
-    app.set_log_level();
-    app.get("/log", "log status", log_status);
-    app.post("/log", "add new local log entry", log_status);
-    app.get("/log/<entry_id:string>", "get log with UUID", log_status);
-    app.run("127.0.0.1:8000");
+    let mut router = Router::new();
+    router.get("/log", log_status);
+    router.post("/log", log_status);
+    router.get("/log/:entry_id", log_status);
+    Iron::new(router).http("localhost:8000").unwrap();
 }
