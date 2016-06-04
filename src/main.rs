@@ -1,9 +1,11 @@
-#[macro_use] extern crate schemamama;
+#[macro_use]
+extern crate schemamama;
 extern crate schemamama_postgres;
 extern crate postgres;
 mod schema;
 
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 extern crate log4rs;
 
 extern crate iron;
@@ -23,7 +25,8 @@ fn log_status(request: &mut Request) -> IronResult<Response> {
 fn main() {
     log4rs::init_file("log.yaml", Default::default()).unwrap();
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
-    let conn = postgres::Connection::connect(db_url, postgres::SslMode::None).expect("Needed a working DATABASE_URL");
+    let conn = postgres::Connection::connect(db_url, postgres::SslMode::None)
+        .expect("Needed a working DATABASE_URL");
     schema::up(&conn).unwrap();
     let mut router = Router::new();
     router.get("/log", log_status);

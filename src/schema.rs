@@ -1,7 +1,7 @@
 extern crate schemamama_postgres;
 extern crate postgres;
 
-use schemamama::{Migrator};
+use schemamama::Migrator;
 use schemamama_postgres::{PostgresAdapter, PostgresMigration};
 
 struct CreateLog;
@@ -9,7 +9,9 @@ migration!(CreateLog, 201605221254, "create log table");
 
 impl PostgresMigration for CreateLog {
     fn up(&self, transaction: &postgres::Transaction) -> Result<(), postgres::error::Error> {
-        transaction.execute("CREATE TABLE log (id UUID PRIMARY KEY, owner UUID, next UUID, prev UUID, data JSON);", &[]).unwrap();
+        transaction.execute(
+            "CREATE TABLE log (id UUID PRIMARY KEY, owner UUID, next UUID, prev UUID, data JSON);", &[])
+            .unwrap();
         return Ok(());
     }
 
