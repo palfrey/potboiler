@@ -19,6 +19,27 @@ use logger::Logger;
 
 use std::env;
 
+extern crate uuid;
+use uuid::Uuid;
+extern crate json;
+use json::JsonValue;
+
+extern crate r2d2;
+extern crate r2d2_postgres;
+extern crate persistent;
+use persistent::Read as PRead;
+
+#[macro_use]
+mod db;
+
+struct Log {
+    id: Uuid,
+    owner: Uuid,
+    next: Option<Uuid>,
+    prev: Option<Uuid>,
+    data: JsonValue
+}
+
 fn log_status(_: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "Hello World!")))
 }
@@ -33,14 +54,22 @@ fn get_log(req: &mut Request) -> IronResult<Response> {
         .unwrap()
         .find("entry_id")
         .unwrap_or("/");
-    Ok(Response::with((status::Ok, format!("Get log {}", query))))
+    let conn = get_pg_connection!(&req);
+    let stmt = conn.prepare("SELECT data from log").unwrap();
+    let results = stmt.query(&[]).unwrap();
+    if results.is_empty() {
+        Ok(Response::with((status::NotFound, format!("No log {}", query))))
+    }
+    else {
+        Ok(Response::with((status::Ok, format!("Get log {}", query))))
+    }
 }
 
 fn main() {
     log4rs::init_file("log.yaml", Default::default()).unwrap();
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
-    let conn = postgres::Connection::connect(db_url, postgres::SslMode::None)
-        .expect("Needed a working DATABASE_URL");
+    let pool = db::get_pool(db_url);
+    let conn = pool.get().unwrap();
     schema::up(&conn).unwrap();
     let (logger_before, logger_after) = Logger::new(None);
     let mut router = Router::new();
@@ -50,5 +79,6 @@ fn main() {
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);
+    chain.link(PRead::<db::PostgresDB>::both(pool));
     Iron::new(chain).http("localhost:8000").unwrap();
 }

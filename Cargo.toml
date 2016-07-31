@@ -9,11 +9,16 @@ uuid = "*"
 log = "*"
 log4rs = {version = ">= 0.4", features=["yaml"]}
 
-iron = "0.3.0"
+iron = "*"
 router = "*"
 logger = "*"
+json = "*"
 
 url = "*"
 postgres = "*"
 schemamama = "*"
 schemamama_postgres = "*"
+
+r2d2 = "*"
+r2d2_postgres = "*"
+persistent = "*"

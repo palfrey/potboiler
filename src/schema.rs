@@ -10,7 +10,7 @@ migration!(CreateLog, 201605221254, "create log table");
 impl PostgresMigration for CreateLog {
     fn up(&self, transaction: &postgres::Transaction) -> Result<(), postgres::error::Error> {
         transaction.execute(
-            "CREATE TABLE log (id UUID PRIMARY KEY, owner UUID, next UUID, prev UUID, data JSON);", &[])
+            "CREATE TABLE log (id UUID PRIMARY KEY, owner UUID NOT NULL, next UUID, prev UUID, data JSON NOT NULL);", &[])
             .unwrap();
         return Ok(());
     }
