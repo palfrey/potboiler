@@ -96,13 +96,16 @@ fn get_log(req: &mut Request) -> IronResult<Response> {
         .unwrap()
         .find("entry_id")
         .unwrap_or("/");
+    let query_id = Uuid::parse_str(&query).expect("Dodgy UUID");
     let conn = get_pg_connection!(&req);
-    let stmt = conn.prepare("SELECT data from log").unwrap();
-    let results = stmt.query(&[]).unwrap();
+    let stmt = conn.prepare("SELECT data from log where id=$1").expect("prepare failure");
+    let results = stmt.query(&[&query_id]).expect("bad query");
     if results.is_empty() {
         Ok(Response::with((status::NotFound, format!("No log {}", query))))
     } else {
-        Ok(Response::with((status::Ok, format!("Get log {}", query))))
+        let row = results.get(0);
+        let data: Value = row.get("data");
+        Ok(Response::with((status::Ok, serde_json::ser::to_string(&data).unwrap())))
     }
 }
 
