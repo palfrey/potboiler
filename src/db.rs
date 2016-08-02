@@ -6,7 +6,9 @@ pub type PostgresPool = r2d2::Pool<PostgresConnectionManager>;
 pub type PostgresConnection = r2d2::PooledConnection<PostgresConnectionManager>;
 
 pub struct PostgresDB;
-impl Key for PostgresDB { type Value = PostgresPool;}
+impl Key for PostgresDB {
+    type Value = PostgresPool;
+}
 
 // Gets a connection from the pool from the given request or returns a 500
 macro_rules! get_pg_connection {

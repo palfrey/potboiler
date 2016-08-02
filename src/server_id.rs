@@ -9,7 +9,9 @@ use std::io::Read;
 #[derive(Copy, Clone)]
 pub struct ServerId;
 
-impl Key for ServerId { type Value = Uuid; }
+impl Key for ServerId {
+    type Value = Uuid;
+}
 
 macro_rules! get_server_id {
     ($req:expr) => (match $req.extensions.get::<persistent::Read<server_id::ServerId>>() {
@@ -28,8 +30,7 @@ pub fn setup() -> Uuid {
         let id = Uuid::new_v4();
         f.write_fmt(format_args!("{}", id.hyphenated())).expect(&format!("Can write {}", id_path));
         id
-    }
-    else {
+    } else {
         let mut f = File::open(id_path).expect(&format!("Can open {}", id_path));
         let mut s = String::new();
         f.read_to_string(&mut s).expect(&format!("Can read {}", id_path));

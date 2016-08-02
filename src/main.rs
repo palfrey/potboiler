@@ -32,8 +32,8 @@ extern crate r2d2_postgres;
 extern crate persistent;
 use persistent::Read as PRead;
 
-#[macro_use] mod db;
-#[macro_use] mod server_id;
+#[macro_use]mod db;
+#[macro_use]mod server_id;
 
 use std::error::Error;
 use std::fmt::{self, Debug};
@@ -41,7 +41,9 @@ use std::fmt::{self, Debug};
 struct StringError(String);
 
 impl Error for StringError {
-    fn description(&self) -> &str { &*self.0 }
+    fn description(&self) -> &str {
+        &*self.0
+    }
 }
 
 impl fmt::Display for StringError {
@@ -55,7 +57,7 @@ struct Log {
     owner: Uuid,
     next: Option<Uuid>,
     prev: Option<Uuid>,
-    data: Value
+    data: Value,
 }
 
 fn log_status(_: &mut Request) -> IronResult<Response> {
@@ -71,19 +73,21 @@ fn new_log(req: &mut Request) -> IronResult<Response> {
     };
     let json: Value = match serde_json::de::from_str(&body_string) {
         Ok(val) => val,
-        Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON")))
+        Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
     let id = Uuid::new_v4();
     let hyphenated = id.hyphenated().to_string();
     let server_id = get_server_id!(&req);
     conn.execute("INSERT INTO log (id, owner, data) VALUES ($1, $2, $3)",
-                 &[&id, server_id.deref(), &json]).expect("insert worked");
+                 &[&id, server_id.deref(), &json])
+        .expect("insert worked");
     let new_url = {
         let req_url = req.url.clone();
         let base_url = req_url.into_generic_url();
         base_url.join(&format!("/log/{}", &hyphenated)).expect("join url works")
     };
-    Ok(Response::with((status::Found, Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")))))
+    Ok(Response::with((status::Found,
+                       Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")))))
 }
 
 fn get_log(req: &mut Request) -> IronResult<Response> {
@@ -97,8 +101,7 @@ fn get_log(req: &mut Request) -> IronResult<Response> {
     let results = stmt.query(&[]).unwrap();
     if results.is_empty() {
         Ok(Response::with((status::NotFound, format!("No log {}", query))))
-    }
-    else {
+    } else {
         Ok(Response::with((status::Ok, format!("Get log {}", query))))
     }
 }
