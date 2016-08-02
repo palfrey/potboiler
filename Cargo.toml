@@ -5,17 +5,17 @@ authors = ["Tom Parker <palfrey@tevp.net>"]
 
 [dependencies]
 hybrid-clocks = "*"
-uuid = "*"
+uuid = {version = "*", features=["v4"]}
 log = "*"
 log4rs = {version = ">= 0.4", features=["yaml"]}
 
 iron = "*"
 router = "*"
 logger = "*"
-json = "*"
+serde_json = "0.7.4"
 
 url = "*"
-postgres = "*"
+postgres = {version="*", features=["uuid","serde_json"]}
 schemamama = "*"
 schemamama_postgres = "*"
 

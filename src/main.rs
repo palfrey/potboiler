@@ -16,13 +16,15 @@ use iron::prelude::*;
 use iron::status;
 use router::Router;
 use logger::Logger;
+use std::io::Read;
+use iron::modifiers::Redirect;
 
 use std::env;
 
 extern crate uuid;
 use uuid::Uuid;
-extern crate json;
-use json::JsonValue;
+extern crate serde_json;
+use serde_json::Value;
 
 extern crate r2d2;
 extern crate r2d2_postgres;
@@ -32,20 +34,54 @@ use persistent::Read as PRead;
 #[macro_use]
 mod db;
 
+use std::error::Error;
+use std::fmt::{self, Debug};
+#[derive(Debug)]
+struct StringError(String);
+
+impl Error for StringError {
+    fn description(&self) -> &str { &*self.0 }
+}
+
+impl fmt::Display for StringError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
 struct Log {
     id: Uuid,
     owner: Uuid,
     next: Option<Uuid>,
     prev: Option<Uuid>,
-    data: JsonValue
+    data: Value
 }
 
 fn log_status(_: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "Hello World!")))
 }
 
-fn new_log(_: &mut Request) -> IronResult<Response> {
-    Ok(Response::with((status::Ok, "New log")))
+fn new_log(req: &mut Request) -> IronResult<Response> {
+    let conn = get_pg_connection!(&req);
+    let body_string = {
+        let mut body = String::new();
+        req.body.read_to_string(&mut body).expect("could read from body");
+        body
+    };
+    let json: Value = match serde_json::de::from_str(&body_string) {
+        Ok(val) => val,
+        Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON")))
+    };
+    let id = Uuid::new_v4();
+    let hyphenated = id.hyphenated().to_string();
+    conn.execute("INSERT INTO log (id, data) VALUES ($1, $2)",
+                 &[&id, &json]).expect("insert worked");
+    let new_url = {
+        let req_url = req.url.clone();
+        let base_url = req_url.into_generic_url();
+        base_url.join(&format!("/log/{}", &hyphenated)).expect("join url works")
+    };
+    Ok(Response::with((status::Found, Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")))))
 }
 
 fn get_log(req: &mut Request) -> IronResult<Response> {
