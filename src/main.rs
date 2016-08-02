@@ -20,6 +20,7 @@ use std::io::Read;
 use iron::modifiers::Redirect;
 
 use std::env;
+use std::ops::Deref;
 
 extern crate uuid;
 use uuid::Uuid;
@@ -31,8 +32,8 @@ extern crate r2d2_postgres;
 extern crate persistent;
 use persistent::Read as PRead;
 
-#[macro_use]
-mod db;
+#[macro_use] mod db;
+#[macro_use] mod server_id;
 
 use std::error::Error;
 use std::fmt::{self, Debug};
@@ -74,8 +75,9 @@ fn new_log(req: &mut Request) -> IronResult<Response> {
     };
     let id = Uuid::new_v4();
     let hyphenated = id.hyphenated().to_string();
-    conn.execute("INSERT INTO log (id, data) VALUES ($1, $2)",
-                 &[&id, &json]).expect("insert worked");
+    let server_id = get_server_id!(&req);
+    conn.execute("INSERT INTO log (id, owner, data) VALUES ($1, $2, $3)",
+                 &[&id, server_id.deref(), &json]).expect("insert worked");
     let new_url = {
         let req_url = req.url.clone();
         let base_url = req_url.into_generic_url();
@@ -115,6 +117,7 @@ fn main() {
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);
+    chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     chain.link(PRead::<db::PostgresDB>::both(pool));
     Iron::new(chain).http("localhost:8000").unwrap();
 }
