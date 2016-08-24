@@ -25,12 +25,14 @@ use std::ops::Deref;
 extern crate uuid;
 use uuid::Uuid;
 extern crate serde_json;
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 extern crate r2d2;
 extern crate r2d2_postgres;
 extern crate persistent;
 use persistent::Read as PRead;
+use postgres::rows::{Row, RowIndex};
+use postgres::types::FromSql;
 
 #[macro_use]mod db;
 #[macro_use]mod server_id;
@@ -90,6 +92,18 @@ fn new_log(req: &mut Request) -> IronResult<Response> {
                        Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")))))
 }
 
+fn get_with_null<I, T>(row: &Row, index: I) -> Option<T> where I: RowIndex, T: FromSql {
+    match row.get_opt(index) {
+        Some(val) => {
+            match val {
+                Ok(val) => Some(val),
+                Err(_) => None
+            }
+        },
+        None => None
+    }
+}
+
 fn get_log(req: &mut Request) -> IronResult<Response> {
     let ref query = req.extensions
         .get::<Router>()
@@ -98,14 +112,26 @@ fn get_log(req: &mut Request) -> IronResult<Response> {
         .unwrap_or("/");
     let query_id = Uuid::parse_str(&query).expect("Dodgy UUID");
     let conn = get_pg_connection!(&req);
-    let stmt = conn.prepare("SELECT data from log where id=$1").expect("prepare failure");
+    let stmt = conn.prepare("SELECT owner, next, prev, data from log where id=$1").expect("prepare failure");
     let results = stmt.query(&[&query_id]).expect("bad query");
     if results.is_empty() {
         Ok(Response::with((status::NotFound, format!("No log {}", query))))
     } else {
         let row = results.get(0);
         let data: Value = row.get("data");
-        Ok(Response::with((status::Ok, serde_json::ser::to_string(&data).unwrap())))
+        let mut map = Map::new();
+        let owner: Uuid = row.get("owner");
+        let next: Option<Uuid> = get_with_null(&row, "next");
+        let prev: Option<Uuid> = get_with_null(&row, "prev");
+        map.insert(String::from("owner"),
+                   serde_json::to_value(&owner.to_string()));
+        map.insert(String::from("prev"),
+                   serde_json::to_value(&prev.map(|x| x.to_string())));
+        map.insert(String::from("next"),
+                   serde_json::to_value(&next.map(|x| x.to_string())));
+        map.insert(String::from("data"), data);
+        let value = Value::Object(map);
+        Ok(Response::with((status::Ok, serde_json::ser::to_string(&value).unwrap())))
     }
 }
 
@@ -125,5 +151,6 @@ fn main() {
     chain.link_after(logger_after);
     chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     chain.link(PRead::<db::PostgresDB>::both(pool));
+    info!("Potboiler booted");
     Iron::new(chain).http("localhost:8000").unwrap();
 }
