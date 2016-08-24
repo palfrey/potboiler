@@ -13,3 +13,5 @@ loggers:
         level: warn
     mime:
         level: info
+    r2d2:
+        level: error
