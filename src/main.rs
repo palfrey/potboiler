@@ -79,9 +79,21 @@ fn new_log(req: &mut Request) -> IronResult<Response> {
     };
     let id = Uuid::new_v4();
     let hyphenated = id.hyphenated().to_string();
-    let server_id = get_server_id!(&req);
-    conn.execute("INSERT INTO log (id, owner, data) VALUES ($1, $2, $3)",
-                 &[&id, server_id.deref(), &json])
+    let server_id = get_server_id!(&req).deref();
+    let stmt = conn.prepare("SELECT id from log WHERE next is null LIMIT 1").expect("prepare failure");
+    let results = stmt.query(&[]).expect("last select works");
+    let previous = if results.is_empty() {
+        None
+    } else {
+        let row = results.get(0);
+        let id: Uuid = row.get("id");
+        Some(id)
+    };
+    conn.execute("UPDATE log set next = $1 where owner = $2 and next is null",
+                 &[&id, server_id])
+        .expect("update worked");
+    conn.execute("INSERT INTO log (id, owner, data, prev) VALUES ($1, $2, $3, $4)",
+                 &[&id, server_id, &json, &previous])
         .expect("insert worked");
     let new_url = {
         let req_url = req.url.clone();
