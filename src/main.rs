@@ -104,15 +104,18 @@ fn new_log(req: &mut Request) -> IronResult<Response> {
                        Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")))))
 }
 
-fn get_with_null<I, T>(row: &Row, index: I) -> Option<T> where I: RowIndex, T: FromSql {
+fn get_with_null<I, T>(row: &Row, index: I) -> Option<T>
+    where I: RowIndex,
+          T: FromSql
+{
     match row.get_opt(index) {
         Some(val) => {
             match val {
                 Ok(val) => Some(val),
-                Err(_) => None
+                Err(_) => None,
             }
-        },
-        None => None
+        }
+        None => None,
     }
 }
 
