@@ -54,9 +54,9 @@ impl fmt::Display for StringError {
     }
 }
 
-fn log_status(req: &mut Request) -> IronResult<Response> {
+fn log_status<T: Into<String>>(req: &mut Request, stmt: T) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
-    let stmt = conn.prepare("SELECT id, owner from log WHERE next is null").expect("prepare failure");
+    let stmt = conn.prepare(&stmt.into()).expect("prepare failure");
     let mut logs = Map::new();
     for row in &stmt.query(&[]).expect("last select works") {
         let id: Uuid = row.get("id");
@@ -65,6 +65,14 @@ fn log_status(req: &mut Request) -> IronResult<Response> {
     }
     let value = Value::Object(logs);
     Ok(Response::with((status::Ok, serde_json::ser::to_string(&value).unwrap())))
+}
+
+fn log_lasts(req: &mut Request) -> IronResult<Response> {
+    log_status(req, "SELECT id, owner from log WHERE next is null")
+}
+
+fn log_firsts(req: &mut Request) -> IronResult<Response> {
+    log_status(req, "SELECT id, owner from log WHERE prev is null")
 }
 
 fn new_log(req: &mut Request) -> IronResult<Response> {
@@ -165,8 +173,9 @@ fn main() {
     schema::up(&conn).unwrap();
     let (logger_before, logger_after) = Logger::new(None);
     let mut router = Router::new();
-    router.get("/log", log_status);
+    router.get("/log", log_lasts);
     router.post("/log", new_log);
+    router.get("/log/first", log_firsts);
     router.get("/log/:entry_id", get_log);
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
