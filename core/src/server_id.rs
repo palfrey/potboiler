@@ -1,10 +1,10 @@
 use iron::typemap::Key;
 use std::env;
-use std::path::Path;
 use std::fs::File;
-use std::io::Write;
-use uuid::Uuid;
 use std::io::Read;
+use std::io::Write;
+use std::path::Path;
+use uuid::Uuid;
 
 #[derive(Copy, Clone)]
 pub struct ServerId;

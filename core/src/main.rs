@@ -12,14 +12,14 @@ extern crate iron;
 extern crate router;
 extern crate logger;
 
+use iron::modifiers::Redirect;
 use iron::prelude::*;
 use iron::status;
-use router::Router;
 use logger::Logger;
-use std::io::Read;
-use iron::modifiers::Redirect;
+use router::Router;
 
 use std::env;
+use std::io::Read;
 use std::ops::Deref;
 
 extern crate uuid;
@@ -34,11 +34,14 @@ use persistent::Read as PRead;
 use postgres::rows::{Row, RowIndex};
 use postgres::types::FromSql;
 
-#[macro_use]mod db;
-#[macro_use]mod server_id;
+#[macro_use]
+mod db;
+#[macro_use]
+mod server_id;
 
 use std::error::Error;
 use std::fmt::{self, Debug};
+
 #[derive(Debug)]
 struct StringError(String);
 
@@ -153,7 +156,8 @@ fn get_log(req: &mut Request) -> IronResult<Response> {
         let owner: Uuid = row.get("owner");
         let next: Option<Uuid> = get_with_null(&row, "next");
         let prev: Option<Uuid> = get_with_null(&row, "prev");
-        map.insert(String::from("id"), serde_json::to_value(&query_id.to_string()));
+        map.insert(String::from("id"),
+                   serde_json::to_value(&query_id.to_string()));
         map.insert(String::from("owner"),
                    serde_json::to_value(&owner.to_string()));
         map.insert(String::from("prev"),
