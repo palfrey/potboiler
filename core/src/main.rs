@@ -153,6 +153,7 @@ fn get_log(req: &mut Request) -> IronResult<Response> {
         let owner: Uuid = row.get("owner");
         let next: Option<Uuid> = get_with_null(&row, "next");
         let prev: Option<Uuid> = get_with_null(&row, "prev");
+        map.insert(String::from("id"), serde_json::to_value(&query_id.to_string()));
         map.insert(String::from("owner"),
                    serde_json::to_value(&owner.to_string()));
         map.insert(String::from("prev"),
