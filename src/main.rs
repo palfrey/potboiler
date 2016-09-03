@@ -62,7 +62,7 @@ fn log_status(req: &mut Request) -> IronResult<Response> {
         let id: Uuid = row.get("id");
         let owner: Uuid = row.get("owner");
         logs.insert(owner.to_string(), serde_json::to_value(&id.to_string()));
-    };
+    }
     let value = Value::Object(logs);
     Ok(Response::with((status::Ok, serde_json::ser::to_string(&value).unwrap())))
 }
@@ -81,7 +81,8 @@ fn new_log(req: &mut Request) -> IronResult<Response> {
     let id = Uuid::new_v4();
     let hyphenated = id.hyphenated().to_string();
     let server_id = get_server_id!(&req).deref();
-    let stmt = conn.prepare("SELECT id from log WHERE next is null and owner = $1 LIMIT 1").expect("prepare failure");
+    let stmt = conn.prepare("SELECT id from log WHERE next is null and owner = $1 LIMIT 1")
+        .expect("prepare failure");
     let results = stmt.query(&[server_id]).expect("last select works");
     let previous = if results.is_empty() {
         None
@@ -126,7 +127,12 @@ fn get_log(req: &mut Request) -> IronResult<Response> {
         .unwrap()
         .find("entry_id")
         .unwrap_or("/");
-    let query_id = Uuid::parse_str(&query).expect("Dodgy UUID");
+    let query_id = match Uuid::parse_str(&query) {
+        Ok(val) => val,
+        Err(_) => {
+            return Ok(Response::with((status::NotFound, format!("No log {}", query))));
+        }
+    };
     let conn = get_pg_connection!(&req);
     let stmt = conn.prepare("SELECT owner, next, prev, data from log where id=$1").expect("prepare failure");
     let results = stmt.query(&[&query_id]).expect("bad query");
