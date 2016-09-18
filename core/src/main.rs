@@ -114,7 +114,7 @@ fn new_log(req: &mut Request) -> IronResult<Response> {
         let base_url = req_url.into_generic_url();
         base_url.join(&format!("/log/{}", &hyphenated)).expect("join url works")
     };
-    Ok(Response::with((status::Found,
+    Ok(Response::with((status::Created,
                        Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")))))
 }
 

@@ -22,3 +22,5 @@ persistent = "*"
 
 log = "*"
 log4rs = {version = ">= 0.4", features=["yaml"]}
+
+hyper = "*"

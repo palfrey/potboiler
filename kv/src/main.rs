@@ -18,13 +18,49 @@ extern crate potboiler_common;
 use potboiler_common::db;
 use potboiler_common::server_id;
 
+extern crate serde_json;
+extern crate hyper;
+
 use std::env;
+use std::io::Read;
+
+fn get_req_key<T: Into<String>>(req: &Request, key: T) -> Option<String> {
+    req.extensions
+        .get::<Router>()
+        .unwrap()
+        .find(&key.into())
+        .map(|s| s.to_string())
+}
 
 fn get_key(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "get_key")))
 }
 
 fn update_key(req: &mut Request) -> IronResult<Response> {
+    let server_url = "http://localhost:8000/log";
+
+    let body_string = {
+        let mut body = String::new();
+        req.body.read_to_string(&mut body).expect("could read from body");
+        body
+    };
+    let mut json: serde_json::Value = match serde_json::de::from_str(&body_string) {
+        Ok(val) => val,
+        Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
+    };
+    let map = json.as_object_mut().unwrap();
+    map.insert("table".to_string(),
+               serde_json::to_value(&get_req_key(req, "table").unwrap()));
+    map.insert("key".to_string(),
+               serde_json::to_value(&get_req_key(req, "key").unwrap()));
+
+    let client = hyper::client::Client::new();
+
+    let res = client.post(server_url)
+        .body(&serde_json::ser::to_string(&map).unwrap())
+        .send()
+        .unwrap();
+    assert_eq!(res.status, hyper::status::StatusCode::Created);
     Ok(Response::with((status::Ok, "update_key")))
 }
 

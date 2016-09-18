@@ -46,3 +46,4 @@ Update operations:
 
 - Create table
   - Update key. "table" is "\_config", "key" is table name. It's a LWW table, with "[item]" being {"crdt": "[crdt]"} "[crdt]" being one of "G-Set", "OR-Set" or "LWW". Other info for the config table is ignored.
+   e.g `curl -vL http://localhost:8001/kv/_config/test -d "{\"op\": \"set\", \"data\": \"{\"crdt\": \"LWW\"}\"}"`
