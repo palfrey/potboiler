@@ -1,26 +1,24 @@
 [package]
-name = "potboiler"
+name = "kv"
 version = "0.1.0"
 authors = ["Tom Parker <palfrey@tevp.net>"]
 
 [dependencies]
-hybrid-clocks = "*"
-uuid = {version = "*", features=["v4"]}
-log = "*"
-log4rs = {version = ">= 0.4", features=["yaml"]}
-
 iron = "*"
-router = "*"
+router = "0.2.0"
 logger = "*"
 serde_json = "0.7.4"
-
-potboiler_common = { path = "../potboiler_common" }
 
 url = "*"
 postgres = {version="*", features=["uuid","serde_json"]}
 schemamama = "*"
 schemamama_postgres = "*"
 
+potboiler_common = { path = "../potboiler_common" }
+
 r2d2 = "*"
 r2d2_postgres = "*"
 persistent = "*"
+
+log = "*"
+log4rs = {version = ">= 0.4", features=["yaml"]}

@@ -13,6 +13,7 @@ impl Key for ServerId {
     type Value = Uuid;
 }
 
+#[macro_export]
 macro_rules! get_server_id {
     ($req:expr) => (match $req.extensions.get::<persistent::Read<server_id::ServerId>>() {
         Some(id) => id,

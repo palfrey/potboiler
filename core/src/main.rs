@@ -36,9 +36,9 @@ use postgres::rows::{Row, RowIndex};
 use postgres::types::FromSql;
 
 #[macro_use]
-mod db;
-#[macro_use]
-mod server_id;
+extern crate potboiler_common;
+use potboiler_common::db;
+use potboiler_common::server_id;
 
 use std::error::Error;
 use std::fmt::{self, Debug};

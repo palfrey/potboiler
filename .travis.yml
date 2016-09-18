@@ -1,10 +1,14 @@
 language: rust
 cache: cargo
 before_script: (cargo install rustfmt || true)
+env:
+  - PROJECT=potboiler_common
+  - PROJECT=core
+  - PROJECT=kv
 script:
 - |
   export PATH=$PATH:~/.cargo/bin &&
-  cd core &&
+  cd $PROJECT &&
   cargo fmt -- --write-mode=diff &&
   cargo build &&
   cargo test

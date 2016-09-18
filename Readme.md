@@ -21,3 +21,28 @@ Core
 
 - Deregister for log updates
   - `curl http://localhost:8000/log/deregister -d "{\"url\": \"<URL to send msgs to>\"}"` => 204 if existed, otherwise 404
+
+
+KV
+--
+
+- Retrieve key
+  - `curl http://localhost:8000/kv/<table>/<key>` => `["foo", "bar"]`
+  - 404 if no table, or no key
+  - <table> and <key> here are alphanumeric strings
+
+Update operations:
+- "<item>" is any JSON value. "<key>" is a UUID.
+- G-Set:
+  - "add": "<item>"
+- OR-Set:
+  - "add": {"item":"<item>", "key":"<key>"}
+  - "remove": {"item":"<item>", "key":"<key>"}
+- LWW
+  - "set": "<item>"
+
+- Update key
+  - `curl http://localhost:8000/kv/<table>/<key> -d "{\"op\": \"<operation>\", \"data\": \"<data>\"}"` => Always 200 if data format is correct, regardless of whether the table has been seen
+
+- Create table
+  - Update key. "table" is "\_config", "key" is table name. It's a LWW table, with "<item>" being {"crdt": "<crdt>"} "<crdt>" being one of "G-Set", "OR-Set" or "LWW". Other info for the config table is ignored.

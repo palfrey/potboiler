@@ -11,6 +11,7 @@ impl Key for PostgresDB {
 }
 
 // Gets a connection from the pool from the given request or returns a 500
+#[macro_export]
 macro_rules! get_pg_connection {
     ($req:expr) => (match $req.extensions.get::<persistent::Read<db::PostgresDB>>() {
         Some(pool) => match pool.get() {

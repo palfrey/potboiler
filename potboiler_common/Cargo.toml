@@ -1,0 +1,10 @@
+[package]
+name = "potboiler_common"
+version = "0.1.0"
+authors = ["Tom Parker <palfrey@tevp.net>"]
+
+[dependencies]
+iron = "*"
+uuid = {version = "*", features=["v4"]}
+r2d2 = "*"
+r2d2_postgres = "*"
