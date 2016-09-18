@@ -31,6 +31,7 @@ extern crate r2d2;
 extern crate r2d2_postgres;
 extern crate persistent;
 use persistent::Read as PRead;
+use postgres::error::SqlState;
 use postgres::rows::{Row, RowIndex};
 use postgres::types::FromSql;
 
@@ -170,6 +171,47 @@ fn get_log(req: &mut Request) -> IronResult<Response> {
     }
 }
 
+fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
+    let body_string = {
+        let mut body = String::new();
+        req.body.read_to_string(&mut body).expect("could read from body");
+        body
+    };
+    let json: Value = match serde_json::de::from_str(&body_string) {
+        Ok(val) => val,
+        Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
+    };
+    Ok(Some(json.find("url").unwrap().as_string().unwrap().to_string()))
+}
+
+fn log_register(req: &mut Request) -> IronResult<Response> {
+    let conn = get_pg_connection!(&req);
+    match conn.execute("INSERT INTO notifications (url) VALUES ($1)",
+                       &[&url_from_body(req).unwrap().unwrap()]) {
+        Ok(_) => Ok(Response::with((status::NoContent))),
+        Err(err) => {
+            if let postgres::error::Error::Db(dberr) = err {
+                match dberr.code {
+                    SqlState::UniqueViolation => {
+                        Err(IronError::new(dberr, (status::BadRequest, "Already registered")))
+                    }
+                    _ => Err(IronError::new(dberr, (status::BadRequest, "Some other error"))),
+                }
+            } else {
+                Err(IronError::new(err, (status::BadRequest, "Some other error")))
+            }
+        }
+    }
+}
+
+fn log_deregister(req: &mut Request) -> IronResult<Response> {
+    let conn = get_pg_connection!(&req);
+    conn.execute("DELETE from notifications where url = $1",
+                 &[&url_from_body(req).unwrap().unwrap()])
+        .expect("delete worked");
+    Ok(Response::with((status::NoContent)))
+}
+
 fn main() {
     log4rs::init_file("log.yaml", Default::default()).unwrap();
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
@@ -182,6 +224,8 @@ fn main() {
     router.post("/log", new_log);
     router.get("/log/first", log_firsts);
     router.get("/log/:entry_id", get_log);
+    router.post("/log/register", log_register);
+    router.post("/log/deregister", log_deregister);
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);

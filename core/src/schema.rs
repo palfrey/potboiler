@@ -22,12 +22,30 @@ impl PostgresMigration for CreateLog {
     }
 }
 
+struct Notifications;
+migration!(Notifications, 201609181322, "add apps to notify");
+
+impl PostgresMigration for Notifications {
+    fn up(&self, transaction: &postgres::Transaction) -> Result<(), postgres::error::Error> {
+        transaction.execute("CREATE TABLE notifications (url VARCHAR(2083) PRIMARY KEY);",
+                     &[])
+            .unwrap();
+        return Ok(());
+    }
+
+    fn down(&self, transaction: &postgres::Transaction) -> Result<(), postgres::error::Error> {
+        let _ = transaction.execute("DROP TABLE notifications;", &[]).unwrap();
+        return Ok(());
+    }
+}
+
 fn migrate(connection: &postgres::Connection) -> Migrator<PostgresAdapter> {
     let adapter = PostgresAdapter::new(connection);
     let _ = adapter.setup_schema().unwrap();
 
     let mut migrator = Migrator::new(adapter);
     migrator.register(Box::new(CreateLog));
+    migrator.register(Box::new(Notifications));
     return migrator;
 }
 
