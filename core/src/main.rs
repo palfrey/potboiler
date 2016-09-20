@@ -192,9 +192,7 @@ fn log_register(req: &mut Request) -> IronResult<Response> {
         Err(err) => {
             if let postgres::error::Error::Db(dberr) = err {
                 match dberr.code {
-                    SqlState::UniqueViolation => {
-                        Err(IronError::new(dberr, (status::BadRequest, "Already registered")))
-                    }
+                    SqlState::UniqueViolation => Ok(Response::with((status::NoContent))),
                     _ => Err(IronError::new(dberr, (status::BadRequest, "Some other error"))),
                 }
             } else {

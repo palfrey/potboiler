@@ -24,6 +24,8 @@ extern crate hyper;
 use std::env;
 use std::io::Read;
 
+static SERVER_URL: &'static str = "http://localhost:8000/log";
+
 fn get_req_key<T: Into<String>>(req: &Request, key: T) -> Option<String> {
     req.extensions
         .get::<Router>()
@@ -32,13 +34,11 @@ fn get_req_key<T: Into<String>>(req: &Request, key: T) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-fn get_key(req: &mut Request) -> IronResult<Response> {
+fn get_key(_: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "get_key")))
 }
 
 fn update_key(req: &mut Request) -> IronResult<Response> {
-    let server_url = "http://localhost:8000/log";
-
     let body_string = {
         let mut body = String::new();
         req.body.read_to_string(&mut body).expect("could read from body");
@@ -56,7 +56,7 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
 
     let client = hyper::client::Client::new();
 
-    let res = client.post(server_url)
+    let res = client.post(SERVER_URL)
         .body(&serde_json::ser::to_string(&map).unwrap())
         .send()
         .unwrap();
@@ -66,6 +66,17 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
 
 fn main() {
     log4rs::init_file("log.yaml", Default::default()).unwrap();
+    let client = hyper::client::Client::new();
+
+    let mut map: serde_json::Map<String, String> = serde_json::Map::new();
+    map.insert("url".to_string(),
+               "http://localhost:8001/kv/event".to_string());
+    let res = client.post(&format!("{}/register", SERVER_URL))
+        .body(&serde_json::ser::to_string(&map).unwrap())
+        .send()
+        .unwrap();
+    assert_eq!(res.status, hyper::status::StatusCode::NoContent);
+
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = db::get_pool(db_url);
     // let conn = pool.get().unwrap();
