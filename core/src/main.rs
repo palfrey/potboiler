@@ -22,6 +22,10 @@ use std::env;
 use std::io::Read;
 use std::ops::Deref;
 
+extern crate hyper;
+extern crate url;
+use url::Url;
+
 extern crate uuid;
 use uuid::Uuid;
 extern crate serde_json;
@@ -31,6 +35,7 @@ extern crate r2d2;
 extern crate r2d2_postgres;
 extern crate persistent;
 use persistent::Read as PRead;
+use persistent::State;
 use postgres::error::SqlState;
 use postgres::rows::{Row, RowIndex};
 use postgres::types::FromSql;
@@ -42,6 +47,8 @@ use potboiler_common::server_id;
 
 use std::error::Error;
 use std::fmt::{self, Debug};
+
+mod notifications;
 
 #[derive(Debug)]
 struct StringError(String);
@@ -109,6 +116,21 @@ fn new_log(req: &mut Request) -> IronResult<Response> {
     conn.execute("INSERT INTO log (id, owner, data, prev) VALUES ($1, $2, $3, $4)",
                  &[&id, server_id, &json, &previous])
         .expect("insert worked");
+    let notifications = notifications::get_notifications_list(req);
+    let client = hyper::client::Client::new();
+    for notifier in notifications {
+        let mut map: serde_json::Map<String, String> = serde_json::Map::new();
+        map.insert("url".to_string(),
+                   "http://localhost:8001/kv/event".to_string());
+        debug!("Notifying {:?}", notifier);
+        let res = client.post(&notifier)
+            .body(&serde_json::ser::to_string(&map).unwrap())
+            .send()
+            .unwrap();
+        if res.status != hyper::status::StatusCode::NoContent {
+            warn!("Failed to notify {:?}: {:?}", &notifier, res.status);
+        }
+    }
     let new_url = {
         let req_url = req.url.clone();
         let base_url = req_url.into_generic_url();
@@ -186,17 +208,25 @@ fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
 
 fn log_register(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
-    match conn.execute("INSERT INTO notifications (url) VALUES ($1)",
-                       &[&url_from_body(req).unwrap().unwrap()]) {
-        Ok(_) => Ok(Response::with((status::NoContent))),
-        Err(err) => {
-            if let postgres::error::Error::Db(dberr) = err {
-                match dberr.code {
-                    SqlState::UniqueViolation => Ok(Response::with((status::NoContent))),
-                    _ => Err(IronError::new(dberr, (status::BadRequest, "Some other error"))),
+    let url = url_from_body(req).unwrap().unwrap();
+    match Url::parse(&url) {
+        Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
+        Ok(_) => {
+            match conn.execute("INSERT INTO notifications (url) VALUES ($1)", &[&url]) {
+                Ok(_) => {
+                    notifications::insert_notifier(req, &url);
+                    Ok(Response::with((status::NoContent)))
                 }
-            } else {
-                Err(IronError::new(err, (status::BadRequest, "Some other error")))
+                Err(err) => {
+                    if let postgres::error::Error::Db(dberr) = err {
+                        match dberr.code {
+                            SqlState::UniqueViolation => Ok(Response::with((status::NoContent))),
+                            _ => Err(IronError::new(dberr, (status::BadRequest, "Some other error"))),
+                        }
+                    } else {
+                        Err(IronError::new(err, (status::BadRequest, "Some other error")))
+                    }
+                }
             }
         }
     }
@@ -227,6 +257,13 @@ fn main() {
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);
+    let mut notifiers = Vec::new();
+    let stmt = conn.prepare("select url from notifications").expect("prepare failure");
+    for row in &stmt.query(&[]).expect("notifications select works") {
+        let url: String = row.get("url");
+        notifiers.push(url);
+    }
+    chain.link_before(State::<notifications::Notifications>::one(notifiers));
     chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     chain.link(PRead::<db::PostgresDB>::both(pool));
     info!("Potboiler booted");

@@ -24,3 +24,5 @@ schemamama_postgres = "*"
 r2d2 = "*"
 r2d2_postgres = "*"
 persistent = "*"
+
+hyper = "*"
