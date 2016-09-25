@@ -28,6 +28,7 @@ use url::Url;
 
 extern crate uuid;
 use uuid::Uuid;
+extern crate serde;
 extern crate serde_json;
 use serde_json::{Map, Value};
 
@@ -47,6 +48,8 @@ use potboiler_common::server_id;
 
 use std::error::Error;
 use std::fmt::{self, Debug};
+
+include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
 mod notifications;
 
@@ -174,22 +177,14 @@ fn get_log(req: &mut Request) -> IronResult<Response> {
         Ok(Response::with((status::NotFound, format!("No log {}", query))))
     } else {
         let row = results.get(0);
-        let data: Value = row.get("data");
-        let mut map = Map::new();
-        let owner: Uuid = row.get("owner");
-        let next: Option<Uuid> = get_with_null(&row, "next");
-        let prev: Option<Uuid> = get_with_null(&row, "prev");
-        map.insert(String::from("id"),
-                   serde_json::to_value(&query_id.to_string()));
-        map.insert(String::from("owner"),
-                   serde_json::to_value(&owner.to_string()));
-        map.insert(String::from("prev"),
-                   serde_json::to_value(&prev.map(|x| x.to_string())));
-        map.insert(String::from("next"),
-                   serde_json::to_value(&next.map(|x| x.to_string())));
-        map.insert(String::from("data"), data);
-        let value = Value::Object(map);
-        Ok(Response::with((status::Ok, serde_json::ser::to_string(&value).unwrap())))
+        let log = Log {
+            id: query_id,
+            owner: row.get("owner"),
+            prev: get_with_null(&row, "prev"),
+            next: get_with_null(&row, "next"),
+            data: row.get("data")
+        };
+        Ok(Response::with((status::Ok, serde_json::to_string(&log).unwrap())))
     }
 }
 
@@ -203,7 +198,7 @@ fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
         Ok(val) => val,
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
-    Ok(Some(json.find("url").unwrap().as_string().unwrap().to_string()))
+    Ok(Some(format!("{:?}",json.find("url").unwrap())))
 }
 
 fn log_register(req: &mut Request) -> IronResult<Response> {
