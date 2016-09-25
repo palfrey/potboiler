@@ -122,12 +122,16 @@ fn new_log(req: &mut Request) -> IronResult<Response> {
     let notifications = notifications::get_notifications_list(req);
     let client = hyper::client::Client::new();
     for notifier in notifications {
-        let mut map: serde_json::Map<String, String> = serde_json::Map::new();
-        map.insert("url".to_string(),
-                   "http://localhost:8001/kv/event".to_string());
+        let log = Log {
+            id: id,
+            owner: server_id.clone(),
+            prev: previous,
+            next: None,
+            data: json.clone(),
+        };
         debug!("Notifying {:?}", notifier);
         let res = client.post(&notifier)
-            .body(&serde_json::ser::to_string(&map).unwrap())
+            .body(&serde_json::ser::to_string(&log).unwrap())
             .send()
             .unwrap();
         if res.status != hyper::status::StatusCode::NoContent {
@@ -182,7 +186,7 @@ fn get_log(req: &mut Request) -> IronResult<Response> {
             owner: row.get("owner"),
             prev: get_with_null(&row, "prev"),
             next: get_with_null(&row, "next"),
-            data: row.get("data")
+            data: row.get("data"),
         };
         Ok(Response::with((status::Ok, serde_json::to_string(&log).unwrap())))
     }
@@ -198,12 +202,13 @@ fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
         Ok(val) => val,
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
-    Ok(Some(format!("{:?}",json.find("url").unwrap())))
+    Ok(Some(json.find("url").unwrap().as_str().unwrap().to_string()))
 }
 
 fn log_register(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
     let url = url_from_body(req).unwrap().unwrap();
+    debug!("Registering {:?}", url);
     match Url::parse(&url) {
         Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
         Ok(_) => {
