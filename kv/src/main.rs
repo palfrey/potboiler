@@ -12,17 +12,26 @@ use router::Router;
 
 extern crate persistent;
 use persistent::Read as PRead;
+use persistent::State;
+
+extern crate r2d2;
+extern crate r2d2_postgres;
+use r2d2_postgres::PostgresConnectionManager;
+pub type PostgresConnection = r2d2::PooledConnection<PostgresConnectionManager>;
 
 #[macro_use]
 extern crate potboiler_common;
 use potboiler_common::db;
 use potboiler_common::server_id;
+use potboiler_common::string_error::StringError;
 
 extern crate serde_json;
 extern crate hyper;
 
 use std::env;
 use std::io::Read;
+
+mod tables;
 
 include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
@@ -66,6 +75,18 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "update_key")))
 }
 
+fn make_table(conn: &PostgresConnection, table_name: &str) {
+    conn.execute(&format!("CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, value JSONB, \
+                           crdt JSONB)",
+                          &table_name),
+                 &[])
+        .expect("make table worked");
+}
+
+fn string_iron_error(error: &str) -> IronResult<Response> {
+    Err(IronError::new(StringError(error.to_string()), (status::BadRequest, error)))
+}
+
 fn new_event(req: &mut Request) -> IronResult<Response> {
     let body_string = {
         let mut body = String::new();
@@ -80,6 +101,34 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
     let data = json.find("data").unwrap();
     let change: Change = serde_json::from_value(data.clone()).unwrap();
     info!("change: {:?}", change);
+    let tables = tables::get_tables(req);
+    match tables.get(&change.table) {
+        None => return string_iron_error("Can't find table"),
+        Some(&val) => {
+            match val {
+                CRDT::LWW => {
+                    match change.op {
+                        Operation::Set => {
+                            // FIXME: Only insert if timestamp is appropriate
+                            let conn = get_pg_connection!(&req);
+                            conn.execute(&format!("INSERT INTO {} (key, value, crdt) VALUES ($1, $2, $3) \
+                                                   ON CONFLICT (key) DO UPDATE SET value=$2, crdt=$3",
+                                                  &change.table),
+                                         &[&change.key, &change.change, &change.change])
+                                .expect("insert worked");
+                        }
+                        _ => {
+                            return string_iron_error("LWW only supports Set, not Add/Remove");
+                        }
+
+                    }
+                }
+                _ => {
+                    return string_iron_error("Only support LWW so far");
+                }
+            }
+        }
+    }
     Ok(Response::with(status::NoContent))
 }
 
@@ -98,8 +147,8 @@ fn main() {
 
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = db::get_pool(db_url);
-    // let conn = pool.get().unwrap();
-    //    schema::up(&conn).unwrap();
+    let conn = pool.get().unwrap();
+    make_table(&conn, "_config");
     let (logger_before, logger_after) = Logger::new(None);
     let mut router = Router::new();
     router.get("/kv/:table/:key", get_key);
@@ -110,6 +159,8 @@ fn main() {
     chain.link_after(logger_after);
     chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     chain.link(PRead::<db::PostgresDB>::both(pool));
+    let tables = tables::init_tables(&conn);
+    chain.link(State::<tables::Tables>::both(tables));
     info!("Potboiler-kv booted");
     Iron::new(chain).http("localhost:8001").unwrap();
 }

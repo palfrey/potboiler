@@ -53,6 +53,13 @@ enum_str!(Operation {
     Remove("remove"),
 });
 
+#[derive(Debug, Serialize, Deserialize, Copy, Clone)]
+pub enum CRDT {
+	LWW,
+	GSET,
+	ORSET
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct Change {
     table: String,
