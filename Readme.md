@@ -42,8 +42,8 @@ Update operations:
   - "set": "[item]"
 
 - Update key
-  - `curl http://localhost:8000/kv/[table]/[key] -d "{\"op\": \"[operation]\", \"data\": \"[data]\"}"` => Always 200 if data format is correct, regardless of whether the table has been seen
+  - `curl http://localhost:8000/kv/[table]/[key] -d "{\"op\": \"[operation]\", \"change\": \"[data]\"}"` => Always 200 if data format is correct, regardless of whether the table has been seen
 
 - Create table
   - Update key. "table" is "\_config", "key" is table name. It's a LWW table, with "[item]" being {"crdt": "[crdt]"} "[crdt]" being one of "G-Set", "OR-Set" or "LWW". Other info for the config table is ignored.
-   e.g `curl -vL http://localhost:8001/kv/_config/test -d "{\"op\": \"set\", \"data\": \"{\"crdt\": \"LWW\"}\"}"`
+   e.g `curl -vL http://localhost:8001/kv/_config/test -d "{\"op\": \"set\", \"change\": \"{\"crdt\": \"LWW\"}\"}"`

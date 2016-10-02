@@ -2,12 +2,17 @@
 name = "kv"
 version = "0.1.0"
 authors = ["Tom Parker <palfrey@tevp.net>"]
+build = "../build.rs"
+
+[build-dependencies]
+serde_codegen = "0.8"
 
 [dependencies]
 iron = "*"
 router = "0.2.0"
 logger = "*"
-serde_json = "0.7.4"
+serde = "0.8"
+serde_json = "0.8"
 
 url = "*"
 postgres = {version="*", features=["uuid","serde_json"]}

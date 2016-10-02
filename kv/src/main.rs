@@ -24,6 +24,8 @@ extern crate hyper;
 use std::env;
 use std::io::Read;
 
+include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
+
 static SERVER_URL: &'static str = "http://localhost:8000/log";
 
 fn get_req_key<T: Into<String>>(req: &Request, key: T) -> Option<String> {
@@ -64,6 +66,23 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "update_key")))
 }
 
+fn new_event(req: &mut Request) -> IronResult<Response> {
+    let body_string = {
+        let mut body = String::new();
+        req.body.read_to_string(&mut body).expect("could read from body");
+        body
+    };
+    let json: serde_json::Value = match serde_json::de::from_str(&body_string) {
+        Ok(val) => val,
+        Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
+    };
+    let data = json.find("data").unwrap();
+    info!("body: {:?}", data);
+    let change: Change = serde_json::from_value(data.clone()).unwrap();
+    info!("change: {:?}", change);
+    Ok(Response::with(status::NoContent))
+}
+
 fn main() {
     log4rs::init_file("log.yaml", Default::default()).unwrap();
     let client = hyper::client::Client::new();
@@ -85,6 +104,7 @@ fn main() {
     let mut router = Router::new();
     router.get("/kv/:table/:key", get_key);
     router.post("/kv/:table/:key", update_key);
+    router.post("/kv/event", new_event);
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);
