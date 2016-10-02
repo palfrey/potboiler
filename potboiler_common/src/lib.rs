@@ -5,3 +5,4 @@ extern crate uuid;
 
 pub mod db;
 pub mod server_id;
+pub mod string_error;

@@ -48,28 +48,10 @@ extern crate potboiler_common;
 use potboiler_common::db;
 use potboiler_common::server_id;
 
-use std::error::Error;
-use std::fmt::{self, Debug};
-
 include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
 mod notifications;
 mod clock;
-
-#[derive(Debug)]
-struct StringError(String);
-
-impl Error for StringError {
-    fn description(&self) -> &str {
-        &*self.0
-    }
-}
-
-impl fmt::Display for StringError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        Debug::fmt(self, f)
-    }
-}
 
 fn log_status<T: Into<String>>(req: &mut Request, stmt: T) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
