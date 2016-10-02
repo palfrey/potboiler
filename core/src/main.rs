@@ -31,6 +31,8 @@ use uuid::Uuid;
 extern crate serde;
 extern crate serde_json;
 use serde_json::{Map, Value};
+extern crate hybrid_clocks;
+use std::io::Cursor;
 
 extern crate r2d2;
 extern crate r2d2_postgres;
@@ -52,6 +54,7 @@ use std::fmt::{self, Debug};
 include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
 mod notifications;
+mod clock;
 
 #[derive(Debug)]
 struct StringError(String);
@@ -89,7 +92,7 @@ fn log_firsts(req: &mut Request) -> IronResult<Response> {
     log_status(req, "SELECT id, owner from log WHERE prev is null")
 }
 
-fn new_log(req: &mut Request) -> IronResult<Response> {
+fn new_log(mut req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
     let body_string = {
         let mut body = String::new();
@@ -102,10 +105,10 @@ fn new_log(req: &mut Request) -> IronResult<Response> {
     };
     let id = Uuid::new_v4();
     let hyphenated = id.hyphenated().to_string();
-    let server_id = get_server_id!(&req).deref();
+    let server_id = get_server_id!(&req).deref().clone();
     let stmt = conn.prepare("SELECT id from log WHERE next is null and owner = $1 LIMIT 1")
         .expect("prepare failure");
-    let results = stmt.query(&[server_id]).expect("last select works");
+    let results = stmt.query(&[&server_id]).expect("last select works");
     let previous = if results.is_empty() {
         None
     } else {
@@ -113,11 +116,14 @@ fn new_log(req: &mut Request) -> IronResult<Response> {
         let id: Uuid = row.get("id");
         Some(id)
     };
+    let when = clock::get_timestamp(&mut req);
     conn.execute("UPDATE log set next = $1 where owner = $2 and next is null",
-                 &[&id, server_id])
+                 &[&id, &server_id])
         .expect("update worked");
-    conn.execute("INSERT INTO log (id, owner, data, prev) VALUES ($1, $2, $3, $4)",
-                 &[&id, server_id, &json, &previous])
+    let mut raw_timestamp: Vec<u8> = Vec::new();
+    when.write_bytes(&mut raw_timestamp).unwrap();
+    conn.execute("INSERT INTO log (id, owner, data, prev, hlc_tstamp) VALUES ($1, $2, $3, $4, $5)",
+                 &[&id, &server_id, &json, &previous, &raw_timestamp])
         .expect("insert worked");
     let notifications = notifications::get_notifications_list(req);
     let client = hyper::client::Client::new();
@@ -127,6 +133,7 @@ fn new_log(req: &mut Request) -> IronResult<Response> {
             owner: server_id.clone(),
             prev: previous,
             next: None,
+            when: when,
             data: json.clone(),
         };
         debug!("Notifying {:?}", notifier);
@@ -163,11 +170,12 @@ fn get_with_null<I, T>(row: &Row, index: I) -> Option<T>
 }
 
 fn get_log(req: &mut Request) -> IronResult<Response> {
-    let ref query = req.extensions
+    let query = req.extensions
         .get::<Router>()
         .unwrap()
         .find("entry_id")
-        .unwrap_or("/");
+        .unwrap_or("/")
+        .to_string();
     let query_id = match Uuid::parse_str(&query) {
         Ok(val) => val,
         Err(_) => {
@@ -175,18 +183,22 @@ fn get_log(req: &mut Request) -> IronResult<Response> {
         }
     };
     let conn = get_pg_connection!(&req);
-    let stmt = conn.prepare("SELECT owner, next, prev, data from log where id=$1").expect("prepare failure");
+    let stmt = conn.prepare("SELECT owner, next, prev, data, hlc_tstamp from log where id=$1")
+        .expect("prepare failure");
     let results = stmt.query(&[&query_id]).expect("bad query");
     if results.is_empty() {
         Ok(Response::with((status::NotFound, format!("No log {}", query))))
     } else {
         let row = results.get(0);
+        let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
+        let when = Timestamp::read_bytes(Cursor::new(hlc_tstamp)).unwrap();
         let log = Log {
             id: query_id,
             owner: row.get("owner"),
             prev: get_with_null(&row, "prev"),
             next: get_with_null(&row, "next"),
             data: row.get("data"),
+            when: when,
         };
         Ok(Response::with((status::Ok, serde_json::to_string(&log).unwrap())))
     }
@@ -202,7 +214,7 @@ fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
         Ok(val) => val,
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
-    Ok(Some(json.find("url").unwrap().as_str().unwrap().to_string()))
+    Ok(Some(json.find("url").unwrap().as_string().unwrap().to_string()))
 }
 
 fn log_register(req: &mut Request) -> IronResult<Response> {
@@ -264,6 +276,7 @@ fn main() {
         notifiers.push(url);
     }
     chain.link_before(State::<notifications::Notifications>::one(notifiers));
+    chain.link_before(State::<clock::Clock>::one(hybrid_clocks::Clock::wall()));
     chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     chain.link(PRead::<db::PostgresDB>::both(pool));
     info!("Potboiler booted");

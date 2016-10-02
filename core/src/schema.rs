@@ -39,6 +39,22 @@ impl PostgresMigration for Notifications {
     }
 }
 
+struct Timestamp;
+migration!(Timestamp, 201610022024, "add hlc timestamp to log");
+
+impl PostgresMigration for Timestamp {
+    fn up(&self, transaction: &postgres::Transaction) -> Result<(), postgres::error::Error> {
+        transaction.execute("ALTER TABLE log ADD COLUMN hlc_tstamp BYTEA", &[])
+            .unwrap();
+        return Ok(());
+    }
+
+    fn down(&self, transaction: &postgres::Transaction) -> Result<(), postgres::error::Error> {
+        let _ = transaction.execute("ALTER TABLE log DROP COLUMN hlc_tstamp", &[]).unwrap();
+        return Ok(());
+    }
+}
+
 fn migrate(connection: &postgres::Connection) -> Migrator<PostgresAdapter> {
     let adapter = PostgresAdapter::new(connection);
     let _ = adapter.setup_schema().unwrap();
@@ -46,6 +62,7 @@ fn migrate(connection: &postgres::Connection) -> Migrator<PostgresAdapter> {
     let mut migrator = Migrator::new(adapter);
     migrator.register(Box::new(CreateLog));
     migrator.register(Box::new(Notifications));
+    migrator.register(Box::new(Timestamp));
     return migrator;
 }
 

@@ -76,8 +76,8 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
         Ok(val) => val,
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
+    info!("body: {:?}", json);
     let data = json.find("data").unwrap();
-    info!("body: {:?}", data);
     let change: Change = serde_json::from_value(data.clone()).unwrap();
     info!("change: {:?}", change);
     Ok(Response::with(status::NoContent))
