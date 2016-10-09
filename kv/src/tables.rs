@@ -21,10 +21,12 @@ pub fn get_tables(req: &Request) -> HashMap<String, CRDT> {
     req.extensions.get::<State<Tables>>().unwrap().write().unwrap().deref().clone()
 }
 
+pub static CONFIG_TABLE: &'static str = "_config";
+
 pub fn init_tables(conn: &PostgresConnection) -> HashMap<String, CRDT> {
     let mut tables: HashMap<String, CRDT> = HashMap::new();
-    tables.insert("_config".to_string(), CRDT::LWW);
-    let stmt = conn.prepare("select key, value from _config").expect("prepare failure");
+    tables.insert(CONFIG_TABLE.to_string(), CRDT::LWW);
+    let stmt = conn.prepare(&format!("select key, value from {}", CONFIG_TABLE)).expect("prepare failure");
     for row in &stmt.query(&[]).expect("last select works") {
         let key: String = row.get("key");
         let value: Value = row.get("value");
@@ -34,12 +36,12 @@ pub fn init_tables(conn: &PostgresConnection) -> HashMap<String, CRDT> {
     tables
 }
 
-pub fn add_table(req: &mut Request, table_name: String, crdt_type: CRDT) {
+pub fn add_table(req: &mut Request, table_name: &String, crdt_type: CRDT) {
     req.extensions
         .get_mut::<State<Tables>>()
         .unwrap()
         .write()
         .unwrap()
         .deref_mut()
-        .insert(table_name, crdt_type);
+        .insert(table_name.clone(), crdt_type);
 }

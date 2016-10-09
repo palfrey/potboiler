@@ -126,6 +126,10 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                                                       &change.table),
                                              &[&change.key, &change.change, &serde_json::to_value(&lww)])
                                     .expect("insert worked");
+                                if &change.key == tables::CONFIG_TABLE {
+                                    make_table(&conn, &change.key);
+                                    tables::add_table(req, &change.key, CRDT::LWW);
+                                }
                             } else {
                                 let row = results.get(0);
                                 let raw_crdt: serde_json::Value = row.get("crdt");
