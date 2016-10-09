@@ -2,7 +2,7 @@
 name = "kv"
 version = "0.1.0"
 dependencies = [
- "hybrid-clocks 0.3.0 (git+https://github.com/palfrey/hybrid-clocks?branch=serde-0.8)",
+ "hybrid-clocks 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.9.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "iron 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -158,8 +158,8 @@ dependencies = [
 
 [[package]]
 name = "hybrid-clocks"
-version = "0.3.0"
-source = "git+https://github.com/palfrey/hybrid-clocks?branch=serde-0.8#a1bf7e5290e6f61aacc6f01d26ce4915dd7bc0c0"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "byteorder 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "quick-error 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -893,7 +893,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum hpack 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3d2da7d3a34cf6406d9d700111b8eafafe9a251de41ae71d8052748259343b58"
 "checksum httparse 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "46534074dbb80b070d60a5cb8ecadd8963a00a438ae1a95268850a7ef73b67ae"
 "checksum humantime 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0e9298fffb2a54569e1fcb818e9c2ff77caa2fad68d64b6e409b9f777bdb1960"
-"checksum hybrid-clocks 0.3.0 (git+https://github.com/palfrey/hybrid-clocks?branch=serde-0.8)" = "<none>"
+"checksum hybrid-clocks 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "5efceda3806f566f0f6cfa2025760cd7af1b14d8c1912eef9f5424b8a6a1d32e"
 "checksum hyper 0.9.10 (registry+https://github.com/rust-lang/crates.io-index)" = "eb27e8a3e8f17ac43ffa41bbda9cf5ad3f9f13ef66fa4873409d4902310275f7"
 "checksum idna 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1053236e00ce4f668aeca4a769a09b3bf5a682d802abd6f3cb39374f6b162c11"
 "checksum iron 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9fb1b2d809f84bf347e472d5758762b5c804e0c622970235f156d82673e4d334"

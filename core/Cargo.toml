@@ -5,19 +5,19 @@ authors = ["Tom Parker <palfrey@tevp.net>"]
 build = "../build.rs"
 
 [build-dependencies]
-serde_codegen = "0.7"
+serde_codegen = "*"
 
 [dependencies]
 hybrid-clocks = {version = "*", features = ["serde"]}
-uuid = {version = "0.2.3", features=["v4","serde"]}
+uuid = {version = "*", features=["v4","serde"]}
 log = "*"
-log4rs = {version = ">= 0.4", features=["yaml"]}
+log4rs = {version = ">= 0.4", features=["yaml_format"]}
 
 iron = "*"
 router = "*"
 logger = "*"
-serde = "0.7"
-serde_json = "0.7"
+serde = "*"
+serde_json = "*"
 
 potboiler_common = { path = "../potboiler_common" }
 

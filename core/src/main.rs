@@ -196,7 +196,7 @@ fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
         Ok(val) => val,
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
-    Ok(Some(json.find("url").unwrap().as_string().unwrap().to_string()))
+    Ok(Some(json.find("url").unwrap().as_str().unwrap().to_string()))
 }
 
 fn log_register(req: &mut Request) -> IronResult<Response> {

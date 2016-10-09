@@ -5,15 +5,15 @@ authors = ["Tom Parker <palfrey@tevp.net>"]
 build = "../build.rs"
 
 [build-dependencies]
-serde_codegen = "0.8"
+serde_codegen = ">=0.8"
 
 [dependencies]
 iron = "*"
 router = "0.2.0"
 logger = "*"
-serde = "0.8"
-serde_json = "0.8"
-hybrid-clocks = {git = "https://github.com/palfrey/hybrid-clocks", branch = "serde-0.8", features = ["serde"]}
+serde = ">=0.8"
+serde_json = ">=0.8"
+hybrid-clocks = {version=">=0.3.2", features = ["serde"]}
 
 url = "*"
 postgres = {version="*", features=["uuid","serde_json"]}
