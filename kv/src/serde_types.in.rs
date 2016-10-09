@@ -1,4 +1,5 @@
 extern crate serde;
+use hybrid_clocks::{Timestamp, WallT};
 
 // from https://serde.rs/enum-str.html
 macro_rules! enum_str {
@@ -55,9 +56,15 @@ enum_str!(Operation {
 
 #[derive(Debug, Serialize, Deserialize, Copy, Clone)]
 pub enum CRDT {
-	LWW,
-	GSET,
-	ORSET
+    LWW,
+    GSET,
+    ORSET,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct LWW {
+    when: Timestamp<WallT>,
+    data: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

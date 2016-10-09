@@ -32,6 +32,7 @@ use std::env;
 use std::io::Read;
 
 mod tables;
+extern crate hybrid_clocks;
 
 include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
@@ -99,6 +100,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
     };
     info!("body: {:?}", json);
     let data = json.find("data").unwrap();
+    let when: Timestamp<WallT> = serde_json::from_value(json.find("when").unwrap().clone()).unwrap();
     let change: Change = serde_json::from_value(data.clone()).unwrap();
     info!("change: {:?}", change);
     let tables = tables::get_tables(req);
@@ -109,13 +111,35 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                 CRDT::LWW => {
                     match change.op {
                         Operation::Set => {
-                            // FIXME: Only insert if timestamp is appropriate
                             let conn = get_pg_connection!(&req);
-                            conn.execute(&format!("INSERT INTO {} (key, value, crdt) VALUES ($1, $2, $3) \
-                                                   ON CONFLICT (key) DO UPDATE SET value=$2, crdt=$3",
-                                                  &change.table),
-                                         &[&change.key, &change.change, &change.change])
-                                .expect("insert worked");
+                            let stmt =
+                                conn.prepare(&format!("select crdt from {} where key=$1", &change.table))
+                                    .expect("select prep worked");
+                            let results = stmt.query(&[&change.key]).expect("bad query");
+                            if results.is_empty() {
+                                let lww = LWW {
+                                    when: when,
+                                    data: change.change.clone(),
+                                };
+                                conn.execute(&format!("INSERT INTO {} (key, value, crdt) VALUES ($1, $2, \
+                                                       $3)",
+                                                      &change.table),
+                                             &[&change.key, &change.change, &serde_json::to_value(&lww)])
+                                    .expect("insert worked");
+                            } else {
+                                let row = results.get(0);
+                                let raw_crdt: serde_json::Value = row.get("crdt");
+                                let mut lww: LWW = serde_json::from_value(raw_crdt).expect("bad raw crdt");
+                                if lww.when < when {
+                                    lww.when = when;
+                                    conn.execute(&format!("UPDATE {} set value=$2, crdt=$3 where key=$1",
+                                                          &change.table),
+                                                 &[&change.key, &change.change, &serde_json::to_value(&lww)])
+                                        .expect("update worked");
+                                } else {
+                                    info!("Earlier event, skipping");
+                                }
+                            }
                         }
                         _ => {
                             return string_iron_error("LWW only supports Set, not Add/Remove");
@@ -133,7 +157,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
 }
 
 fn main() {
-    log4rs::init_file("log.yaml", Default::default()).unwrap();
+    log4rs::init_file("log.yaml", Default::default()).expect("log config ok");
     let client = hyper::client::Client::new();
 
     let mut map: serde_json::Map<String, String> = serde_json::Map::new();
