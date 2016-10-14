@@ -34,9 +34,15 @@ use std::io::Read;
 mod tables;
 extern crate hybrid_clocks;
 
-include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
+#[macro_use]
+extern crate lazy_static;
+use std::ops::Deref;
 
-static SERVER_URL: &'static str = "http://localhost:8000/log";
+lazy_static! {
+    static ref SERVER_URL: String = env::var("SERVER_URL").expect("Needed SERVER_URL");
+}
+
+include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
 fn get_req_key<T: Into<String>>(req: &Request, key: T) -> Option<String> {
     req.extensions
@@ -68,10 +74,10 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
 
     let client = hyper::client::Client::new();
 
-    let res = client.post(SERVER_URL)
+    let res = client.post(SERVER_URL.deref())
         .body(&serde_json::ser::to_string(&map).unwrap())
         .send()
-        .unwrap();
+        .expect("sender ok");
     assert_eq!(res.status, hyper::status::StatusCode::Created);
     Ok(Response::with((status::Ok, "update_key")))
 }
@@ -165,12 +171,13 @@ fn main() {
     let client = hyper::client::Client::new();
 
     let mut map: serde_json::Map<String, String> = serde_json::Map::new();
+    let host: &str = &env::var("HOST").unwrap_or("localhost".to_string());
     map.insert("url".to_string(),
-               "http://localhost:8001/kv/event".to_string());
-    let res = client.post(&format!("{}/register", SERVER_URL))
+               format!("http://{}:8001/kv/event", host).to_string());
+    let res = client.post(&format!("{}/register", SERVER_URL.deref()))
         .body(&serde_json::ser::to_string(&map).unwrap())
         .send()
-        .unwrap();
+        .expect("Register ok");
     assert_eq!(res.status, hyper::status::StatusCode::NoContent);
 
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
@@ -190,5 +197,5 @@ fn main() {
     let tables = tables::init_tables(&conn);
     chain.link(State::<tables::Tables>::both(tables));
     info!("Potboiler-kv booted");
-    Iron::new(chain).http("localhost:8001").unwrap();
+    Iron::new(chain).http("0.0.0.0:8001").unwrap();
 }

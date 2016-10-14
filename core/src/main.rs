@@ -262,5 +262,5 @@ fn main() {
     chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     chain.link(PRead::<db::PostgresDB>::both(pool));
     info!("Potboiler booted");
-    Iron::new(chain).http("localhost:8000").unwrap();
+    Iron::new(chain).http("0.0.0.0:8000").unwrap();
 }

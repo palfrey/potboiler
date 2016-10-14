@@ -1,0 +1,37 @@
+version: '2'
+services:
+  core:
+    build:
+      context: .
+      dockerfile: core/Dockerfile
+    volumes:
+      - .:/code
+    ports:
+     - "8000:8000"
+    links:
+     - postgres-core
+    environment:
+    - DATABASE_URL=postgres://postgres:mysecretpassword@postgres-core:5432
+  postgres-core:
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=mysecretpassword
+  kv:
+    build:
+      context: .
+      dockerfile: kv/Dockerfile
+    volumes:
+      - .:/code
+    ports:
+     - "8001:8001"
+    links:
+     - postgres-kv
+     - core
+    environment:
+    - DATABASE_URL=postgres://postgres:mysecretpassword@postgres-kv:5432
+    - SERVER_URL=http://core:8000/log
+    - HOST=kv
+  postgres-kv:
+    image: postgres
+    environment:
+      - POSTGRES_PASSWORD=mysecretpassword

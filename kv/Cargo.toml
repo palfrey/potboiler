@@ -30,3 +30,5 @@ log = "*"
 log4rs = {version = ">= 0.4", features=["yaml_format"]}
 
 hyper = "*"
+
+lazy_static = "0.1.*"
