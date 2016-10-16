@@ -132,7 +132,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                                                       &change.table),
                                              &[&change.key, &change.change, &serde_json::to_value(&lww)])
                                     .expect("insert worked");
-                                if &change.key == tables::CONFIG_TABLE {
+                                if &change.table == tables::CONFIG_TABLE {
                                     make_table(&conn, &change.key);
                                     tables::add_table(req, &change.key, CRDT::LWW);
                                 }
@@ -142,6 +142,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                                 let mut lww: LWW = serde_json::from_value(raw_crdt).expect("bad raw crdt");
                                 if lww.when < when {
                                     lww.when = when;
+                                    lww.data = change.change.clone();
                                     conn.execute(&format!("UPDATE {} set value=$2, crdt=$3 where key=$1",
                                                           &change.table),
                                                  &[&change.key, &change.change, &serde_json::to_value(&lww)])
