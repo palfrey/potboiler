@@ -8,3 +8,6 @@ iron = "*"
 uuid = {version = "*", features=["v4"]}
 r2d2 = "*"
 r2d2_postgres = "*"
+
+[lib]
+name = "potboiler_common"
