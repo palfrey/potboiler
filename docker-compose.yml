@@ -35,3 +35,13 @@ services:
     image: postgres
     environment:
       - POSTGRES_PASSWORD=mysecretpassword
+  kv-browser:
+    build: kv-browser
+    volumes:
+      - ./kv-browser/:/code
+    ports:
+     - "5000:5000"
+    links:
+     - postgres-kv
+    environment:
+    - DATABASE_URL=postgres://postgres:mysecretpassword@postgres-kv:5432

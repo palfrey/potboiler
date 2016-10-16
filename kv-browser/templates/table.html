@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+	<head>
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.4/css/bootstrap.min.css" integrity="sha384-2hfp1SzUoho7/TsGGGDaFdsuuDL0LX2hnUp6VkX3CUQ2K4K+xjboZdsXyp4oUHZj" crossorigin="anonymous">
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.4/js/bootstrap.min.js" integrity="sha384-VjEeINv9OSwtWFLAtmc4JCtEJXXBub00gtSnszmspDLCtC0I4z4nqz7rEFbIZLLU" crossorigin="anonymous"></script>
+		<title>Table {{ table_name }}</title>
+	</head>
+	<body>
+		<div class="container-fluid">
+			<div class="row">
+				<h1>Table {{ table_name }}</h1>
+				{% if table_name != "_config" %}<h3><a href="/">Back to table index</a></h3>{% endif %}
+				<div class="table-responsive">
+					<table class="table table-striped">
+						<thead>
+							<tr>
+								<th>Key</th>
+								<th>Value</th>
+								<th>CRDT</th>
+							</tr>
+						</thead>
+						<tbody>
+							{% for row in table %}
+							<tr>
+								<td>{% if table_name == "_config" %}<a href="/?table={{ row.key }}">{% endif %}{{ row.key }}</a></td>
+								<td>{{ row.value }}</td>
+								<td>{{ row.crdt }}</td>
+							</tr>
+							{% endfor %}
+						</tbody>
+					<table>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>
