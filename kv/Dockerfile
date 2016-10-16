@@ -3,4 +3,4 @@ ADD . /code
 WORKDIR /code/kv
 RUN cargo build
 ENV RUST_BACKTRACE=1
-CMD cargo run
+CMD ../wait-for-postgres.sh postgres-kv && cargo run
