@@ -1,5 +1,5 @@
 FROM jimmycuadra/rust:1.12.0
-RUN cargo install --git https://github.com/mattgreen/watchexec.git
+RUN cargo install --git https://github.com/mattgreen/watchexec.git --rev f0650274a0ba42d0eb1dbe54e6dd6967d252bd5f
 WORKDIR /code/kv
 ADD kv/Cargo.* /code/kv/
 ADD potboiler_common/Cargo.* /code/potboiler_common/
