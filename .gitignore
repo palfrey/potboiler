@@ -1,2 +1,3 @@
 target/
 server-id
+docker-compose.yml
