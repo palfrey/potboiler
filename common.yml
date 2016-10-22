@@ -29,4 +29,4 @@ services:
     volumes:
       - ./kv-browser/:/code
     environment:
-      - DATABASE_URL=postgres://postgres:mysecretpassword@postgres:5432s
+      - DATABASE_URL=postgres://postgres:mysecretpassword@postgres:5432
