@@ -7,9 +7,9 @@ pub mod db;
 pub mod server_id;
 pub mod string_error;
 
-use std::io::Read;
 use iron::prelude::{IronError, Request};
 use iron::status;
+use std::io::Read;
 extern crate serde_json;
 
 pub fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {

@@ -1,19 +1,19 @@
+use hyper;
 use iron::prelude::{Request, IronError, IronResult, Response};
 use iron::status;
-use potboiler_common::{db, url_from_body};
-use serde_json;
+use iron::typemap::Key;
 use persistent;
-use url::Url;
+use persistent::State;
 use postgres;
 use postgres::error::SqlState;
+use potboiler_common::{db, url_from_body};
+use serde_json;
+use serde_types::Log;
 
 use std::ops::{Deref, DerefMut};
-use iron::typemap::Key;
-use persistent::State;
-use hyper;
-use serde_types::Log;
 use std::sync::Arc;
 use std::thread;
+use url::Url;
 
 #[derive(Copy, Clone)]
 pub struct Nodes;
@@ -51,7 +51,7 @@ pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
                     if val.status != hyper::status::StatusCode::NoContent {
                         warn!("Failed to notify {:?}: {:?}", &node, val.status);
                     }
-                },
+                }
                 Err(val) => {
                     warn!("Failed to notify {:?}: {:?}", &node, val);
                 }
