@@ -2,10 +2,13 @@
 set -eux -o pipefail
 
 if [ "$PROJECT" = "docker" ]; then
+	pip install PyYAML
 	python generate-compose.py
 	docker-compose build
 	docker-compose up
 fi
+
+cargo install rustfmt
 
 export PATH=$PATH:~/.cargo/bin &&
 cd $PROJECT

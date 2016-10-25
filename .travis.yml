@@ -1,6 +1,9 @@
+sudo: required
+services:
+  - docker
+
 language: rust
 cache: cargo
-before_script: (cargo install rustfmt || true)
 env:
   - PROJECT=potboiler_common
   - PROJECT=core

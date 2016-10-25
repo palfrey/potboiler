@@ -1,8 +1,6 @@
 import yaml
 from collections import OrderedDict
 
-
-
 compose = OrderedDict()
 compose["version"] = "2"
 compose["services"] = OrderedDict()
