@@ -5,7 +5,7 @@ if [ "$PROJECT" = "docker" ]; then
 	pip install PyYAML
 	python generate-compose.py > docker-compose.yml
 	docker-compose build
-	docker-compose up
+	exit 0
 fi
 
 cargo install rustfmt || true
