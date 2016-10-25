@@ -5,10 +5,5 @@ env:
   - PROJECT=potboiler_common
   - PROJECT=core
   - PROJECT=kv
-script:
-- |
-  export PATH=$PATH:~/.cargo/bin &&
-  cd $PROJECT &&
-  cargo fmt -- --write-mode=diff &&
-  cargo build &&
-  cargo test
+  - PROJECT=docker
+script: ./build.sh
