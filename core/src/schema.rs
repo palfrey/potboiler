@@ -55,6 +55,22 @@ impl PostgresMigration for Timestamp {
     }
 }
 
+struct Nodes;
+migration!(Nodes, 201610221748, "add other node listing");
+
+impl PostgresMigration for Nodes {
+    fn up(&self, transaction: &postgres::Transaction) -> Result<(), postgres::error::Error> {
+        transaction.execute("CREATE TABLE nodes (url VARCHAR(2083) PRIMARY KEY);", &[])
+            .unwrap();
+        return Ok(());
+    }
+
+    fn down(&self, transaction: &postgres::Transaction) -> Result<(), postgres::error::Error> {
+        let _ = transaction.execute("DROP TABLE nodes", &[]).unwrap();
+        return Ok(());
+    }
+}
+
 fn migrate(connection: &postgres::Connection) -> Migrator<PostgresAdapter> {
     let adapter = PostgresAdapter::new(connection);
     let _ = adapter.setup_schema().unwrap();
@@ -63,6 +79,7 @@ fn migrate(connection: &postgres::Connection) -> Migrator<PostgresAdapter> {
     migrator.register(Box::new(CreateLog));
     migrator.register(Box::new(Notifications));
     migrator.register(Box::new(Timestamp));
+    migrator.register(Box::new(Nodes));
     return migrator;
 }
 

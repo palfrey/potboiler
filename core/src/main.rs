@@ -24,7 +24,6 @@ use std::ops::Deref;
 
 extern crate hyper;
 extern crate url;
-use url::Url;
 
 extern crate uuid;
 use uuid::Uuid;
@@ -39,7 +38,6 @@ extern crate r2d2_postgres;
 extern crate persistent;
 use persistent::Read as PRead;
 use persistent::State;
-use postgres::error::SqlState;
 use postgres::rows::{Row, RowIndex};
 use postgres::types::FromSql;
 
@@ -47,12 +45,13 @@ use postgres::types::FromSql;
 extern crate potboiler_common;
 use potboiler_common::db;
 use potboiler_common::server_id;
-use potboiler_common::url_from_body;
 
 mod serde_types;
 use serde_types::Log;
 mod notifications;
 mod clock;
+mod nodes;
+use std::sync::Arc;
 
 fn log_status<T: Into<String>>(req: &mut Request, stmt: T) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
@@ -116,7 +115,9 @@ fn new_log(mut req: &mut Request) -> IronResult<Response> {
         when: when,
         data: json.clone(),
     };
-    notifications::notify_everyone(req, log);
+    let log_arc = Arc::new(log);
+    notifications::notify_everyone(req, log_arc.clone());
+    nodes::notify_everyone(req, log_arc.clone());
     let new_url = {
         let req_url = req.url.clone();
         let base_url = req_url.into_generic_url();
@@ -190,6 +191,9 @@ fn main() {
     router.get("/log/:entry_id", get_log);
     router.post("/log/register", notifications::log_register);
     router.post("/log/deregister", notifications::log_deregister);
+    router.get("/nodes", nodes::node_list);
+    router.post("/nodes", nodes::node_add);
+    router.delete("/nodes", nodes::node_remove);
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);

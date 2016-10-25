@@ -1,34 +1,34 @@
-use iron::Request;
-use iron::typemap::Key;
-use persistent::State;
-use std::ops::{Deref, DerefMut};
-use std::thread;
-use serde_types::Log;
-use hyper;
-use serde_json;
-use std::sync::Arc;
-use url::Url;
-use persistent;
-use postgres;
-use potboiler_common::{db, url_from_body};
-use iron::prelude::{Response, IronError, IronResult};
+use iron::prelude::{Request, IronError, IronResult, Response};
 use iron::status;
+use potboiler_common::{db, url_from_body};
+use serde_json;
+use persistent;
+use url::Url;
+use postgres;
 use postgres::error::SqlState;
 
-#[derive(Copy, Clone)]
-pub struct Notifications;
+use std::ops::{Deref, DerefMut};
+use iron::typemap::Key;
+use persistent::State;
+use hyper;
+use serde_types::Log;
+use std::sync::Arc;
+use std::thread;
 
-impl Key for Notifications {
+#[derive(Copy, Clone)]
+pub struct Nodes;
+
+impl Key for Nodes {
     type Value = Vec<String>;
 }
 
-fn get_notifications_list(req: &Request) -> Vec<String> {
-    req.extensions.get::<State<Notifications>>().unwrap().read().unwrap().deref().clone()
+fn get_nodes_list(req: &Request) -> Vec<String> {
+    req.extensions.get::<State<Nodes>>().unwrap().read().unwrap().deref().clone()
 }
 
-fn insert_notifier(req: &mut Request, to_notify: &String) {
+fn insert_node(req: &mut Request, to_notify: &String) {
     req.extensions
-        .get_mut::<State<Notifications>>()
+        .get_mut::<State<Nodes>>()
         .unwrap()
         .write()
         .unwrap()
@@ -37,39 +37,39 @@ fn insert_notifier(req: &mut Request, to_notify: &String) {
 }
 
 pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
-    let notifications = get_notifications_list(req);
-    for notifier in notifications {
+    let nodes = get_nodes_list(req);
+    for node in nodes {
         let local_log = log_arc.clone();
         thread::spawn(move || {
             let client = hyper::client::Client::new();
-            debug!("Notifying {:?}", notifier);
-            let res = client.post(&notifier)
+            debug!("Notifying {:?}", node);
+            let res = client.post(&node)
                 .body(&serde_json::ser::to_string(&local_log).unwrap())
                 .send();
             match res {
                 Ok(val) => {
                     if val.status != hyper::status::StatusCode::NoContent {
-                        warn!("Failed to notify {:?}: {:?}", &notifier, val.status);
+                        warn!("Failed to notify {:?}: {:?}", &node, val.status);
                     }
                 },
                 Err(val) => {
-                    warn!("Failed to notify {:?}: {:?}", &notifier, val);
+                    warn!("Failed to notify {:?}: {:?}", &node, val);
                 }
             };
         });
     }
 }
 
-pub fn log_register(req: &mut Request) -> IronResult<Response> {
+pub fn node_add(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
     let url = url_from_body(req).unwrap().unwrap();
-    debug!("Registering {:?}", url);
+    debug!("Registering node {:?}", url);
     match Url::parse(&url) {
         Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
         Ok(_) => {
-            match conn.execute("INSERT INTO notifications (url) VALUES ($1)", &[&url]) {
+            match conn.execute("INSERT INTO nodes (url) VALUES ($1)", &[&url]) {
                 Ok(_) => {
-                    insert_notifier(req, &url);
+                    insert_node(req, &url);
                     Ok(Response::with((status::NoContent)))
                 }
                 Err(err) => {
@@ -87,10 +87,21 @@ pub fn log_register(req: &mut Request) -> IronResult<Response> {
     }
 }
 
-pub fn log_deregister(req: &mut Request) -> IronResult<Response> {
+pub fn node_remove(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
-    conn.execute("DELETE from notifications where url = $1",
+    conn.execute("DELETE from nodes where url = $1",
                  &[&url_from_body(req).unwrap().unwrap()])
         .expect("delete worked");
     Ok(Response::with((status::NoContent)))
+}
+
+pub fn node_list(req: &mut Request) -> IronResult<Response> {
+    let conn = get_pg_connection!(&req);
+    let stmt = conn.prepare("select url from nodes").expect("prepare failure");
+    let mut nodes = Vec::new();
+    for row in &stmt.query(&[]).expect("last select works") {
+        let url: String = row.get("url");
+        nodes.push(url);
+    }
+    Ok(Response::with((status::Ok, serde_json::ser::to_string(&nodes).unwrap())))
 }
