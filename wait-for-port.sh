@@ -10,7 +10,7 @@ while true; do
     break
   fi
   >&2 echo "Port $port is unavailable - sleeping"
-  sleep 1
+  sleep 5
 done
 
 >&2 echo "Port $port is up"
