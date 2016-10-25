@@ -7,4 +7,4 @@ RUN cargo fetch
 ADD . /code
 RUN cargo build
 ENV RUST_BACKTRACE=1
-CMD ../wait-for-postgres.sh postgres && ~/.cargo/bin/watchexec --run-initially -e rs -r cargo run
+CMD ../wait-for-port.sh postgres && ../wait-for-port.sh core 8000 && ~/.cargo/bin/watchexec --run-initially -e rs -r cargo run
