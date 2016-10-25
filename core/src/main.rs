@@ -48,8 +48,8 @@ extern crate potboiler_common;
 use potboiler_common::db;
 use potboiler_common::server_id;
 
-include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
-
+mod serde_types;
+use serde_types::Log;
 mod notifications;
 mod clock;
 
@@ -107,26 +107,15 @@ fn new_log(mut req: &mut Request) -> IronResult<Response> {
     conn.execute("INSERT INTO log (id, owner, data, prev, hlc_tstamp) VALUES ($1, $2, $3, $4, $5)",
                  &[&id, &server_id, &json, &previous, &raw_timestamp])
         .expect("insert worked");
-    let notifications = notifications::get_notifications_list(req);
-    let client = hyper::client::Client::new();
-    for notifier in notifications {
-        let log = Log {
-            id: id,
-            owner: server_id.clone(),
-            prev: previous,
-            next: None,
-            when: when,
-            data: json.clone(),
-        };
-        debug!("Notifying {:?}", notifier);
-        let res = client.post(&notifier)
-            .body(&serde_json::ser::to_string(&log).unwrap())
-            .send()
-            .unwrap();
-        if res.status != hyper::status::StatusCode::NoContent {
-            warn!("Failed to notify {:?}: {:?}", &notifier, res.status);
-        }
-    }
+    let log = Log {
+        id: id,
+        owner: server_id.clone(),
+        prev: previous,
+        next: None,
+        when: when,
+        data: json.clone(),
+    };
+    notifications::notify_everyone(req, log);
     let new_url = {
         let req_url = req.url.clone();
         let base_url = req_url.into_generic_url();
@@ -173,7 +162,7 @@ fn get_log(req: &mut Request) -> IronResult<Response> {
     } else {
         let row = results.get(0);
         let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
-        let when = Timestamp::read_bytes(Cursor::new(hlc_tstamp)).unwrap();
+        let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).unwrap();
         let log = Log {
             id: query_id,
             owner: row.get("owner"),

@@ -1,11 +1,13 @@
 use hybrid_clocks::{Timestamp, WallT};
+use uuid::Uuid;
+use serde_json;
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Log {
-    id: Uuid,
-    owner: Uuid,
-    prev: Option<Uuid>,
-    next: Option<Uuid>,
-    when: Timestamp<WallT>,
-    data: serde_json::Value
+pub struct Log {
+    pub id: Uuid,
+    pub owner: Uuid,
+    pub prev: Option<Uuid>,
+    pub next: Option<Uuid>,
+    pub when: Timestamp<WallT>,
+    pub data: serde_json::Value
 }
