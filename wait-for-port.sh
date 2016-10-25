@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -eux -o pipefail
-
 host="${1:-postgres}"
 port="${2:-5432}"
 
