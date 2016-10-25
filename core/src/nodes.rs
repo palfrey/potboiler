@@ -14,16 +14,23 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::thread;
 use url::Url;
+use std::collections::HashMap;
 
 #[derive(Copy, Clone)]
 pub struct Nodes;
 
 impl Key for Nodes {
-    type Value = Vec<String>;
+    type Value = HashMap<String, String>;
 }
 
 fn get_nodes_list(req: &Request) -> Vec<String> {
-    req.extensions.get::<State<Nodes>>().unwrap().read().unwrap().deref().clone()
+    let state_ref = req.extensions.get::<State<Nodes>>().unwrap().read().unwrap();
+    let state = state_ref.deref();
+    let mut vec = Vec::with_capacity(state.len());
+    for key in state.keys() {
+        vec.push(key.clone());
+    }
+    return vec;
 }
 
 fn insert_node(req: &mut Request, to_notify: &String) {
@@ -33,7 +40,7 @@ fn insert_node(req: &mut Request, to_notify: &String) {
         .write()
         .unwrap()
         .deref_mut()
-        .push(to_notify.clone());
+        .insert(to_notify.clone(), String::from(""));
 }
 
 pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
