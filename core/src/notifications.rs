@@ -7,6 +7,14 @@ use serde_types::Log;
 use hyper;
 use serde_json;
 use std::sync::Arc;
+use url::Url;
+use persistent;
+use postgres;
+use potboiler_common::db;
+use iron::prelude::{Response, IronError, IronResult};
+use iron::status;
+use potboiler_common::url_from_body;
+use postgres::error::SqlState;
 
 #[derive(Copy, Clone)]
 pub struct Notifications;
@@ -19,7 +27,7 @@ fn get_notifications_list(req: &Request) -> Vec<String> {
     req.extensions.get::<State<Notifications>>().unwrap().read().unwrap().deref().clone()
 }
 
-pub fn insert_notifier(req: &mut Request, to_notify: &String) {
+fn insert_notifier(req: &mut Request, to_notify: &String) {
     req.extensions
         .get_mut::<State<Notifications>>()
         .unwrap()
@@ -52,4 +60,39 @@ pub fn notify_everyone(req: &Request, log: Log) {
             };
         });
     }
+}
+
+pub fn log_register(req: &mut Request) -> IronResult<Response> {
+    let conn = get_pg_connection!(&req);
+    let url = url_from_body(req).unwrap().unwrap();
+    debug!("Registering {:?}", url);
+    match Url::parse(&url) {
+        Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
+        Ok(_) => {
+            match conn.execute("INSERT INTO notifications (url) VALUES ($1)", &[&url]) {
+                Ok(_) => {
+                    insert_notifier(req, &url);
+                    Ok(Response::with((status::NoContent)))
+                }
+                Err(err) => {
+                    if let postgres::error::Error::Db(dberr) = err {
+                        match dberr.code {
+                            SqlState::UniqueViolation => Ok(Response::with((status::NoContent))),
+                            _ => Err(IronError::new(dberr, (status::BadRequest, "Some other error"))),
+                        }
+                    } else {
+                        Err(IronError::new(err, (status::BadRequest, "Some other error")))
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn log_deregister(req: &mut Request) -> IronResult<Response> {
+    let conn = get_pg_connection!(&req);
+    conn.execute("DELETE from notifications where url = $1",
+                 &[&url_from_body(req).unwrap().unwrap()])
+        .expect("delete worked");
+    Ok(Response::with((status::NoContent)))
 }
