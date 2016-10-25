@@ -2,10 +2,11 @@ use iron::Request;
 use iron::typemap::Key;
 use persistent::State;
 use std::ops::{Deref, DerefMut};
-
+use std::thread;
 use serde_types::Log;
 use hyper;
 use serde_json;
+use std::sync::Arc;
 
 #[derive(Copy, Clone)]
 pub struct Notifications;
@@ -30,15 +31,25 @@ pub fn insert_notifier(req: &mut Request, to_notify: &String) {
 
 pub fn notify_everyone(req: &Request, log: Log) {
     let notifications = get_notifications_list(req);
-    let client = hyper::client::Client::new();
+    let log_arc = Arc::new(log);
     for notifier in notifications {
-        debug!("Notifying {:?}", notifier);
-        let res = client.post(&notifier)
-            .body(&serde_json::ser::to_string(&log).unwrap())
-            .send()
-            .unwrap();
-        if res.status != hyper::status::StatusCode::NoContent {
-            warn!("Failed to notify {:?}: {:?}", &notifier, res.status);
-        }
+        let local_log = log_arc.clone();
+        thread::spawn(move || {
+            let client = hyper::client::Client::new();
+            debug!("Notifying {:?}", notifier);
+            let res = client.post(&notifier)
+                .body(&serde_json::ser::to_string(&local_log).unwrap())
+                .send();
+            match res {
+                Ok(val) => {
+                    if val.status != hyper::status::StatusCode::NoContent {
+                        warn!("Failed to notify {:?}: {:?}", &notifier, val.status);
+                    }
+                },
+                Err(val) => {
+                    warn!("Failed to notify {:?}: {:?}", &notifier, val);
+                }
+            };
+        });
     }
 }
