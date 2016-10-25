@@ -8,7 +8,7 @@ if [ "$PROJECT" = "docker" ]; then
 	docker-compose up
 fi
 
-cargo install rustfmt
+cargo install rustfmt || true
 
 export PATH=$PATH:~/.cargo/bin &&
 cd $PROJECT
