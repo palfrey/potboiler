@@ -9,6 +9,7 @@ uuid = {version = "*", features=["v4"]}
 r2d2 = "*"
 r2d2_postgres = "*"
 serde_json = "*"
+log = "*"
 
 [lib]
 name = "potboiler_common"

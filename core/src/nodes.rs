@@ -15,12 +15,50 @@ use std::sync::Arc;
 use std::thread;
 use url::Url;
 use std::collections::HashMap;
+use std::time::Duration;
+
+use r2d2;
+use r2d2_postgres;
 
 #[derive(Copy, Clone)]
 pub struct Nodes;
 
+pub struct NodeInfo {
+
+}
+
 impl Key for Nodes {
-    type Value = HashMap<String, String>;
+    type Value = HashMap<String, NodeInfo>;
+}
+
+fn check_host(host_url: String) {
+    let sleep_time = Duration::from_secs(5);
+    let client = hyper::client::Client::new();
+    loop {
+        let check_url = format!("{:?}/log", &host_url);
+        info!("Checking {:?} ({:?})", host_url, check_url);
+        let res = client.get(&check_url).send();
+        match res {
+            Ok(val) => {
+                info!("Got value back: {:?}", val);
+            }
+            Err(val) => {
+                warn!("Failed to get logs from {:?}: {:?}", &host_url, val);
+            }
+        };
+        thread::sleep(sleep_time);
+    }
+}
+
+pub fn initial_nodes(conn: &r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>) -> HashMap<String, NodeInfo> {
+    let mut nodes = HashMap::new();
+    let stmt = conn.prepare("select url from nodes").expect("prepare failure");
+    for row in &stmt.query(&[]).expect("nodes select works") {
+        let url: String = row.get("url");
+        nodes.insert(url.clone(), NodeInfo{});
+        thread::spawn(move || check_host(url.clone()));
+    }
+    return nodes;
 }
 
 fn get_nodes_list(req: &Request) -> Vec<String> {
@@ -40,7 +78,7 @@ fn insert_node(req: &mut Request, to_notify: &String) {
         .write()
         .unwrap()
         .deref_mut()
-        .insert(to_notify.clone(), String::from(""));
+        .insert(to_notify.clone(), NodeInfo{});
 }
 
 pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
