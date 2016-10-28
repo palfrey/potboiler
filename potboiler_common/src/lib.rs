@@ -24,6 +24,5 @@ pub fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
         Ok(val) => val,
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
-    println!("URL: {:?}", json.find("url"));
     Ok(Some(String::from(json.find("url").unwrap().as_str().unwrap())))
 }

@@ -35,8 +35,8 @@ fn check_host(host_url: String) {
     let sleep_time = Duration::from_secs(5);
     let client = hyper::client::Client::new();
     loop {
-        let check_url = format!("{:?}/log", &host_url);
-        info!("Checking {:?} ({:?})", host_url, check_url);
+        let check_url = format!("{}/log", &host_url);
+        info!("Checking {} ({})", host_url, check_url);
         let res = client.get(&check_url).send();
         match res {
             Ok(val) => {
@@ -80,6 +80,9 @@ fn insert_node(req: &mut Request, to_notify: &String) {
         .unwrap()
         .deref_mut()
         .insert(to_notify.clone(), NodeInfo {});
+
+    let url = to_notify.clone();
+    thread::spawn(move || check_host(url));
 }
 
 pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
@@ -109,7 +112,7 @@ pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
 pub fn node_add(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
     let url = url_from_body(req).unwrap().unwrap();
-    debug!("Registering node {:?}", url);
+    debug!("Registering node {}", url);
     match Url::parse(&url) {
         Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
         Ok(_) => {

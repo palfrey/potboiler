@@ -7,7 +7,7 @@ root:
     appenders:
         - stdout
 loggers:
-    hyper::server:
+    hyper:
         level: info
     postgres:
         level: warn
