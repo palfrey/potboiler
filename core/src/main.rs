@@ -204,7 +204,7 @@ fn main() {
         notifiers.push(url);
     }
     chain.link_before(State::<notifications::Notifications>::one(notifiers));
-    chain.link_before(State::<nodes::Nodes>::one(nodes::initial_nodes(&conn)));
+    chain.link_before(State::<nodes::Nodes>::one(nodes::initial_nodes(pool.clone())));
     chain.link_before(State::<clock::Clock>::one(hybrid_clocks::Clock::wall()));
     chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     chain.link(PRead::<db::PostgresDB>::both(pool));

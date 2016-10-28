@@ -5,8 +5,6 @@ services:
       context: .
       dockerfile: core/Dockerfile
     image: potboiler/core:latest
-    volumes:
-      - .:/code
     environment:
       - DATABASE_URL=postgres://postgres:mysecretpassword@postgres:5432
   postgres-base:
@@ -18,8 +16,6 @@ services:
       context: .
       dockerfile: kv/Dockerfile
     image: potboiler/kv:latest
-    volumes:
-      - .:/code
     environment:
       - DATABASE_URL=postgres://postgres:mysecretpassword@postgres:5432
       - SERVER_URL=http://core:8000/log
