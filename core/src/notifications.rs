@@ -1,6 +1,6 @@
 use hyper;
 use iron::Request;
-use iron::prelude::{Response, IronError, IronResult};
+use iron::prelude::{IronError, IronResult, Response};
 use iron::status;
 use iron::typemap::Key;
 use persistent;

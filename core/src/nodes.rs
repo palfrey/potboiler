@@ -1,5 +1,5 @@
 use hyper;
-use iron::prelude::{Request, IronError, IronResult, Response};
+use iron::prelude::{IronError, IronResult, Request, Response};
 use iron::status;
 use iron::typemap::Key;
 use persistent;
@@ -50,12 +50,13 @@ fn check_host(host_url: String) {
     }
 }
 
-pub fn initial_nodes(conn: &r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>) -> HashMap<String, NodeInfo> {
+pub fn initial_nodes(conn: &r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>)
+                     -> HashMap<String, NodeInfo> {
     let mut nodes = HashMap::new();
     let stmt = conn.prepare("select url from nodes").expect("prepare failure");
     for row in &stmt.query(&[]).expect("nodes select works") {
         let url: String = row.get("url");
-        nodes.insert(url.clone(), NodeInfo{});
+        nodes.insert(url.clone(), NodeInfo {});
         thread::spawn(move || check_host(url.clone()));
     }
     return nodes;
@@ -78,7 +79,7 @@ fn insert_node(req: &mut Request, to_notify: &String) {
         .write()
         .unwrap()
         .deref_mut()
-        .insert(to_notify.clone(), NodeInfo{});
+        .insert(to_notify.clone(), NodeInfo {});
 }
 
 pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
