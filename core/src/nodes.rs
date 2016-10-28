@@ -18,6 +18,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use std::io::Read;
 use uuid::Uuid;
+use potboiler_common::string_error::StringError;
 
 use r2d2;
 use r2d2_postgres;
@@ -39,14 +40,12 @@ impl Key for Nodes {
     type Value = NodeList;
 }
 
-fn check_host_once(host_url: &String,
-                   raw_result: Result<hyper::client::Response, hyper::Error>,
-                   conn: &PostgresConnection) {
+fn parse_object_from_request(raw_result: Result<hyper::client::Response, hyper::Error>)
+                             -> Result<serde_json::value::Map<String, serde_json::Value>, StringError> {
     let mut res = match raw_result {
         Ok(val) => val,
         Err(val) => {
-            warn!("Failed to get logs from {:?}: {:?}", &host_url, val);
-            return ();
+            return Err(StringError(format!("Failed to get logs: {:?}", val)));
         }
     };
     let body_string = {
@@ -59,34 +58,92 @@ fn check_host_once(host_url: &String,
             debug!("Good data back {:?}", val);
             val
         }
-        Err(_) => {
-            warn!("Got crappy data back: {:?}", body_string);
-            return ();
-        }
+        Err(_) => return Err(StringError(format!("Got crappy data back: {:?}", body_string))),
     };
-    let kv = match json.as_object() {
-        Some(val) => val,
-        None => {
-            warn!("Info isn't a map: {:?}", json);
-            return ();
+    return match json.as_object() {
+        Some(val) => Ok(val.clone()),
+        None => Err(StringError(format!("Info isn't a map: {:?}", json))),
+    };
+}
+
+fn check_host_once(host_url: &String,
+                   raw_result: Result<hyper::client::Response, hyper::Error>,
+                   conn: &PostgresConnection) {
+    let kv = match parse_object_from_request(raw_result) {
+        Ok(val) => val,
+        Err(err) => {
+            warn!("Error while getting from {:?}: {:?}", host_url, err);
+            return;
         }
     };
     let stmt = conn.prepare("SELECT 1 from log where id=$1")
         .expect("prepare failure");
-    for (_, value) in kv.iter() {
-        match Uuid::parse_str(value.as_str().unwrap()) {
-            Ok(val) => {
-                let results = stmt.query(&[&val]).expect("bad query");
-                if results.is_empty() {
-                    info!("Don't have {} locally yet", val)
-                } else {
-                    debug!("Already have {} locally", val);
-                }
-            }
+    for (key, value) in kv.iter() {
+        let value_uuid = match Uuid::parse_str(value.as_str().unwrap()) {
+            Ok(val) => val,
             Err(_) => {
-                warn!("Key {} isn't a UUID!", value);
+                warn!("Value {} isn't a UUID!", value);
+                continue;
             }
         };
+        let key_uuid = match Uuid::parse_str(key) {
+            Ok(val) => val,
+            Err(_) => {
+                warn!("Key {} isn't a UUID!", key);
+                continue;
+            }
+        };
+        let single_item = stmt.query(&[&value_uuid]).expect("bad single query");
+        if !single_item.is_empty() {
+            debug!("Already have {} locally", value_uuid);
+            continue;
+        }
+
+        let client = hyper::client::Client::new();
+        let first_item = conn.query("SELECT id from log WHERE prev is null and owner=$1 limit 1",
+                   &[&key_uuid])
+            .expect("bad first query");
+        if first_item.is_empty() {
+            let first_url = format!("{}/log/first", &host_url);
+            debug!("Get first from {:?}", host_url);
+            let res = client.get(&first_url).send();
+            let first_entry = match parse_object_from_request(res) {
+                Ok(val) => val,
+                Err(err) => {
+                    warn!("Error while getting first item from {:?}: {:?}",
+                          host_url,
+                          err);
+                    return;
+                }
+            };
+            info!("First entry: {:?}", first_entry);
+        } else {
+            info!("Already have an entry from the list with server id {:?}",
+                  key);
+            let last_items = conn.query("SELECT id from log WHERE next is null and owner=$1 limit 1",
+                       &[&key_uuid])
+                .expect("bad last query");
+            if last_items.is_empty() {
+                warn!("Can't find end entry for server id {:?}", key);
+                return;
+            }
+            let last_item = last_items.get(0);
+            let last_item_id: Uuid = last_item.get("id");
+            info!("Last item: {:?}", last_item_id);
+            let last_url = format!("{}/log/{}", &host_url, last_item_id);
+            debug!("Get last from {:?}", host_url);
+            let res = client.get(&last_url).send();
+            let last_entry = match parse_object_from_request(res) {
+                Ok(val) => val,
+                Err(err) => {
+                    warn!("Error while getting first item from {:?}: {:?}",
+                          host_url,
+                          err);
+                    return;
+                }
+            };
+            info!("Last entry: {:?}", last_entry);
+        }
     }
 }
 
