@@ -7,21 +7,21 @@ use persistent::State;
 use postgres;
 use postgres::error::SqlState;
 use potboiler_common::{db, url_from_body};
-use serde_json;
-use serde_types::Log;
-
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
-use std::thread;
-use url::Url;
-use std::collections::HashMap;
-use std::time::Duration;
-use std::io::Read;
-use uuid::Uuid;
 use potboiler_common::string_error::StringError;
 
 use r2d2;
 use r2d2_postgres;
+use serde_json;
+use serde_types::Log;
+use std::collections::HashMap;
+use std::io::Read;
+
+use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+use url::Url;
+use uuid::Uuid;
 pub type PostgresConnection = r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>;
 pub type PostgresPool = r2d2::Pool<r2d2_postgres::PostgresConnectionManager>;
 
