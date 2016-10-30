@@ -1,5 +1,6 @@
 import yaml
 from collections import OrderedDict
+from sys import argv
 
 compose = OrderedDict()
 compose["version"] = "2"
@@ -40,7 +41,7 @@ def kv_browser(index):
     ret["links"] = ["postgres-kv%d:postgres"%index]
     return ret
 
-for index in range(2):
+for index in range(int(argv[1])):
     compose["services"]["core%d"%index] = core(index)
     compose["services"]["postgres-core%d"%index] = postgres(index)
     compose["services"]["kv%d"%index] = kv(index)

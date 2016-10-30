@@ -3,7 +3,7 @@ set -eux -o pipefail
 
 if [ "$PROJECT" = "docker" ]; then
 	pip install PyYAML
-	python generate-compose.py > docker-compose.yml
+	python generate-compose.py 1 > docker-compose.yml
 	docker-compose build
 	exit 0
 fi
