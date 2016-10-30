@@ -63,13 +63,7 @@ fn main() {
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);
-    let mut notifiers = Vec::new();
-    let stmt = conn.prepare("select url from notifications").expect("prepare failure");
-    for row in &stmt.query(&[]).expect("notifications select works") {
-        let url: String = row.get("url");
-        notifiers.push(url);
-    }
-    chain.link_before(State::<notifications::Notifications>::one(notifiers));
+    chain.link_before(State::<notifications::Notifications>::one(notifications::init_notifiers(&conn)));
     let clock_state = clock::init_clock();
     chain.link_before(State::<nodes::Nodes>::one(nodes::initial_nodes(pool.clone(),
                                                                       clock_state.clock_state.clone())));

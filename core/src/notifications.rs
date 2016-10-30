@@ -8,6 +8,8 @@ use persistent::State;
 use postgres;
 use postgres::error::SqlState;
 use potboiler_common::{db, url_from_body};
+use r2d2;
+use r2d2_postgres;
 use serde_json;
 use serde_types::Log;
 use std::ops::{Deref, DerefMut};
@@ -20,6 +22,17 @@ pub struct Notifications;
 
 impl Key for Notifications {
     type Value = Vec<String>;
+}
+
+pub fn init_notifiers(conn: &r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>)
+                      -> Vec<String> {
+    let mut notifiers = Vec::new();
+    let stmt = conn.prepare("select url from notifications").expect("prepare failure");
+    for row in &stmt.query(&[]).expect("notifications select works") {
+        let url: String = row.get("url");
+        notifiers.push(url);
+    }
+    return notifiers;
 }
 
 fn get_notifications_list(req: &Request) -> Vec<String> {
