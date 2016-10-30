@@ -21,7 +21,6 @@ pub struct ClockMiddleware {
 
 impl BeforeMiddleware for ClockMiddleware {
     fn before(&self, req: &mut Request) -> IronResult<()> {
-        debug!("self: {:?}", self);
         req.extensions.insert::<Clock>(self.clock_state.clone());
         return Ok(());
     }
