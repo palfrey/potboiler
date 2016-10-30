@@ -99,14 +99,6 @@ fn new_log(mut req: &mut Request) -> IronResult<Response> {
         Some(id)
     };
     let when = clock::get_timestamp(&mut req);
-    conn.execute("UPDATE log set next = $1 where owner = $2 and next is null",
-                 &[&id, &server_id])
-        .expect("update worked");
-    let mut raw_timestamp: Vec<u8> = Vec::new();
-    when.write_bytes(&mut raw_timestamp).unwrap();
-    conn.execute("INSERT INTO log (id, owner, data, prev, hlc_tstamp) VALUES ($1, $2, $3, $4, $5)",
-                 &[&id, &server_id, &json, &previous, &raw_timestamp])
-        .expect("insert worked");
     let log = Log {
         id: id,
         owner: server_id.clone(),
@@ -115,6 +107,7 @@ fn new_log(mut req: &mut Request) -> IronResult<Response> {
         when: when,
         data: json.clone(),
     };
+    nodes::insert_log(&conn, &log);
     let log_arc = Arc::new(log);
     notifications::notify_everyone(req, log_arc.clone());
     nodes::notify_everyone(req, log_arc.clone());
@@ -204,8 +197,10 @@ fn main() {
         notifiers.push(url);
     }
     chain.link_before(State::<notifications::Notifications>::one(notifiers));
-    chain.link_before(State::<nodes::Nodes>::one(nodes::initial_nodes(pool.clone())));
-    chain.link_before(State::<clock::Clock>::one(hybrid_clocks::Clock::wall()));
+    let clock_state = clock::init_clock();
+    chain.link_before(State::<nodes::Nodes>::one(nodes::initial_nodes(pool.clone(),
+                                                                      clock_state.clock_state.clone())));
+    chain.link_before(clock_state);
     chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     chain.link(PRead::<db::PostgresDB>::both(pool));
     info!("Potboiler booted");

@@ -24,6 +24,10 @@ use url::Url;
 use uuid::Uuid;
 pub type PostgresConnection = r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>;
 pub type PostgresPool = r2d2::Pool<r2d2_postgres::PostgresConnectionManager>;
+use clock;
+use hybrid_clocks::{Timestamp, WallT, Wall, Clock};
+use std::sync::RwLock;
+pub type SyncClock = Arc<RwLock<Clock<Wall>>>;
 
 #[derive(Copy, Clone)]
 pub struct Nodes;
@@ -34,6 +38,7 @@ pub struct NodeInfo {
 pub struct NodeList {
     nodes: HashMap<String, NodeInfo>,
     pool: PostgresPool,
+    clock: SyncClock,
 }
 
 impl Key for Nodes {
@@ -68,7 +73,8 @@ fn parse_object_from_request(raw_result: Result<hyper::client::Response, hyper::
 
 fn check_host_once(host_url: &String,
                    raw_result: Result<hyper::client::Response, hyper::Error>,
-                   conn: &PostgresConnection) {
+                   conn: &PostgresConnection,
+                   clock_state: SyncClock) {
     let kv = match parse_object_from_request(raw_result) {
         Ok(val) => val,
         Err(err) => {
@@ -103,7 +109,7 @@ fn check_host_once(host_url: &String,
         let first_item = conn.query("SELECT id from log WHERE prev is null and owner=$1 limit 1",
                    &[&key_uuid])
             .expect("bad first query");
-        if first_item.is_empty() {
+        let start_uuid = if first_item.is_empty() {
             let first_url = format!("{}/log/first", &host_url);
             debug!("Get first from {:?}", host_url);
             let res = client.get(&first_url).send();
@@ -117,6 +123,7 @@ fn check_host_once(host_url: &String,
                 }
             };
             info!("First entry: {:?}", first_entry);
+            first_entry.get(key).unwrap().clone()
         } else {
             info!("Already have an entry from the list with server id {:?}",
                   key);
@@ -143,23 +150,82 @@ fn check_host_once(host_url: &String,
                 }
             };
             info!("Last entry: {:?}", last_entry);
+            last_entry.get("next").unwrap().clone()
+        };
+        let mut current_uuid = start_uuid;
+        loop {
+            let real_uuid = {
+                let str_uuid = current_uuid.as_str();
+                String::from(str_uuid.expect("UUID unwrap"))
+            };
+            let current_url = format!("{}/log/{}", &host_url, real_uuid);
+            debug!("Get {} from {}", real_uuid, host_url);
+            let res = client.get(&current_url).send();
+            let current_entry = match parse_object_from_request(res) {
+                Ok(val) => val,
+                Err(err) => {
+                    warn!("Error while getting first item from {:?}: {:?}",
+                          host_url,
+                          err);
+                    return;
+                }
+            };
+            let next = current_entry.get("next").expect("has next key");
+            let timestamp: Timestamp<WallT> =
+                serde_json::value::from_value(current_entry.get("when").expect(" has when key").clone())
+                    .expect("is byte string");
+            clock::observe_timestamp(&clock_state, timestamp);
+            let log = Log {
+                id: Uuid::parse_str(&real_uuid).unwrap(),
+                owner: key_uuid,
+                next: get_uuid_from_map(&current_entry, "next"),
+                prev: get_uuid_from_map(&current_entry, "prev"),
+                data: current_entry.get("data").unwrap().clone(),
+                when: clock::get_timestamp_from_state(&clock_state),
+            };
+            insert_log(conn, &log);
+            if next.is_null() {
+                break;
+            }
+            current_uuid = next.clone();
         }
     }
 }
 
-fn check_host(host_url: String, conn: PostgresConnection) {
+fn get_uuid_from_map(map: &serde_json::value::Map<String, serde_json::Value>, key: &str) -> Option<Uuid> {
+    let value = map.get(key).unwrap();
+    if value.is_null() {
+        None
+    } else {
+        Some(Uuid::parse_str(value.as_str().unwrap()).unwrap())
+    }
+}
+
+pub fn insert_log(conn: &PostgresConnection, log: &Log) {
+    if log.prev.is_some() {
+        conn.execute("UPDATE log set next = $1 where owner = $2 and id = $3",
+                     &[&log.id, &log.owner, &log.prev])
+            .expect("update worked");
+    }
+    let raw_timestamp = clock::get_raw_timestamp(&log.when);
+    conn.execute("INSERT INTO log (id, owner, data, prev, hlc_tstamp) VALUES ($1, $2, $3, $4, $5)",
+                 &[&log.id, &log.owner, &log.data, &log.prev, &raw_timestamp])
+        .expect("insert worked");
+}
+
+fn check_host(host_url: String, conn: PostgresConnection, clock_state: SyncClock) {
     let sleep_time = Duration::from_secs(5);
     loop {
         let client = hyper::client::Client::new();
         let check_url = format!("{}/log", &host_url);
         info!("Checking {} ({})", host_url, check_url);
         let res = client.get(&check_url).send();
-        check_host_once(&host_url, res, &conn);
+        check_host_once(&host_url, res, &conn, clock_state.clone());
         thread::sleep(sleep_time);
     }
 }
 
-pub fn initial_nodes(pool: PostgresPool) -> NodeList {
+pub fn initial_nodes(pool: PostgresPool, clock_state: SyncClock) -> NodeList {
     let conn = pool.get().unwrap();
     let mut nodes = HashMap::new();
     let stmt = conn.prepare("select url from nodes").expect("prepare failure");
@@ -167,11 +233,13 @@ pub fn initial_nodes(pool: PostgresPool) -> NodeList {
         let url: String = row.get("url");
         nodes.insert(url.clone(), NodeInfo {});
         let conn = pool.get().unwrap();
-        thread::spawn(move || check_host(url.clone(), conn));
+        let cs = clock_state.clone();
+        thread::spawn(move || check_host(url.clone(), conn, cs));
     }
     return NodeList {
         nodes: nodes,
         pool: pool,
+        clock: clock_state,
     };
 }
 
@@ -186,7 +254,7 @@ fn get_nodes_list(req: &Request) -> Vec<String> {
 }
 
 fn insert_node(req: &mut Request, to_notify: &String) {
-    let conn = {
+    let (conn, clock_state) = {
         let mut nodelist = req.extensions
             .get_mut::<State<Nodes>>()
             .unwrap()
@@ -194,11 +262,11 @@ fn insert_node(req: &mut Request, to_notify: &String) {
             .unwrap();
         let nodelist_dm = nodelist.deref_mut();
         nodelist_dm.nodes.insert(to_notify.clone(), NodeInfo {});
-        nodelist_dm.pool.get().unwrap()
+        (nodelist_dm.pool.get().unwrap(), nodelist_dm.clock.clone())
     };
 
     let url = to_notify.clone();
-    thread::spawn(move || check_host(url, conn));
+    thread::spawn(move || check_host(url, conn, clock_state));
 }
 
 pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
