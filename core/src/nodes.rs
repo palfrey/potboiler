@@ -202,6 +202,7 @@ fn get_uuid_from_map(map: &serde_json::value::Map<String, serde_json::Value>, ke
 }
 
 pub fn insert_log(conn: &PostgresConnection, log: &Log) {
+    debug!("Inserting {:?}", log);
     if log.prev.is_some() {
         conn.execute("UPDATE log set next = $1 where owner = $2 and id = $3",
                      &[&log.id, &log.owner, &log.prev])
@@ -275,13 +276,14 @@ pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
         let local_log = log_arc.clone();
         thread::spawn(move || {
             let client = hyper::client::Client::new();
-            debug!("Notifying (node) {}", node);
-            let res = client.post(&node)
+            let notify_url = format!("{}/log/other", node);
+            debug!("Notifying (node) {}", notify_url);
+            let res = client.post(&notify_url)
                 .body(&serde_json::ser::to_string(&local_log).unwrap())
                 .send();
             match res {
                 Ok(val) => {
-                    if val.status != hyper::status::StatusCode::NoContent {
+                    if val.status != hyper::status::StatusCode::Ok {
                         warn!("Failed to notify {:?}: {:?}", &node, val.status);
                     }
                 }

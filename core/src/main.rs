@@ -45,6 +45,7 @@ fn main() {
     let mut router = Router::new();
     router.get("/log", logs::log_lasts);
     router.post("/log", logs::new_log);
+    router.post("/log/other", logs::other_log);
     router.get("/log/first", logs::log_firsts);
     router.get("/log/:entry_id", logs::get_log);
     router.post("/log/register", notifications::log_register);
