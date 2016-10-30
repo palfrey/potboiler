@@ -71,10 +71,11 @@ fn parse_object_from_request(raw_result: Result<hyper::client::Response, hyper::
     };
 }
 
-fn check_host_once(host_url: &String,
-                   raw_result: Result<hyper::client::Response, hyper::Error>,
-                   conn: &PostgresConnection,
-                   clock_state: SyncClock) {
+fn check_host_once(host_url: &String, conn: &PostgresConnection, clock_state: SyncClock) {
+    let client = hyper::client::Client::new();
+    let check_url = format!("{}/log", &host_url);
+    info!("Checking {} ({})", host_url, check_url);
+    let raw_result = client.get(&check_url).send();
     let kv = match parse_object_from_request(raw_result) {
         Ok(val) => val,
         Err(err) => {
@@ -105,7 +106,6 @@ fn check_host_once(host_url: &String,
             continue;
         }
 
-        let client = hyper::client::Client::new();
         let first_item = conn.query("SELECT id from log WHERE prev is null and owner=$1 limit 1",
                    &[&key_uuid])
             .expect("bad first query");
@@ -217,11 +217,7 @@ pub fn insert_log(conn: &PostgresConnection, log: &Log) {
 fn check_host(host_url: String, conn: PostgresConnection, clock_state: SyncClock) {
     let sleep_time = Duration::from_secs(5);
     loop {
-        let client = hyper::client::Client::new();
-        let check_url = format!("{}/log", &host_url);
-        info!("Checking {} ({})", host_url, check_url);
-        let res = client.get(&check_url).send();
-        check_host_once(&host_url, res, &conn, clock_state.clone());
+        check_host_once(&host_url, &conn, clock_state.clone());
         thread::sleep(sleep_time);
     }
 }
