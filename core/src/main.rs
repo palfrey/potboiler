@@ -2,46 +2,38 @@
 extern crate schemamama;
 extern crate schemamama_postgres;
 extern crate postgres;
-mod schema;
-
 #[macro_use]
 extern crate log;
 extern crate log4rs;
-
 extern crate iron;
 extern crate router;
 extern crate logger;
-
-use iron::prelude::*;
-use logger::Logger;
-use router::Router;
-
-use std::env;
-
 extern crate hyper;
 extern crate url;
-
 extern crate uuid;
 extern crate serde;
 extern crate serde_json;
 extern crate hybrid_clocks;
-
 extern crate r2d2;
 extern crate r2d2_postgres;
 extern crate persistent;
-use persistent::Read as PRead;
-use persistent::State;
-
 #[macro_use]
 extern crate potboiler_common;
+
+use iron::prelude::*;
+use logger::Logger;
+use persistent::Read as PRead;
+use persistent::State;
 use potboiler_common::db;
 use potboiler_common::server_id;
-
+use router::Router;
+use std::env;
 mod serde_types;
 mod notifications;
 mod clock;
 mod nodes;
 mod logs;
+mod schema;
 
 fn main() {
     log4rs::init_file("log.yaml", Default::default()).unwrap();
