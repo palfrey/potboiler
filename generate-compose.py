@@ -14,6 +14,8 @@ def extend(od, kind):
 def postgres(index):
     ret = OrderedDict()
     extend(ret, "postgres-base")
+    base_port = 6432 + index*1000
+    ret["ports"] = ["%d:5432"%base_port]
     return ret
 
 def core(index):
