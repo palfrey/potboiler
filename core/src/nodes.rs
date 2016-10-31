@@ -243,10 +243,10 @@ fn check_new_nodes(host_url: &String, conn: &PostgresConnection) {
     let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter()
         .map(|x| x.get::<&str, String>("url")));
     let extra_nodes = new_nodes.difference(&existing_nodes_set).collect::<Vec<&String>>();
-    info!("existing_nodes: {:?} {:?} {:?}",
-          existing_nodes_set,
-          new_nodes,
-          extra_nodes);
+    debug!("existing nodes: {:?}; remote nodes: {:?}",
+           existing_nodes_set,
+           new_nodes);
+    info!("extra nodes: {:?}", extra_nodes);
 }
 
 fn check_host(host_url: String, conn: PostgresConnection, clock_state: SyncClock) {
