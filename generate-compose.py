@@ -11,10 +11,10 @@ def extend(od, kind):
     od["extends"]["file"] = "common.yml"
     od["extends"]["service"] = kind
 
-def postgres(index):
+def postgres(index, additional=0):
     ret = OrderedDict()
     extend(ret, "postgres-base")
-    base_port = 6432 + index*1000
+    base_port = 6432 + index*1000 + additional
     ret["ports"] = ["%d:5432"%base_port]
     return ret
 
@@ -45,9 +45,9 @@ def kv_browser(index):
 
 for index in range(int(argv[1])):
     compose["services"]["core%d"%index] = core(index)
-    compose["services"]["postgres-core%d"%index] = postgres(index)
+    compose["services"]["postgres-core%d"%index] = postgres(index, 0)
     compose["services"]["kv%d"%index] = kv(index)
-    compose["services"]["postgres-kv%d"%index] = postgres(index)
+    compose["services"]["postgres-kv%d"%index] = postgres(index, 1)
     compose["services"]["kv-browser%d"%index] = kv_browser(index)
 
 
