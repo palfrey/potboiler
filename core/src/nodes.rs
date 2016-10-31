@@ -30,6 +30,7 @@ use clock;
 use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
 use std::sync::RwLock;
 pub type SyncClock = Arc<RwLock<Clock<Wall>>>;
+pub type LockedNode = Arc<RwLock<HashMap<String, NodeInfo>>>;
 
 #[derive(Copy, Clone)]
 pub struct Nodes;
@@ -37,8 +38,9 @@ pub struct Nodes;
 pub struct NodeInfo {
 }
 
+#[derive(Clone)]
 pub struct NodeList {
-    nodes: HashMap<String, NodeInfo>,
+    nodes: LockedNode,
     pool: PostgresPool,
     clock: SyncClock,
 }
@@ -224,53 +226,68 @@ pub fn insert_log(conn: &PostgresConnection, log: &Log) {
         .expect("insert worked");
 }
 
-fn check_new_nodes(host_url: &String, conn: &PostgresConnection) {
+fn check_new_nodes(host_url: &String, conn: &PostgresConnection, nodelist: NodeList) {
     let client = hyper::client::Client::new();
     let check_url = format!("{}/nodes", &host_url);
     info!("Checking {} ({})", host_url, check_url);
     let raw_result = client.get(&check_url).send();
-    let nodes = match parse_json_from_request(raw_result) {
+    let remote_nodes = match parse_json_from_request(raw_result) {
         Ok(val) => val,
         Err(err) => {
             warn!("Error while getting from {:?}: {:?}", host_url, err);
             return;
         }
     };
-    let new_nodes: HashSet<String> =
-        HashSet::from_iter(nodes.as_array().unwrap().iter().map(|x| String::from(x.as_str().unwrap())));
+    let remote_node_set: HashSet<String> = HashSet::from_iter(remote_nodes.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| String::from(x.as_str().unwrap())));
     let existing_nodes = conn.query("SELECT url from nodes", &[])
         .expect("prepare failure");
     let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter()
         .map(|x| x.get::<&str, String>("url")));
-    let extra_nodes = new_nodes.difference(&existing_nodes_set).collect::<Vec<&String>>();
+    let extra_nodes = remote_node_set.difference(&existing_nodes_set)
+        .map(|x| x.clone())
+        .collect::<Vec<String>>();
     debug!("existing nodes: {:?}; remote nodes: {:?}",
            existing_nodes_set,
-           new_nodes);
+           remote_node_set);
     info!("extra nodes: {:?}", extra_nodes);
+    let mut nodes = nodelist.nodes.write().unwrap();
+    for extra in extra_nodes {
+        nodes.insert(extra.clone(), NodeInfo {});
+        let nodeslist = nodelist.clone();
+        thread::spawn(move || check_host(extra.clone(), nodeslist));
+    }
 }
 
-fn check_host(host_url: String, conn: PostgresConnection, clock_state: SyncClock) {
+fn check_host(host_url: String, nodelist: NodeList) {
     let sleep_time = Duration::from_secs(5);
+    let conn = nodelist.pool.get().unwrap();
     loop {
-        check_host_once(&host_url, &conn, clock_state.clone());
-        check_new_nodes(&host_url, &conn);
+        check_host_once(&host_url, &conn, nodelist.clock.clone());
+        check_new_nodes(&host_url, &conn, nodelist.clone());
         thread::sleep(sleep_time);
     }
 }
 
 pub fn initial_nodes(pool: PostgresPool, clock_state: SyncClock) -> NodeList {
     let conn = pool.get().unwrap();
-    let mut nodes = HashMap::new();
     let stmt = conn.prepare("select url from nodes").expect("prepare failure");
+    let locked_nodes = Arc::new(RwLock::new(HashMap::new()));
+    let mut nodes = locked_nodes.write().unwrap();
     for row in &stmt.query(&[]).expect("nodes select works") {
         let url: String = row.get("url");
         nodes.insert(url.clone(), NodeInfo {});
-        let conn = pool.get().unwrap();
-        let cs = clock_state.clone();
-        thread::spawn(move || check_host(url.clone(), conn, cs));
+        let nodeslist = NodeList {
+            nodes: locked_nodes.clone(),
+            pool: pool.clone(),
+            clock: clock_state.clone(),
+        };
+        thread::spawn(move || check_host(url.clone(), nodeslist));
     }
     return NodeList {
-        nodes: nodes,
+        nodes: locked_nodes.clone(),
         pool: pool,
         clock: clock_state,
     };
@@ -278,28 +295,32 @@ pub fn initial_nodes(pool: PostgresPool, clock_state: SyncClock) -> NodeList {
 
 fn get_nodes_list(req: &Request) -> Vec<String> {
     let state_ref = req.extensions.get::<State<Nodes>>().unwrap().read().unwrap();
-    let nodelist = state_ref.deref();
-    let mut vec = Vec::with_capacity(nodelist.nodes.len());
-    for key in nodelist.nodes.keys() {
+    let nodes = state_ref.deref().nodes.read().unwrap();
+    let mut vec = Vec::with_capacity(nodes.len());
+    for key in nodes.keys() {
         vec.push(key.clone());
     }
     return vec;
 }
 
 fn insert_node(req: &mut Request, to_notify: &String) {
-    let (conn, clock_state) = {
+    let nodelist = {
         let mut nodelist = req.extensions
             .get_mut::<State<Nodes>>()
             .unwrap()
             .write()
             .unwrap();
         let nodelist_dm = nodelist.deref_mut();
-        nodelist_dm.nodes.insert(to_notify.clone(), NodeInfo {});
-        (nodelist_dm.pool.get().unwrap(), nodelist_dm.clock.clone())
+        nodelist_dm.nodes.write().unwrap().insert(to_notify.clone(), NodeInfo {});
+        NodeList {
+            nodes: nodelist_dm.nodes.clone(),
+            pool: nodelist_dm.pool.clone(),
+            clock: nodelist_dm.clock.clone(),
+        }
     };
 
     let url = to_notify.clone();
-    thread::spawn(move || check_host(url, conn, clock_state));
+    thread::spawn(move || check_host(url, nodelist));
 }
 
 pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
