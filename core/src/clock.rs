@@ -1,6 +1,6 @@
 use hybrid_clocks::{Timestamp, Wall, WallT};
 use hybrid_clocks::Clock as HClock;
-use iron::{Request, BeforeMiddleware, IronResult};
+use iron::{BeforeMiddleware, IronResult, Request};
 use iron::typemap::Key;
 use std::ops::DerefMut;
 use std::sync::Arc;

@@ -27,7 +27,7 @@ use uuid::Uuid;
 pub type PostgresConnection = r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>;
 pub type PostgresPool = r2d2::Pool<r2d2_postgres::PostgresConnectionManager>;
 use clock;
-use hybrid_clocks::{Timestamp, WallT, Wall, Clock};
+use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
 use std::sync::RwLock;
 pub type SyncClock = Arc<RwLock<Clock<Wall>>>;
 

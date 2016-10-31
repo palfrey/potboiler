@@ -16,6 +16,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::thread;
 use url::Url;
+pub type PostgresConnection = r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>;
 
 #[derive(Copy, Clone)]
 pub struct Notifications;
@@ -24,8 +25,7 @@ impl Key for Notifications {
     type Value = Vec<String>;
 }
 
-pub fn init_notifiers(conn: &r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>)
-                      -> Vec<String> {
+pub fn init_notifiers(conn: &PostgresConnection) -> Vec<String> {
     let mut notifiers = Vec::new();
     let stmt = conn.prepare("select url from notifications").expect("prepare failure");
     for row in &stmt.query(&[]).expect("notifications select works") {
