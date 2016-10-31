@@ -14,7 +14,9 @@ use r2d2_postgres;
 use serde_json;
 use serde_types::Log;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::io::Read;
+use std::iter::FromIterator;
 
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
@@ -45,8 +47,8 @@ impl Key for Nodes {
     type Value = NodeList;
 }
 
-fn parse_object_from_request(raw_result: Result<hyper::client::Response, hyper::Error>)
-                             -> Result<serde_json::value::Map<String, serde_json::Value>, StringError> {
+fn parse_json_from_request(raw_result: Result<hyper::client::Response, hyper::Error>)
+                           -> Result<serde_json::value::Value, StringError> {
     let mut res = match raw_result {
         Ok(val) => val,
         Err(val) => {
@@ -58,12 +60,20 @@ fn parse_object_from_request(raw_result: Result<hyper::client::Response, hyper::
         res.read_to_string(&mut body).expect("could read from body");
         body
     };
-    let json: serde_json::Value = match serde_json::de::from_str(&body_string) {
+    return match serde_json::de::from_str(&body_string) {
         Ok(val) => {
             debug!("Good data back {:?}", val);
-            val
+            Ok(val)
         }
-        Err(_) => return Err(StringError(format!("Got crappy data back: {:?}", body_string))),
+        Err(_) => Err(StringError(format!("Got crappy data back: {:?}", body_string))),
+    };
+}
+
+fn parse_object_from_request(raw_result: Result<hyper::client::Response, hyper::Error>)
+                             -> Result<serde_json::value::Map<String, serde_json::Value>, StringError> {
+    let json: serde_json::Value = match parse_json_from_request(raw_result) {
+        Ok(val) => val,
+        Err(err) => return Err(err),
     };
     return match json.as_object() {
         Some(val) => Ok(val.clone()),
@@ -214,10 +224,36 @@ pub fn insert_log(conn: &PostgresConnection, log: &Log) {
         .expect("insert worked");
 }
 
+fn check_new_nodes(host_url: &String, conn: &PostgresConnection) {
+    let client = hyper::client::Client::new();
+    let check_url = format!("{}/nodes", &host_url);
+    info!("Checking {} ({})", host_url, check_url);
+    let raw_result = client.get(&check_url).send();
+    let nodes = match parse_json_from_request(raw_result) {
+        Ok(val) => val,
+        Err(err) => {
+            warn!("Error while getting from {:?}: {:?}", host_url, err);
+            return;
+        }
+    };
+    let new_nodes: HashSet<String> =
+        HashSet::from_iter(nodes.as_array().unwrap().iter().map(|x| String::from(x.as_str().unwrap())));
+    let existing_nodes = conn.query("SELECT url from nodes", &[])
+        .expect("prepare failure");
+    let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter()
+        .map(|x| x.get::<&str, String>("url")));
+    let extra_nodes = new_nodes.difference(&existing_nodes_set).collect::<Vec<&String>>();
+    info!("existing_nodes: {:?} {:?} {:?}",
+          existing_nodes_set,
+          new_nodes,
+          extra_nodes);
+}
+
 fn check_host(host_url: String, conn: PostgresConnection, clock_state: SyncClock) {
     let sleep_time = Duration::from_secs(5);
     loop {
         check_host_once(&host_url, &conn, clock_state.clone());
+        check_new_nodes(&host_url, &conn);
         thread::sleep(sleep_time);
     }
 }
