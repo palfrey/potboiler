@@ -3,9 +3,10 @@
 Potboiler is an AP Event Sourcing system. More specifically, it's an MVP/research prototype of said, with known issues and is not even slightly suitable for production use. However, patches welcomed!
 
 ## Getting started
-1. `python generate-compose.py 3 > docker-compose.yml` will generate node configs for 3 core/KV/browser sets
-2. `docker-compose up -d`
-3. Goto `http://localhost:8002/8102/8202` to see any of the Key/Value browsing
+1. `pip install PyYAML`
+2. `python generate-compose.py 3 > docker-compose.yml` will generate node configs for 3 core/KV/browser sets
+3. `docker-compose up -d`
+4. Goto `http://localhost:8002/8102/8202` to see any of the Key/Value browsing
 
 ## Ports
 
@@ -52,7 +53,7 @@ For subsequent nodes, add 100 to the port numbers (e.g. 8100-2 for the second, 8
   - [table] and [key] here are alphanumeric strings
 
 Update operations:
-- "[item]" is any JSON value. "[key]" is a UUID.
+- "[item]" is any JSON value. "[key]" is a string.
 - LWW
   - "set": "[item]"
 
