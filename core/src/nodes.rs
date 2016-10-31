@@ -234,7 +234,7 @@ fn check_new_nodes(host_url: &String, conn: &PostgresConnection, nodelist: NodeL
     let remote_nodes = match parse_json_from_request(raw_result) {
         Ok(val) => val,
         Err(err) => {
-            warn!("Error while getting from {:?}: {:?}", host_url, err);
+            warn!("Error while getting from {}: {:?}", host_url, err);
             return;
         }
     };
@@ -249,15 +249,21 @@ fn check_new_nodes(host_url: &String, conn: &PostgresConnection, nodelist: NodeL
     let extra_nodes = remote_node_set.difference(&existing_nodes_set)
         .map(|x| x.clone())
         .collect::<Vec<String>>();
-    debug!("existing nodes: {:?}; remote nodes: {:?}",
-           existing_nodes_set,
-           remote_node_set);
-    info!("extra nodes: {:?}", extra_nodes);
+    debug!("From {} remote nodes: {:?}", check_url, remote_node_set);
+    info!("Extra nodes from {}: {:?}", check_url, extra_nodes);
     let mut nodes = nodelist.nodes.write().unwrap();
     for extra in extra_nodes {
-        nodes.insert(extra.clone(), NodeInfo {});
-        let nodeslist = nodelist.clone();
-        thread::spawn(move || check_host(extra.clone(), nodeslist));
+        match node_insert(&conn, &extra) {
+            InsertResult::Inserted => {
+                nodes.insert(extra.clone(), NodeInfo {});
+                let nodeslist = nodelist.clone();
+                thread::spawn(move || check_host(extra.clone(), nodeslist));
+            }
+            InsertResult::Existing => {}
+            InsertResult::Error(err) => {
+                warn!("Error while inserting node: {:?}", err);
+            }
+        }
     }
 }
 
@@ -348,6 +354,28 @@ pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
     }
 }
 
+enum InsertResult {
+    Inserted,
+    Existing,
+    Error(postgres::error::Error),
+}
+
+fn node_insert(conn: &PostgresConnection, url: &String) -> InsertResult {
+    return match conn.execute("INSERT INTO nodes (url) VALUES ($1)", &[&url]) {
+        Ok(_) => InsertResult::Inserted,
+        Err(err) => {
+            if let postgres::error::Error::Db(dberr) = err {
+                match dberr.code {
+                    SqlState::UniqueViolation => InsertResult::Existing,
+                    _ => InsertResult::Error(postgres::error::Error::Db(dberr)),
+                }
+            } else {
+                InsertResult::Error(err)
+            }
+        }
+    };
+}
+
 pub fn node_add(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
     let url = url_from_body(req).unwrap().unwrap();
@@ -355,20 +383,14 @@ pub fn node_add(req: &mut Request) -> IronResult<Response> {
     match Url::parse(&url) {
         Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
         Ok(_) => {
-            match conn.execute("INSERT INTO nodes (url) VALUES ($1)", &[&url]) {
-                Ok(_) => {
+            match node_insert(&conn, &url) {
+                InsertResult::Inserted => {
                     insert_node(req, &url);
                     Ok(Response::with((status::NoContent)))
                 }
-                Err(err) => {
-                    if let postgres::error::Error::Db(dberr) = err {
-                        match dberr.code {
-                            SqlState::UniqueViolation => Ok(Response::with((status::NoContent))),
-                            _ => Err(IronError::new(dberr, (status::BadRequest, "Some other error"))),
-                        }
-                    } else {
-                        Err(IronError::new(err, (status::BadRequest, "Some other error")))
-                    }
+                InsertResult::Existing => Ok(Response::with((status::NoContent))),
+                InsertResult::Error(err) => {
+                    Err(IronError::new(err, (status::BadRequest, "Some other error")))
                 }
             }
         }
