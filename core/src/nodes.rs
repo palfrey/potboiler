@@ -31,6 +31,7 @@ use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
 use std::sync::RwLock;
 pub type SyncClock = Arc<RwLock<Clock<Wall>>>;
 pub type LockedNode = Arc<RwLock<HashMap<String, NodeInfo>>>;
+use std::error::Error;
 
 #[derive(Copy, Clone)]
 pub struct Nodes;
@@ -226,7 +227,25 @@ pub fn insert_log(conn: &PostgresConnection, log: &Log) {
         .expect("insert worked");
 }
 
-fn check_new_nodes(host_url: &String, conn: &PostgresConnection, nodelist: NodeList) {
+fn hashset_from_json_array(nodes: &Vec<serde_json::Value>) -> Result<HashSet<String>, StringError> {
+    let mut ret = HashSet::new();
+    for node in nodes {
+        match node.as_str() {
+            None => {
+                return Err(StringError::from("remote_node wasn't a string!"));
+            }
+            Some(val) => {
+                ret.insert(String::from(val));
+            }
+        }
+    }
+    return Ok(ret);
+}
+
+fn check_new_nodes(host_url: &String,
+                   conn: &PostgresConnection,
+                   nodelist: NodeList)
+                   -> Result<(), StringError> {
     let client = hyper::client::Client::new();
     let check_url = format!("{}/nodes", &host_url);
     info!("Checking {} ({})", host_url, check_url);
@@ -235,15 +254,13 @@ fn check_new_nodes(host_url: &String, conn: &PostgresConnection, nodelist: NodeL
         Ok(val) => val,
         Err(err) => {
             warn!("Error while getting from {}: {:?}", host_url, err);
-            return;
+            return Err(err);
         }
     };
-    let remote_node_set: HashSet<String> = HashSet::from_iter(remote_nodes.as_array()
-        .unwrap()
-        .iter()
-        .map(|x| String::from(x.as_str().unwrap())));
-    let existing_nodes = conn.query("SELECT url from nodes", &[])
-        .expect("prepare failure");
+    let remote_node_array = try!(remote_nodes.as_array()
+        .ok_or(StringError::from("remote_nodes isn't an array!")));
+    let remote_node_set: HashSet<String> = try!(hashset_from_json_array(remote_node_array));
+    let existing_nodes = try!(conn.query("SELECT url from nodes", &[]));
     let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter()
         .map(|x| x.get::<&str, String>("url")));
     let extra_nodes = remote_node_set.difference(&existing_nodes_set)
@@ -251,7 +268,7 @@ fn check_new_nodes(host_url: &String, conn: &PostgresConnection, nodelist: NodeL
         .collect::<Vec<String>>();
     debug!("From {} remote nodes: {:?}", check_url, remote_node_set);
     info!("Extra nodes from {}: {:?}", check_url, extra_nodes);
-    let mut nodes = nodelist.nodes.write().unwrap();
+    let mut nodes = try!(nodelist.nodes.write().map_err(|x| StringError::from(x.description())));
     for extra in extra_nodes {
         match node_insert(&conn, &extra) {
             InsertResult::Inserted => {
@@ -265,6 +282,7 @@ fn check_new_nodes(host_url: &String, conn: &PostgresConnection, nodelist: NodeL
             }
         }
     }
+    return Ok(());
 }
 
 fn check_host(host_url: String, nodelist: NodeList) {
@@ -272,7 +290,12 @@ fn check_host(host_url: String, nodelist: NodeList) {
     let conn = nodelist.pool.get().unwrap();
     loop {
         check_host_once(&host_url, &conn, nodelist.clock.clone());
-        check_new_nodes(&host_url, &conn, nodelist.clone());
+        match check_new_nodes(&host_url, &conn, nodelist.clone()) {
+            Ok(_) => {}
+            Err(msg) => {
+                warn!("Got an error while checking for new nodes: {}", msg);
+            }
+        }
         thread::sleep(sleep_time);
     }
 }

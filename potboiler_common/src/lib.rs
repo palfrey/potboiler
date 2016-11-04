@@ -4,6 +4,7 @@ extern crate r2d2_postgres;
 extern crate uuid;
 #[macro_use]
 extern crate log;
+extern crate postgres;
 
 pub mod db;
 pub mod server_id;
