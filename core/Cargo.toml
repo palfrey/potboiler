@@ -17,7 +17,7 @@ log = "*"
 log4rs = {version = ">= 0.4", features=["yaml_format"]}
 
 iron = "*"
-router = "*"
+router = "0.2"
 logger = "*"
 serde = "*"
 serde_json = "*"
@@ -25,12 +25,12 @@ serde_json = "*"
 potboiler_common = { path = "../potboiler_common" }
 
 url = "*"
-postgres = {version="*", features=["uuid","serde_json"]}
-schemamama = "*"
-schemamama_postgres = "*"
+postgres = {version="0.11", features=["uuid","serde_json"]}
+schemamama = "0.1"
+schemamama_postgres = "= 0.1.0"
 
 r2d2 = "*"
-r2d2_postgres = "*"
-persistent = "*"
+r2d2_postgres = "0.10"
+persistent = "= 0.2.0"
 
 hyper = "*"
