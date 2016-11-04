@@ -19,7 +19,7 @@ serde_json = ">=0.8"
 hybrid-clocks = {version=">=0.3.2", features = ["serde"]}
 
 url = "*"
-postgres = {version="0.10", features=["uuid","serde_json"]}
+postgres = {version="0.11", features=["uuid","serde_json"]}
 schemamama = "*"
 schemamama_postgres = "= 0.1.0"
 
