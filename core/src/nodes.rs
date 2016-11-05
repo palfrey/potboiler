@@ -88,7 +88,9 @@ fn check_host_once(host_url: &String,
                    conn: &PostgresConnection,
                    clock_state: SyncClock)
                    -> Result<(), StringError> {
-    let client = hyper::client::Client::new();
+    let mut client = hyper::client::Client::new();
+    client.set_read_timeout(Some(Duration::from_secs(10)));
+    client.set_write_timeout(Some(Duration::from_secs(10)));
     let check_url = format!("{}/log", &host_url);
     info!("Checking {} ({})", host_url, check_url);
     let raw_result = client.get(&check_url).send();
