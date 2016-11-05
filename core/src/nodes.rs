@@ -60,7 +60,7 @@ fn parse_json_from_request(raw_result: Result<hyper::client::Response, hyper::Er
     };
     let body_string = {
         let mut body = String::new();
-        res.read_to_string(&mut body).expect("could read from body");
+        try!(res.read_to_string(&mut body));
         body
     };
     return match serde_json::de::from_str(&body_string) {
@@ -84,7 +84,10 @@ fn parse_object_from_request(raw_result: Result<hyper::client::Response, hyper::
     };
 }
 
-fn check_host_once(host_url: &String, conn: &PostgresConnection, clock_state: SyncClock) {
+fn check_host_once(host_url: &String,
+                   conn: &PostgresConnection,
+                   clock_state: SyncClock)
+                   -> Result<(), StringError> {
     let client = hyper::client::Client::new();
     let check_url = format!("{}/log", &host_url);
     info!("Checking {} ({})", host_url, check_url);
@@ -92,14 +95,13 @@ fn check_host_once(host_url: &String, conn: &PostgresConnection, clock_state: Sy
     let kv = match parse_object_from_request(raw_result) {
         Ok(val) => val,
         Err(err) => {
-            warn!("Error while getting from {:?}: {:?}", host_url, err);
-            return;
+            return Err(StringError::from(format!("Error while getting from {:?}: {:?}", host_url, err)));
         }
     };
-    let stmt = conn.prepare("SELECT 1 from log where id=$1")
-        .expect("prepare failure");
+    let stmt = try!(conn.prepare("SELECT 1 from log where id=$1"));
     for (key, value) in kv.iter() {
-        let value_uuid = match Uuid::parse_str(value.as_str().unwrap()) {
+        let value_uuid = match Uuid::parse_str(try!(value.as_str()
+            .ok_or(StringError::from("Not a UUID!")))) {
             Ok(val) => val,
             Err(_) => {
                 warn!("Value {} isn't a UUID!", value);
@@ -113,15 +115,14 @@ fn check_host_once(host_url: &String, conn: &PostgresConnection, clock_state: Sy
                 continue;
             }
         };
-        let single_item = stmt.query(&[&value_uuid]).expect("bad single query");
+        let single_item = try!(stmt.query(&[&value_uuid]));
         if !single_item.is_empty() {
             debug!("Already have {} locally", value_uuid);
             continue;
         }
 
-        let first_item = conn.query("SELECT id from log WHERE prev is null and owner=$1 limit 1",
-                   &[&key_uuid])
-            .expect("bad first query");
+        let first_item = try!(conn.query("SELECT id from log WHERE prev is null and owner=$1 limit 1",
+                                         &[&key_uuid]));
         let start_uuid = if first_item.is_empty() {
             let first_url = format!("{}/log/first", &host_url);
             debug!("Get first from {:?}", host_url);
@@ -129,23 +130,20 @@ fn check_host_once(host_url: &String, conn: &PostgresConnection, clock_state: Sy
             let first_entry = match parse_object_from_request(res) {
                 Ok(val) => val,
                 Err(err) => {
-                    warn!("Error while getting first item from {:?}: {:?}",
-                          host_url,
-                          err);
-                    return;
+                    return Err(StringError::from(format!("Error while getting first item from {:?}: {:?}",
+                                                         host_url,
+                                                         err)));
                 }
             };
             info!("First entry: {:?}", first_entry);
-            first_entry.get(key).unwrap().clone()
+            try!(first_entry.get(key).ok_or(StringError::from(format!("Can't find {} key", key)))).clone()
         } else {
             info!("Already have an entry from the list with server id {:?}",
                   key);
-            let last_items = conn.query("SELECT id from log WHERE next is null and owner=$1 limit 1",
-                       &[&key_uuid])
-                .expect("bad last query");
+            let last_items = try!(conn.query("SELECT id from log WHERE next is null and owner=$1 limit 1",
+                                             &[&key_uuid]));
             if last_items.is_empty() {
-                warn!("Can't find end entry for server id {:?}", key);
-                return;
+                return Err(StringError::from(format!("Can't find end entry for server id {:?}", key)));
             }
             let last_item = last_items.get(0);
             let last_item_id: Uuid = last_item.get("id");
@@ -156,20 +154,19 @@ fn check_host_once(host_url: &String, conn: &PostgresConnection, clock_state: Sy
             let last_entry = match parse_object_from_request(res) {
                 Ok(val) => val,
                 Err(err) => {
-                    warn!("Error while getting first item from {:?}: {:?}",
-                          host_url,
-                          err);
-                    return;
+                    return Err(StringError::from(format!("Error while getting first item from {:?}: {:?}",
+                                                         host_url,
+                                                         err)));
                 }
             };
             info!("Last entry: {:?}", last_entry);
-            last_entry.get("next").unwrap().clone()
+            try!(last_entry.get("next").ok_or(StringError::from("No next key!"))).clone()
         };
         let mut current_uuid = start_uuid;
         loop {
             let real_uuid = {
                 let str_uuid = current_uuid.as_str();
-                String::from(str_uuid.expect("UUID unwrap"))
+                String::from(try!(str_uuid.ok_or(format!("Current id ({}) is not a UUID", current_uuid))))
             };
             let current_url = format!("{}/log/{}", &host_url, real_uuid);
             debug!("Get {} from {}", real_uuid, host_url);
@@ -177,23 +174,22 @@ fn check_host_once(host_url: &String, conn: &PostgresConnection, clock_state: Sy
             let current_entry = match parse_object_from_request(res) {
                 Ok(val) => val,
                 Err(err) => {
-                    warn!("Error while getting first item from {:?}: {:?}",
-                          host_url,
-                          err);
-                    return;
+                    return Err(StringError::from(format!("Error while getting first item from {:?}: {:?}",
+                                                         host_url,
+                                                         err)));
                 }
             };
-            let next = current_entry.get("next").expect("has next key");
-            let timestamp: Timestamp<WallT> =
-                serde_json::value::from_value(current_entry.get("when").expect(" has when key").clone())
-                    .expect("is byte string");
+            let next = try!(current_entry.get("next").ok_or(StringError::from("No next key!")));
+            let timestamp: Timestamp<WallT> = try!(serde_json::value::from_value(
+                    try!(current_entry.get("when").ok_or(StringError::from("No when key!")))
+                    .clone()));
             clock::observe_timestamp(&clock_state, timestamp);
             let log = Log {
-                id: Uuid::parse_str(&real_uuid).unwrap(),
+                id: try!(Uuid::parse_str(&real_uuid)),
                 owner: key_uuid,
                 next: get_uuid_from_map(&current_entry, "next"),
                 prev: get_uuid_from_map(&current_entry, "prev"),
-                data: current_entry.get("data").unwrap().clone(),
+                data: try!(current_entry.get("data").ok_or(StringError::from("No data key"))).clone(),
                 when: clock::get_timestamp_from_state(&clock_state),
             };
             insert_log(conn, &log);
@@ -203,15 +199,25 @@ fn check_host_once(host_url: &String, conn: &PostgresConnection, clock_state: Sy
             current_uuid = next.clone();
         }
     }
+    return Ok(());
 }
 
 fn get_uuid_from_map(map: &serde_json::value::Map<String, serde_json::Value>, key: &str) -> Option<Uuid> {
-    let value = map.get(key).unwrap();
+    let value = match map.get(key) {
+        Some(val) => val,
+        None => {
+            return None;
+        }
+    };
     if value.is_null() {
-        None
-    } else {
-        Some(Uuid::parse_str(value.as_str().unwrap()).unwrap())
+        return None;
     }
+    return match value.as_str() {
+        Some(val) => {
+            return Uuid::parse_str(val).ok();
+        }
+        None => None,
+    };
 }
 
 pub fn insert_log(conn: &PostgresConnection, log: &Log) {
@@ -289,7 +295,12 @@ fn check_host(host_url: String, nodelist: NodeList) {
     let sleep_time = Duration::from_secs(5);
     let conn = nodelist.pool.get().unwrap();
     loop {
-        check_host_once(&host_url, &conn, nodelist.clock.clone());
+        match check_host_once(&host_url, &conn, nodelist.clock.clone()) {
+            Ok(_) => {}
+            Err(msg) => {
+                warn!("Got an error while checking for new log items: {}", msg);
+            }
+        };
         match check_new_nodes(&host_url, &conn, nodelist.clone()) {
             Ok(_) => {}
             Err(msg) => {
