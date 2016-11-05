@@ -435,9 +435,16 @@ pub fn node_add(req: &mut Request) -> IronResult<Response> {
 
 pub fn node_remove(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
-    conn.execute("DELETE from nodes where url = $1",
-                 &[&url_from_body(req).unwrap().unwrap()])
+    let notifier = url_from_body(req).unwrap().unwrap();
+    conn.execute("DELETE from nodes where url = $1", &[&notifier])
         .expect("delete worked");
+    let mut nodelist = req.extensions
+        .get_mut::<State<Nodes>>()
+        .unwrap()
+        .write()
+        .unwrap();
+    let nodelist_dm = nodelist.deref_mut();
+    nodelist_dm.nodes.write().unwrap().remove(&notifier);
     Ok(Response::with((status::NoContent)))
 }
 
