@@ -28,15 +28,17 @@ pub type PostgresConnection = r2d2::PooledConnection<r2d2_postgres::PostgresConn
 pub type PostgresPool = r2d2::Pool<r2d2_postgres::PostgresConnectionManager>;
 use clock;
 use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 pub type SyncClock = Arc<RwLock<Clock<Wall>>>;
 pub type LockedNode = Arc<RwLock<HashMap<String, NodeInfo>>>;
 use std::error::Error;
+use std::sync::mpsc::{channel, Sender, Receiver};
 
 #[derive(Copy, Clone)]
 pub struct Nodes;
 
 pub struct NodeInfo {
+    sender: Mutex<Sender<()>>,
 }
 
 #[derive(Clone)]
@@ -280,9 +282,10 @@ fn check_new_nodes(host_url: &String,
     for extra in extra_nodes {
         match node_insert(&conn, &extra) {
             InsertResult::Inserted => {
-                nodes.insert(extra.clone(), NodeInfo {});
+                let (send, recv) = channel();
+                nodes.insert(extra.clone(), NodeInfo { sender: Mutex::new(send) });
                 let nodeslist = nodelist.clone();
-                thread::spawn(move || check_host(extra.clone(), nodeslist));
+                thread::spawn(move || check_host(extra.clone(), nodeslist, recv));
             }
             InsertResult::Existing => {}
             InsertResult::Error(err) => {
@@ -293,22 +296,42 @@ fn check_new_nodes(host_url: &String,
     return Ok(());
 }
 
-fn check_host(host_url: String, nodelist: NodeList) {
+macro_rules! check_should_exit {
+    ($recv:ident, $host_url:ident) => {{
+        match $recv.try_recv() {
+            Ok(_) => {
+                // Only message is "quit" at the moment
+                info!("Quitting check thread for {}", $host_url);
+                return;
+            }
+            Err(_) => {}
+        };
+    }};
+}
+
+fn check_host(host_url: String, nodelist: NodeList, recv: Receiver<()>) {
     let sleep_time = Duration::from_secs(5);
     let conn = nodelist.pool.get().unwrap();
     loop {
+        check_should_exit!(recv, host_url);
         match check_host_once(&host_url, &conn, nodelist.clock.clone()) {
             Ok(_) => {}
             Err(msg) => {
-                warn!("Got an error while checking for new log items: {}", msg);
+                warn!("Got an error while checking for new log items on {}: {}",
+                      host_url,
+                      msg);
             }
         };
+        check_should_exit!(recv, host_url);
         match check_new_nodes(&host_url, &conn, nodelist.clone()) {
             Ok(_) => {}
             Err(msg) => {
-                warn!("Got an error while checking for new nodes: {}", msg);
+                warn!("Got an error while checking for new nodes on {}: {}",
+                      host_url,
+                      msg);
             }
         }
+        check_should_exit!(recv, host_url);
         thread::sleep(sleep_time);
     }
 }
@@ -320,13 +343,14 @@ pub fn initial_nodes(pool: PostgresPool, clock_state: SyncClock) -> NodeList {
     let mut nodes = locked_nodes.write().unwrap();
     for row in &stmt.query(&[]).expect("nodes select works") {
         let url: String = row.get("url");
-        nodes.insert(url.clone(), NodeInfo {});
+        let (send, recv) = channel();
+        nodes.insert(url.clone(), NodeInfo { sender: Mutex::new(send) });
         let nodeslist = NodeList {
             nodes: locked_nodes.clone(),
             pool: pool.clone(),
             clock: clock_state.clone(),
         };
-        thread::spawn(move || check_host(url.clone(), nodeslist));
+        thread::spawn(move || check_host(url.clone(), nodeslist, recv));
     }
     return NodeList {
         nodes: locked_nodes.clone(),
@@ -346,6 +370,7 @@ fn get_nodes_list(req: &Request) -> Vec<String> {
 }
 
 fn insert_node(req: &mut Request, to_notify: &String) {
+    let (send, recv) = channel();
     let nodelist = {
         let mut nodelist = req.extensions
             .get_mut::<State<Nodes>>()
@@ -353,7 +378,7 @@ fn insert_node(req: &mut Request, to_notify: &String) {
             .write()
             .unwrap();
         let nodelist_dm = nodelist.deref_mut();
-        nodelist_dm.nodes.write().unwrap().insert(to_notify.clone(), NodeInfo {});
+        nodelist_dm.nodes.write().unwrap().insert(to_notify.clone(), NodeInfo { sender: Mutex::new(send) });
         NodeList {
             nodes: nodelist_dm.nodes.clone(),
             pool: nodelist_dm.pool.clone(),
@@ -362,7 +387,7 @@ fn insert_node(req: &mut Request, to_notify: &String) {
     };
 
     let url = to_notify.clone();
-    thread::spawn(move || check_host(url, nodelist));
+    thread::spawn(move || check_host(url, nodelist, recv));
 }
 
 pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
@@ -444,7 +469,20 @@ pub fn node_remove(req: &mut Request) -> IronResult<Response> {
         .write()
         .unwrap();
     let nodelist_dm = nodelist.deref_mut();
-    nodelist_dm.nodes.write().unwrap().remove(&notifier);
+    let mut nodes = nodelist_dm.nodes.write().unwrap();
+    {
+        // Limit the immutable borrow of nodes
+        let info = match nodes.get(&notifier) {
+            Some(val) => val,
+            None => {
+                return Err(IronError::new(StringError::from(format!("No such notifier {} registered",
+                                                                    &notifier)),
+                                          (status::NotFound)));
+            }
+        };
+        info.sender.lock().unwrap().deref().send(()).unwrap();
+    }
+    nodes.remove(&notifier);
     Ok(Response::with((status::NoContent)))
 }
 
