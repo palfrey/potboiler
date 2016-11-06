@@ -1,42 +1,36 @@
 #[macro_use]
 extern crate log;
 extern crate log4rs;
-
 extern crate iron;
 extern crate logger;
 extern crate router;
+extern crate persistent;
+extern crate r2d2;
+extern crate r2d2_postgres;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate potboiler_common;
+extern crate serde_json;
+extern crate hyper;
+extern crate hybrid_clocks;
+mod tables;
+
 use iron::prelude::*;
 use iron::status;
 use logger::Logger;
-use router::Router;
-
-extern crate persistent;
 use persistent::Read as PRead;
 use persistent::State;
-
-extern crate r2d2;
-extern crate r2d2_postgres;
-use r2d2_postgres::PostgresConnectionManager;
-pub type PostgresConnection = r2d2::PooledConnection<PostgresConnectionManager>;
-
-#[macro_use]
-extern crate potboiler_common;
 use potboiler_common::db;
 use potboiler_common::server_id;
 use potboiler_common::string_error::StringError;
-
-extern crate serde_json;
-extern crate hyper;
-
+use r2d2_postgres::PostgresConnectionManager;
+use router::Router;
 use std::env;
 use std::io::Read;
-
-mod tables;
-extern crate hybrid_clocks;
-
-#[macro_use]
-extern crate lazy_static;
 use std::ops::Deref;
+
+pub type PostgresConnection = r2d2::PooledConnection<PostgresConnectionManager>;
 
 lazy_static! {
     static ref SERVER_URL: String = env::var("SERVER_URL").expect("Needed SERVER_URL");

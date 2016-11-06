@@ -1,14 +1,15 @@
+use CRDT;
 use iron::Request;
 use iron::typemap::Key;
 use persistent::State;
 use r2d2::PooledConnection;
 use r2d2_postgres::PostgresConnectionManager;
-use std::collections::HashMap;
-use std::ops::{Deref, DerefMut};
-pub type PostgresConnection = PooledConnection<PostgresConnectionManager>;
-use CRDT;
 use serde_json;
 use serde_json::Value;
+use std::collections::HashMap;
+use std::ops::{Deref, DerefMut};
+
+pub type PostgresConnection = PooledConnection<PostgresConnectionManager>;
 
 #[derive(Copy, Clone)]
 pub struct Tables;
