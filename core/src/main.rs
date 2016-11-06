@@ -19,6 +19,9 @@ extern crate r2d2_postgres;
 extern crate persistent;
 #[macro_use]
 extern crate potboiler_common;
+extern crate urlencoded;
+extern crate plugin;
+extern crate resolve;
 
 use iron::prelude::*;
 use logger::Logger;

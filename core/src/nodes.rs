@@ -31,8 +31,11 @@ use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
 use std::sync::{Mutex, RwLock};
 pub type SyncClock = Arc<RwLock<Clock<Wall>>>;
 pub type LockedNode = Arc<RwLock<HashMap<String, NodeInfo>>>;
+use plugin::Pluggable;
+use resolve;
 use std::error::Error;
 use std::sync::mpsc::{channel, Sender, Receiver};
+use urlencoded::UrlEncodedQuery;
 
 #[derive(Copy, Clone)]
 pub struct Nodes;
@@ -257,7 +260,7 @@ fn check_new_nodes(host_url: &String,
                    nodelist: NodeList)
                    -> Result<(), StringError> {
     let client = hyper::client::Client::new();
-    let check_url = format!("{}/nodes", &host_url);
+    let check_url = format!("{}/nodes?query_port=8000", &host_url);
     info!("Checking {} ({})", host_url, check_url);
     let raw_result = client.get(&check_url).send();
     let remote_nodes = match parse_json_from_request(raw_result) {
@@ -437,6 +440,20 @@ fn node_insert(conn: &PostgresConnection, url: &String) -> InsertResult {
     };
 }
 
+fn node_add_core(conn: &PostgresConnection,
+                 url: &String,
+                 req: &mut Request)
+                 -> Result<(), postgres::error::Error> {
+    match node_insert(&conn, &url) {
+        InsertResult::Inserted => {
+            insert_node(req, &url);
+            Ok(())
+        }
+        InsertResult::Existing => Ok(()),
+        InsertResult::Error(err) => Err(err),
+    }
+}
+
 pub fn node_add(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
     let url = url_from_body(req).unwrap().unwrap();
@@ -444,15 +461,9 @@ pub fn node_add(req: &mut Request) -> IronResult<Response> {
     match Url::parse(&url) {
         Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
         Ok(_) => {
-            match node_insert(&conn, &url) {
-                InsertResult::Inserted => {
-                    insert_node(req, &url);
-                    Ok(Response::with((status::NoContent)))
-                }
-                InsertResult::Existing => Ok(Response::with((status::NoContent))),
-                InsertResult::Error(err) => {
-                    Err(IronError::new(err, (status::BadRequest, "Some other error")))
-                }
+            match node_add_core(&conn, &url, req) {
+                Ok(_) => Ok(Response::with((status::NoContent))),
+                Err(err) => Err(IronError::new(err, (status::BadRequest, "Some other error"))),
             }
         }
     }
@@ -486,6 +497,26 @@ pub fn node_remove(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::NoContent)))
 }
 
+fn add_node_from_req(req: &mut Request,
+                     nodes: &Vec<String>,
+                     conn: &PostgresConnection)
+                     -> Result<(), StringError> {
+    let host = try!(resolve::resolver::resolve_addr(&req.remote_addr.ip()));
+    let port = {
+        let query = req.get_ref::<UrlEncodedQuery>();
+        let values = try!(query.map_err(|x| StringError::from(x.description())));
+        let ports = try!(values.get("query_port").ok_or(StringError::from("Can't find query_port")));
+        let port_str = try!(ports.first().ok_or(StringError::from("Zero query_port's somehow...")));
+        try!(port_str.parse::<u32>().map_err(|x| StringError::from(x.description())))
+    };
+    let query_url = format!("http://{}:{}", host, port);
+    if !nodes.contains(&query_url) {
+        info!("{} is missing from nodes", query_url);
+        return node_add_core(conn, &query_url, req).map_err(|x| StringError::from(x.description()));
+    }
+    return Ok(());
+}
+
 pub fn node_list(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
     let stmt = conn.prepare("select url from nodes").expect("prepare failure");
@@ -493,6 +524,9 @@ pub fn node_list(req: &mut Request) -> IronResult<Response> {
     for row in &stmt.query(&[]).expect("last select works") {
         let url: String = row.get("url");
         nodes.push(url);
+    }
+    if let Err(err) = add_node_from_req(req, &nodes, &conn) {
+        warn!("Error from add_node_from_req: {}", err);
     }
     Ok(Response::with((status::Ok, serde_json::ser::to_string(&nodes).unwrap())))
 }

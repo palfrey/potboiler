@@ -15,3 +15,5 @@ loggers:
         level: info
     r2d2:
         level: error
+    resolve:
+        level: warn
