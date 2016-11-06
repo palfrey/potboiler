@@ -1,41 +1,38 @@
+use clock;
+use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
 use hyper;
 use iron::prelude::{IronError, IronResult, Request, Response};
 use iron::status;
 use iron::typemap::Key;
 use persistent;
 use persistent::State;
+use plugin::Pluggable;
 use postgres;
 use postgres::error::SqlState;
 use potboiler_common::{db, url_from_body};
 use potboiler_common::string_error::StringError;
-
 use r2d2;
 use r2d2_postgres;
+use resolve;
 use serde_json;
 use serde_types::Log;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::error::Error;
 use std::io::Read;
 use std::iter::FromIterator;
-
 use std::ops::{Deref, DerefMut};
+use std::sync::{Mutex, RwLock};
 use std::sync::Arc;
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 use std::time::Duration;
 use url::Url;
+use urlencoded::UrlEncodedQuery;
 use uuid::Uuid;
+pub type LockedNode = Arc<RwLock<HashMap<String, NodeInfo>>>;
 pub type PostgresConnection = r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>;
 pub type PostgresPool = r2d2::Pool<r2d2_postgres::PostgresConnectionManager>;
-use clock;
-use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
-use std::sync::{Mutex, RwLock};
 pub type SyncClock = Arc<RwLock<Clock<Wall>>>;
-pub type LockedNode = Arc<RwLock<HashMap<String, NodeInfo>>>;
-use plugin::Pluggable;
-use resolve;
-use std::error::Error;
-use std::sync::mpsc::{channel, Sender, Receiver};
-use urlencoded::UrlEncodedQuery;
 
 #[derive(Copy, Clone)]
 pub struct Nodes;
