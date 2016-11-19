@@ -1,7 +1,7 @@
-use CRDT;
 use iron::Request;
 use iron::typemap::Key;
 use persistent::State;
+use potboiler_common::types::CRDT;
 use r2d2::PooledConnection;
 use r2d2_postgres::PostgresConnectionManager;
 use serde_json;

@@ -2,6 +2,10 @@
 name = "potboiler_common"
 version = "0.1.0"
 authors = ["Tom Parker <palfrey@tevp.net>"]
+build = "../build.rs"
+
+[build-dependencies]
+serde_codegen = ">=0.8"
 
 [dependencies]
 iron = "*"
@@ -9,8 +13,10 @@ uuid = {version = "*", features=["use_std","v4"]}
 r2d2 = "*"
 r2d2_postgres = "0.10"
 postgres = "0.11.11"
+serde = ">=0.8"
 serde_json = "*"
 log = "*"
+hybrid-clocks = {version=">=0.3.2", features = ["serde"]}
 
 [lib]
 name = "potboiler_common"

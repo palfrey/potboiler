@@ -5,15 +5,17 @@ extern crate uuid;
 #[macro_use]
 extern crate log;
 extern crate postgres;
+extern crate serde_json;
+extern crate hybrid_clocks;
 
 pub mod db;
 pub mod server_id;
 pub mod string_error;
+pub mod types;
 
 use iron::prelude::{IronError, Request};
 use iron::status;
 use std::io::Read;
-extern crate serde_json;
 
 pub fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
     let body_string = {
