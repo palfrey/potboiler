@@ -1,2 +1,2 @@
 [workspace]
-members = ["core", "kv", "potboiler_common"]
+members = ["core", "kv", "potboiler_common", "pigtail"]

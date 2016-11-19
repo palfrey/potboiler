@@ -35,6 +35,15 @@ def kv(index):
     ret["environment"] = ["HOST=kv%d" % index]
     return ret
 
+def pigtail(index):
+    ret = OrderedDict()
+    extend(ret, "pigtail-base")
+    base_port = 8003 + index*100
+    ret["ports"] = ["%d:8000"%base_port]
+    ret["links"] = ["postgres-pigtail%d:postgres"%index, "core%d:core"%index]
+    ret["environment"] = ["HOST=pigtail%d" % index]
+    return ret
+
 def kv_browser(index):
     ret = OrderedDict()
     extend(ret, "kv-browser-base")
@@ -49,6 +58,8 @@ for index in range(int(argv[1])):
     compose["services"]["kv%d"%index] = kv(index)
     compose["services"]["postgres-kv%d"%index] = postgres(index, 1)
     compose["services"]["kv-browser%d"%index] = kv_browser(index)
+    compose["services"]["pigtail%d"%index] = pigtail(index)
+    compose["services"]["postgres-pigtail%d"%index] = postgres(index, 2)
 
 
 # from http://blog.elsdoerfer.name/2012/07/26/make-pyyaml-output-an-ordereddict/

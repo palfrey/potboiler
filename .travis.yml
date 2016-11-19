@@ -8,5 +8,6 @@ env:
   - PROJECT=potboiler_common
   - PROJECT=core
   - PROJECT=kv
+  - PROJECT=pigtail
   - PROJECT=docker
 script: ./build.sh

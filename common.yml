@@ -30,3 +30,13 @@ services:
       - ./kv-browser/:/code
     environment:
       - DATABASE_URL=postgres://postgres:mysecretpassword@postgres:5432
+  pigtail-base:
+    build:
+      context: .
+      dockerfile: pigtail/Dockerfile
+    image: potboiler/pigtail:latest
+    environment:
+      - DATABASE_URL=postgres://postgres:mysecretpassword@postgres:5432
+      - SERVER_URL=http://core:8000/log
+    volumes:
+      - .:/code
