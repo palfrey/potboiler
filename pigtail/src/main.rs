@@ -21,7 +21,6 @@ use persistent::Read as PRead;
 use potboiler_common::db;
 use potboiler_common::types::Log;
 use std::env;
-use std::io::Read;
 use std::ops::Deref;
 
 mod types;
@@ -32,12 +31,19 @@ lazy_static! {
     static ref SERVER_URL: String = env::var("SERVER_URL").expect("Needed SERVER_URL");
 }
 
+fn iron_str_error<T: std::error::Error + std::marker::Send + 'static>(se: T) -> iron::IronError {
+    let desc = format!("{:?}", se);
+    return IronError::new(se, (status::BadRequest, desc));
+}
+
+fn string_from_body<T: std::io::Read>(body: &mut T) -> IronResult<String> {
+    let mut result = String::new();
+    try!(body.read_to_string(&mut result).map_err(iron_str_error));
+    Ok(result)
+}
+
 fn json_from_body(req: &mut Request) -> IronResult<serde_json::Value> {
-    let body_string = {
-        let mut body = String::new();
-        req.body.read_to_string(&mut body).expect("could read from body");
-        body
-    };
+    let body_string = try!(string_from_body(&mut req.body));
     let json: serde_json::Value = match serde_json::de::from_str(&body_string) {
         Ok(val) => val,
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
@@ -47,30 +53,26 @@ fn json_from_body(req: &mut Request) -> IronResult<serde_json::Value> {
 
 fn add_queue_operation(op: types::QueueOperation) -> IronResult<Response> {
     let client = hyper::client::Client::new();
-    let res = client.post(SERVER_URL.deref())
+    let mut res = client.post(SERVER_URL.deref())
         .body(&serde_json::ser::to_string(&op).unwrap())
         .send()
         .expect("sender ok");
     assert_eq!(res.status, hyper::status::StatusCode::Created);
-    Ok(Response::with(status::NoContent))
-}
-
-fn iron_json_error(se: serde_json::Error) -> iron::IronError {
-    let desc = format!("{:?}", se);
-    return IronError::new(se, (status::BadRequest, desc));
+    let data = try!(string_from_body(&mut res));
+    Ok(Response::with((status::Ok, data)))
 }
 
 fn create_queue(req: &mut Request) -> IronResult<Response> {
     let json = try!(json_from_body(req));
-    let op = try!(serde_json::from_value::<types::QueueCreate>(json).map_err(iron_json_error));
+    let op = try!(serde_json::from_value::<types::QueueCreate>(json).map_err(iron_str_error));
     return add_queue_operation(types::QueueOperation::Create(op));
 }
 
 fn new_event(req: &mut Request) -> IronResult<Response> {
     let json = try!(json_from_body(req));
-    let log = try!(serde_json::from_value::<Log>(json).map_err(iron_json_error));
+    let log = try!(serde_json::from_value::<Log>(json).map_err(iron_str_error));
     info!("body: {:?}", log);
-    let op = try!(serde_json::from_value::<types::QueueOperation>(log.data).map_err(iron_json_error));
+    let op = try!(serde_json::from_value::<types::QueueOperation>(log.data).map_err(iron_str_error));
     info!("op: {:?}", op);
     Ok(Response::with(status::NoContent))
 }

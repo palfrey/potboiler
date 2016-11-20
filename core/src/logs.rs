@@ -89,6 +89,7 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
         base_url.join(&format!("/log/{}", &hyphenated)).expect("join url works")
     };
     Ok(Response::with((status::Created,
+                       hyphenated,
                        Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")))))
 }
 
