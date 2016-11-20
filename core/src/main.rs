@@ -31,7 +31,6 @@ use potboiler_common::db;
 use potboiler_common::server_id;
 use router::Router;
 use std::env;
-mod serde_types;
 mod notifications;
 mod clock;
 mod nodes;

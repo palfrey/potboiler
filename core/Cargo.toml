@@ -2,7 +2,6 @@
 name = "potboiler"
 version = "0.1.0"
 authors = ["Tom Parker <palfrey@tevp.net>"]
-build = "../build.rs"
 
 [build-dependencies]
 serde_codegen = "*"

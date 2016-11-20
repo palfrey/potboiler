@@ -1,5 +1,6 @@
 use serde_json;
 use hybrid_clocks::{Timestamp, WallT};
+use uuid::Uuid;
 
 // from https://serde.rs/enum-str.html
 #[macro_export]
@@ -60,4 +61,14 @@ pub enum CRDT {
 pub struct LWW {
     pub when: Timestamp<WallT>,
     pub data: serde_json::Value,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Log {
+    pub id: Uuid,
+    pub owner: Uuid,
+    pub prev: Option<Uuid>,
+    pub next: Option<Uuid>,
+    pub when: Timestamp<WallT>,
+    pub data: serde_json::Value
 }

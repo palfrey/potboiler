@@ -19,6 +19,7 @@ use iron::status;
 use logger::Logger;
 use persistent::Read as PRead;
 use potboiler_common::db;
+use potboiler_common::types::Log;
 use std::env;
 use std::io::Read;
 use std::ops::Deref;
@@ -67,7 +68,10 @@ fn create_queue(req: &mut Request) -> IronResult<Response> {
 
 fn new_event(req: &mut Request) -> IronResult<Response> {
     let json = try!(json_from_body(req));
-    info!("body: {:?}", json);
+    let log = try!(serde_json::from_value::<Log>(json).map_err(iron_json_error));
+    info!("body: {:?}", log);
+    let op = try!(serde_json::from_value::<types::QueueOperation>(log.data).map_err(iron_json_error));
+    info!("op: {:?}", op);
     Ok(Response::with(status::NoContent))
 }
 
