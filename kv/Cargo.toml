@@ -17,6 +17,7 @@ logger = "*"
 serde = ">=0.8"
 serde_json = ">=0.8"
 hybrid-clocks = {version=">=0.3.2", features = ["serde"]}
+uuid = {version = "*", features=["use_std","v4","serde"]}
 
 url = "*"
 postgres = {version="0.11", features=["uuid","serde_json"]}
