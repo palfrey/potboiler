@@ -7,6 +7,7 @@ extern crate r2d2;
 extern crate r2d2_postgres;
 extern crate iron;
 extern crate persistent;
+#[macro_use]
 extern crate potboiler_common;
 extern crate logger;
 extern crate serde_json;
@@ -23,6 +24,7 @@ use potboiler_common::db;
 use potboiler_common::types::Log;
 use std::env;
 use std::ops::Deref;
+use types::QueueOperation;
 
 mod types;
 
@@ -53,7 +55,7 @@ fn json_from_body(req: &mut Request) -> IronResult<serde_json::Value> {
     return Ok(json);
 }
 
-fn add_queue_operation(op: types::QueueOperation) -> IronResult<String> {
+fn add_queue_operation(op: QueueOperation) -> IronResult<String> {
     let client = hyper::client::Client::new();
     let mut res = client.post(SERVER_URL.deref())
         .body(&serde_json::ser::to_string(&op).unwrap())
@@ -67,9 +69,10 @@ fn add_queue_operation(op: types::QueueOperation) -> IronResult<String> {
 fn create_queue(req: &mut Request) -> IronResult<Response> {
     let json = try!(json_from_body(req));
     let op = try!(serde_json::from_value::<types::QueueCreate>(json).map_err(iron_str_error));
-    match add_queue_operation(types::QueueOperation::Create(op)) {
-        Ok(data) => {
-            let new_url = format!("http://{}:8000/queue/{}", HOST.deref(), &data);
+    let name = op.name.clone();
+    match add_queue_operation(QueueOperation::Create(op)) {
+        Ok(_) => {
+            let new_url = format!("http://{}:8000/queue/{}", HOST.deref(), &name);
             Ok(Response::with((status::Created,
                                Redirect(iron::Url::parse(&new_url).expect("URL parsed ok")))))
         }
@@ -81,8 +84,26 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
     let json = try!(json_from_body(req));
     let log = try!(serde_json::from_value::<Log>(json).map_err(iron_str_error));
     info!("body: {:?}", log);
-    let op = try!(serde_json::from_value::<types::QueueOperation>(log.data).map_err(iron_str_error));
+    let op = try!(serde_json::from_value::<QueueOperation>(log.data).map_err(iron_str_error));
     info!("op: {:?}", op);
+    let conn = get_pg_connection!(&req);
+    match op {
+        QueueOperation::Create(create) => {
+            info!("create: {:?}", create);
+            let trans = conn.transaction().unwrap();
+            let qc = types::QueueConfig { timeout_ms: create.timeout_ms };
+            trans.execute("INSERT INTO queues (key, config) VALUES($1, $2)",
+                         &[&create.name, &serde_json::to_value(&qc)])
+                .unwrap();
+            trans.execute(&format!("CREATE TABLE IF NOT EXISTS {} (id UUID PRIMARY KEY, task_name \
+                                   VARCHAR(2083), state VARCHAR(8), info JSONB)",
+                                  &create.name),
+                         &[])
+                .expect("make particular queue table worked");
+            trans.commit().unwrap();
+        }
+        _ => {}
+    };
     Ok(Response::with(status::NoContent))
 }
 

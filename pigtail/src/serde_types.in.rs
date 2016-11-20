@@ -3,8 +3,13 @@ use serde_json;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QueueCreate {
-    name: String,
-    timeout_ms: i32
+    pub name: String,
+    pub timeout_ms: i32
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct QueueConfig {
+    pub timeout_ms: i32
 }
 
 #[derive(Serialize, Deserialize, Debug)]
