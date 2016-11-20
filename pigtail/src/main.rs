@@ -14,6 +14,7 @@ extern crate hyper;
 extern crate router;
 extern crate uuid;
 
+use iron::modifiers::Redirect;
 use iron::prelude::{Chain, Iron, IronError, IronResult, Request, Response};
 use iron::status;
 use logger::Logger;
@@ -29,6 +30,7 @@ pub type PostgresConnection = r2d2::PooledConnection<r2d2_postgres::PostgresConn
 
 lazy_static! {
     static ref SERVER_URL: String = env::var("SERVER_URL").expect("Needed SERVER_URL");
+    static ref HOST: String = env::var("HOST").expect("Needed HOST");
 }
 
 fn iron_str_error<T: std::error::Error + std::marker::Send + 'static>(se: T) -> iron::IronError {
@@ -51,7 +53,7 @@ fn json_from_body(req: &mut Request) -> IronResult<serde_json::Value> {
     return Ok(json);
 }
 
-fn add_queue_operation(op: types::QueueOperation) -> IronResult<Response> {
+fn add_queue_operation(op: types::QueueOperation) -> IronResult<String> {
     let client = hyper::client::Client::new();
     let mut res = client.post(SERVER_URL.deref())
         .body(&serde_json::ser::to_string(&op).unwrap())
@@ -59,13 +61,20 @@ fn add_queue_operation(op: types::QueueOperation) -> IronResult<Response> {
         .expect("sender ok");
     assert_eq!(res.status, hyper::status::StatusCode::Created);
     let data = try!(string_from_body(&mut res));
-    Ok(Response::with((status::Ok, data)))
+    Ok(data)
 }
 
 fn create_queue(req: &mut Request) -> IronResult<Response> {
     let json = try!(json_from_body(req));
     let op = try!(serde_json::from_value::<types::QueueCreate>(json).map_err(iron_str_error));
-    return add_queue_operation(types::QueueOperation::Create(op));
+    match add_queue_operation(types::QueueOperation::Create(op)) {
+        Ok(data) => {
+            let new_url = format!("http://{}:8000/queue/{}", HOST.deref(), &data);
+            Ok(Response::with((status::Created,
+                               Redirect(iron::Url::parse(&new_url).expect("URL parsed ok")))))
+        }
+        Err(val) => Err(val),
+    }
 }
 
 fn new_event(req: &mut Request) -> IronResult<Response> {
@@ -88,9 +97,8 @@ fn main() {
     let client = hyper::client::Client::new();
 
     let mut map: serde_json::Map<String, String> = serde_json::Map::new();
-    let host: &str = &env::var("HOST").unwrap_or("localhost".to_string());
     map.insert("url".to_string(),
-               format!("http://{}:8000/event", host).to_string());
+               format!("http://{}:8000/event", HOST.deref()).to_string());
     let res = client.post(&format!("{}/register", SERVER_URL.deref()))
         .body(&serde_json::ser::to_string(&map).unwrap())
         .send()
