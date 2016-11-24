@@ -39,14 +39,6 @@ lazy_static! {
 
 include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
-fn get_req_key<T: Into<String>>(req: &Request, key: T) -> Option<String> {
-    req.extensions
-        .get::<Router>()
-        .unwrap()
-        .find(&key.into())
-        .map(|s| s.to_string())
-}
-
 fn get_key(_: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "get_key")))
 }
@@ -63,9 +55,9 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
     };
     let map = json.as_object_mut().unwrap();
     map.insert("table".to_string(),
-               serde_json::to_value(&get_req_key(req, "table").unwrap()));
+               serde_json::to_value(&potboiler_common::get_req_key(req, "table").unwrap()));
     map.insert("key".to_string(),
-               serde_json::to_value(&get_req_key(req, "key").unwrap()));
+               serde_json::to_value(&potboiler_common::get_req_key(req, "key").unwrap()));
 
     let client = hyper::client::Client::new();
 

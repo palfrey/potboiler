@@ -7,6 +7,7 @@ extern crate log;
 extern crate postgres;
 extern crate serde_json;
 extern crate hybrid_clocks;
+extern crate router;
 
 pub mod db;
 pub mod server_id;
@@ -28,4 +29,12 @@ pub fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
     Ok(Some(String::from(json.find("url").unwrap().as_str().unwrap())))
+}
+
+pub fn get_req_key<T: Into<String>>(req: &Request, key: T) -> Option<String> {
+    req.extensions
+        .get::<router::Router>()
+        .unwrap()
+        .find(&key.into())
+        .map(|s| s.to_string())
 }
