@@ -106,15 +106,29 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                 .expect("make particular queue table worked");
             trans.commit().unwrap();
         }
+        QueueOperation::Add(add) => {
+            info!("add: {:?}", add);
+            conn.execute(&format!("INSERT INTO {} (id, task_name, state, info) VALUES($1, $2, $3, $4)",
+                                  add.queue_name),
+                         &[&log.id,
+                           &add.task_name,
+                           &String::from("pending"),
+                           &serde_json::to_value(&add.data)])
+                .unwrap();
+        }
         _ => {}
     };
     Ok(Response::with(status::NoContent))
 }
 
+fn get_queue_name(req: &mut Request) -> IronResult<String> {
+    Ok(try!(potboiler_common::get_req_key(req, "queue_name")
+        .ok_or(iron_str_error(StringError::from("No queue_name")))))
+}
+
 fn get_queue_items(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
-    let queue_name = try!(potboiler_common::get_req_key(req, "queue_name")
-        .ok_or(iron_str_error(StringError::from("No queue_name"))));
+    let queue_name = try!(get_queue_name(req));
     let results = try!(conn.query(&format!("select id, task_name, state from {}", &queue_name),
                &[])
         .map_err(iron_str_error));
@@ -129,6 +143,20 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
     }
     let value = Value::Object(queue);
     Ok(Response::with((status::Ok, serde_json::ser::to_string(&value).unwrap())))
+}
+
+fn add_queue_item(req: &mut Request) -> IronResult<Response> {
+    let mut json = try!(json_from_body(req));
+    {
+        let queue_name = try!(get_queue_name(req));
+        let map = json.as_object_mut().unwrap();
+        map.insert("queue_name".to_string(), serde_json::to_value(&queue_name));
+    }
+    let op = try!(serde_json::from_value::<types::QueueAdd>(json).map_err(iron_str_error));
+    match add_queue_operation(QueueOperation::Add(op)) {
+        Ok(_) => Ok(Response::with(status::Created)),
+        Err(val) => Err(val),
+    }
 }
 
 fn make_queue_table(conn: &PostgresConnection) {
@@ -159,6 +187,7 @@ fn main() {
     router.post("/create", create_queue);
     router.post("/event", new_event);
     router.get("/queue/:queue_name", get_queue_items);
+    router.post("/queue/:queue_name", add_queue_item);
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);

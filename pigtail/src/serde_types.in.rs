@@ -13,10 +13,17 @@ pub struct QueueConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct QueueAdd {
+    pub queue_name: String,
+    pub task_name: String,
+    pub data: serde_json::Value
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum QueueOperation {
     Create(QueueCreate),
     Delete { name: String },
-    Add { data: serde_json::Value },
+    Add(QueueAdd),
     Progress { queue_id: Uuid, worker_id: Uuid },
     Done { queue_id: Uuid, worker_id: Uuid }
 }
