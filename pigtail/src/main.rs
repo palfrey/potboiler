@@ -11,6 +11,7 @@ extern crate persistent;
 extern crate potboiler_common;
 extern crate logger;
 extern crate serde_json;
+extern crate serde;
 extern crate hyper;
 extern crate router;
 extern crate uuid;
@@ -21,10 +22,13 @@ use iron::status;
 use logger::Logger;
 use persistent::Read as PRead;
 use potboiler_common::db;
+use potboiler_common::string_error::StringError;
 use potboiler_common::types::Log;
+use serde_json::{Map, Value};
 use std::env;
 use std::ops::Deref;
 use types::QueueOperation;
+use uuid::Uuid;
 
 mod types;
 
@@ -46,9 +50,9 @@ fn string_from_body<T: std::io::Read>(body: &mut T) -> IronResult<String> {
     Ok(result)
 }
 
-fn json_from_body(req: &mut Request) -> IronResult<serde_json::Value> {
+fn json_from_body(req: &mut Request) -> IronResult<Value> {
     let body_string = try!(string_from_body(&mut req.body));
-    let json: serde_json::Value = match serde_json::de::from_str(&body_string) {
+    let json: Value = match serde_json::de::from_str(&body_string) {
         Ok(val) => val,
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
@@ -107,6 +111,26 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with(status::NoContent))
 }
 
+fn get_queue_items(req: &mut Request) -> IronResult<Response> {
+    let conn = get_pg_connection!(&req);
+    let queue_name = try!(potboiler_common::get_req_key(req, "queue_name")
+        .ok_or(iron_str_error(StringError::from("No queue_name"))));
+    let results = try!(conn.query(&format!("select id, task_name, state from {}", &queue_name),
+               &[])
+        .map_err(iron_str_error));
+    let mut queue = Map::new();
+    for row in &results {
+        let id: Uuid = row.get("id");
+        let item = types::QueueListItem {
+            task_name: row.get("task_name"),
+            state: serde_json::from_str(&row.get::<&str, String>("state")).unwrap(),
+        };
+        queue.insert(id.to_string(), serde_json::to_value(&item));
+    }
+    let value = Value::Object(queue);
+    Ok(Response::with((status::Ok, serde_json::ser::to_string(&value).unwrap())))
+}
+
 fn make_queue_table(conn: &PostgresConnection) {
     conn.execute("CREATE TABLE IF NOT EXISTS queues (key VARCHAR(1024) PRIMARY KEY, config JSONB)",
                  &[])
@@ -134,6 +158,7 @@ fn main() {
     let mut router = router::Router::new();
     router.post("/create", create_queue);
     router.post("/event", new_event);
+    router.get("/queue/:queue_name", get_queue_items);
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);
