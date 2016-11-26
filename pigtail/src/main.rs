@@ -24,6 +24,7 @@ use iron::prelude::{Chain, Iron, IronError, IronResult, Request, Response};
 use iron::status;
 use logger::Logger;
 use persistent::Read as PRead;
+use postgres::error::SqlState;
 use potboiler_common::{db, get_raw_timestamp};
 use potboiler_common::string_error::StringError;
 use potboiler_common::types::Log;
@@ -144,18 +145,29 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
     match op {
         QueueOperation::Create(create) => {
             info!("create: {:?}", create);
-            let trans = conn.transaction().unwrap();
             let qc = types::QueueConfig { timeout_ms: create.timeout_ms };
-            trans.execute("INSERT INTO queues (key, config) VALUES($1, $2)",
-                         &[&create.name, &serde_json::to_value(&qc)])
-                .unwrap();
-            trans.execute(&format!("CREATE TABLE IF NOT EXISTS {} (id UUID PRIMARY KEY, task_name \
+            match conn.execute("INSERT INTO queues (key, config) VALUES($1, $2)",
+                               &[&create.name, &serde_json::to_value(&qc)]) {
+                Ok(_) => {
+                    try!(conn.execute(
+                        &format!("CREATE TABLE IF NOT EXISTS {} (id UUID PRIMARY KEY, task_name \
                                    VARCHAR(2083) NOT NULL, state VARCHAR(8) NOT NULL, info JSONB NOT \
                                    NULL, hlc_tstamp BYTEA NOT NULL, worker UUID NULL)",
                                   &create.name),
-                         &[])
-                .expect("make particular queue table worked");
-            trans.commit().unwrap();
+                         &[]).map_err(iron_str_error));
+                }
+                Err(err) => {
+                    if let postgres::error::Error::Db(dberr) = err {
+                        match dberr.code {
+                            SqlState::UniqueViolation => {}
+                            _ => return Err(iron_str_error(dberr)),
+                        };
+                    } else {
+                        return Err(iron_str_error(err));
+                    }
+                }
+            };
+
         }
         QueueOperation::Add(add) => {
             info!("add: {:?}", add);
