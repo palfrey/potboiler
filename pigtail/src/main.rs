@@ -5,6 +5,7 @@ extern crate log;
 extern crate log4rs;
 extern crate r2d2;
 extern crate r2d2_postgres;
+extern crate postgres;
 extern crate iron;
 extern crate persistent;
 #[macro_use]
@@ -121,9 +122,22 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with(status::NoContent))
 }
 
+fn get_req_key_with_iron_err(req: &mut Request, key: &str) -> IronResult<String> {
+    Ok(try!(potboiler_common::get_req_key(req, key)
+        .ok_or(iron_str_error(StringError::from(format!("No {}", key))))))
+}
+
 fn get_queue_name(req: &mut Request) -> IronResult<String> {
-    Ok(try!(potboiler_common::get_req_key(req, "queue_name")
-        .ok_or(iron_str_error(StringError::from("No queue_name")))))
+    get_req_key_with_iron_err(req, "queue_name")
+}
+
+fn row_to_queue_item(row: postgres::rows::Row) -> types::QueueListItem {
+    let raw_state: String = row.get("state");
+    return types::QueueListItem {
+        task_name: row.get("task_name"),
+        // FIXME: format! bit is a hacky workaround for https://github.com/serde-rs/serde/issues/251
+        state: serde_json::from_str(&format!("\"{}\"", raw_state)).unwrap(),
+    };
 }
 
 fn get_queue_items(req: &mut Request) -> IronResult<Response> {
@@ -135,16 +149,27 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
     let mut queue = Map::new();
     for row in &results {
         let id: Uuid = row.get("id");
-        let raw_state: String = row.get("state");
-        let item = types::QueueListItem {
-            task_name: row.get("task_name"),
-            // FIXME: format! bit is a hacky workaround for https://github.com/serde-rs/serde/issues/251
-            state: serde_json::from_str(&format!("\"{}\"", raw_state)).unwrap(),
-        };
+        let item = row_to_queue_item(row);
         queue.insert(id.to_string(), serde_json::to_value(&item));
     }
     let value = Value::Object(queue);
     Ok(Response::with((status::Ok, serde_json::ser::to_string(&value).unwrap())))
+}
+
+fn get_queue_item(req: &mut Request) -> IronResult<Response> {
+    let conn = get_pg_connection!(&req);
+    let queue_name = try!(get_queue_name(req));
+    let id: Uuid = try!(Uuid::parse_str(&try!(get_req_key_with_iron_err(req, "id"))).map_err(iron_str_error));
+    let results = try!(conn.query(&format!("select task_name, state from {} where id=$1", &queue_name),
+               &[&id])
+        .map_err(iron_str_error));
+    if results.is_empty() {
+        Ok(Response::with((status::NotFound, format!("No queue item {} in {}", id, queue_name))))
+    } else {
+        let row = results.get(0);
+        let item = row_to_queue_item(row);
+        Ok(Response::with((status::Ok, serde_json::to_string(&item).unwrap())))
+    }
 }
 
 fn add_queue_item(req: &mut Request) -> IronResult<Response> {
@@ -189,6 +214,7 @@ fn main() {
     router.post("/create", create_queue);
     router.post("/event", new_event);
     router.get("/queue/:queue_name", get_queue_items);
+    router.get("/queue/:queue_name/:id", get_queue_item);
     router.post("/queue/:queue_name", add_queue_item);
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
