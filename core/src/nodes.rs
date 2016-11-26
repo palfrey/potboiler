@@ -9,7 +9,7 @@ use persistent::State;
 use plugin::Pluggable;
 use postgres;
 use postgres::error::SqlState;
-use potboiler_common::{db, url_from_body};
+use potboiler_common::{db, url_from_body, get_raw_timestamp};
 use potboiler_common::string_error::StringError;
 use potboiler_common::types::Log;
 use r2d2;
@@ -232,7 +232,7 @@ pub fn insert_log(conn: &PostgresConnection, log: &Log) {
                      &[&log.id, &log.owner, &log.prev])
             .expect("update worked");
     }
-    let raw_timestamp = clock::get_raw_timestamp(&log.when);
+    let raw_timestamp = get_raw_timestamp(&log.when);
     conn.execute("INSERT INTO log (id, owner, data, prev, hlc_tstamp) VALUES ($1, $2, $3, $4, $5)",
                  &[&log.id, &log.owner, &log.data, &log.prev, &raw_timestamp])
         .expect("insert worked");

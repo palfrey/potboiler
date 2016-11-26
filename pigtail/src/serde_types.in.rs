@@ -20,11 +20,18 @@ pub struct QueueAdd {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct QueueProgress {
+    pub queue_name: String,
+    pub id: Uuid,
+    pub worker_id: Uuid
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum QueueOperation {
     Create(QueueCreate),
     Delete { name: String },
     Add(QueueAdd),
-    Progress { queue_id: Uuid, worker_id: Uuid },
+    Progress(QueueProgress),
     Done { queue_id: Uuid, worker_id: Uuid }
 }
 

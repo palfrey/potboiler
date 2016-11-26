@@ -14,6 +14,7 @@ pub mod server_id;
 pub mod string_error;
 pub mod types;
 
+use hybrid_clocks::{Timestamp, WallT};
 use iron::prelude::{IronError, Request};
 use iron::status;
 use std::io::Read;
@@ -37,4 +38,10 @@ pub fn get_req_key<T: Into<String>>(req: &Request, key: T) -> Option<String> {
         .unwrap()
         .find(&key.into())
         .map(|s| s.to_string())
+}
+
+pub fn get_raw_timestamp(timestamp: &Timestamp<WallT>) -> Vec<u8> {
+    let mut raw_timestamp: Vec<u8> = Vec::new();
+    timestamp.write_bytes(&mut raw_timestamp).unwrap();
+    return raw_timestamp;
 }

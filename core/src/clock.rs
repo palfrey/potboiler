@@ -39,12 +39,6 @@ pub fn get_timestamp_from_state(clock: &Arc<RwLock<HClock<Wall>>>) -> Timestamp<
     clock.write().unwrap().deref_mut().now()
 }
 
-pub fn get_raw_timestamp(timestamp: &Timestamp<WallT>) -> Vec<u8> {
-    let mut raw_timestamp: Vec<u8> = Vec::new();
-    timestamp.write_bytes(&mut raw_timestamp).unwrap();
-    return raw_timestamp;
-}
-
 pub fn observe_timestamp(clock_state: &Arc<RwLock<HClock<Wall>>>, timestamp: Timestamp<WallT>) {
     clock_state.write()
         .unwrap()

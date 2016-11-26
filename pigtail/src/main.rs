@@ -16,17 +16,19 @@ extern crate serde;
 extern crate hyper;
 extern crate router;
 extern crate uuid;
+extern crate hybrid_clocks;
 
 use iron::modifiers::Redirect;
 use iron::prelude::{Chain, Iron, IronError, IronResult, Request, Response};
 use iron::status;
 use logger::Logger;
 use persistent::Read as PRead;
-use potboiler_common::db;
+use potboiler_common::{db, get_raw_timestamp};
 use potboiler_common::string_error::StringError;
 use potboiler_common::types::Log;
 use serde_json::{Map, Value};
 use std::env;
+use std::io::Cursor;
 use std::ops::Deref;
 use types::QueueOperation;
 use uuid::Uuid;
@@ -85,10 +87,16 @@ fn create_queue(req: &mut Request) -> IronResult<Response> {
     }
 }
 
+fn row_to_state(row: &postgres::rows::Row) -> IronResult<types::QueueState> {
+    let raw_state: String = row.get("state");
+    // FIXME: format! bit is a hacky workaround for https://github.com/serde-rs/serde/issues/251
+    return serde_json::from_str(&format!("\"{}\"", raw_state)).map_err(iron_str_error);
+}
+
 fn new_event(req: &mut Request) -> IronResult<Response> {
     let json = try!(json_from_body(req));
     let log = try!(serde_json::from_value::<Log>(json).map_err(iron_str_error));
-    info!("body: {:?}", log);
+    info!("log: {:?}", log);
     let op = try!(serde_json::from_value::<QueueOperation>(log.data).map_err(iron_str_error));
     info!("op: {:?}", op);
     let conn = get_pg_connection!(&req);
@@ -101,7 +109,8 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                          &[&create.name, &serde_json::to_value(&qc)])
                 .unwrap();
             trans.execute(&format!("CREATE TABLE IF NOT EXISTS {} (id UUID PRIMARY KEY, task_name \
-                                   VARCHAR(2083), state VARCHAR(8), info JSONB)",
+                                   VARCHAR(2083) NOT NULL, state VARCHAR(8) NOT NULL, info JSONB NOT \
+                                   NULL, hlc_tstamp BYTEA NOT NULL, worker UUID NULL)",
                                   &create.name),
                          &[])
                 .expect("make particular queue table worked");
@@ -109,13 +118,47 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
         }
         QueueOperation::Add(add) => {
             info!("add: {:?}", add);
-            conn.execute(&format!("INSERT INTO {} (id, task_name, state, info) VALUES($1, $2, $3, $4)",
+            let raw_timestamp = get_raw_timestamp(&log.when);
+            conn.execute(&format!("INSERT INTO {} (id, task_name, state, info, hlc_tstamp) VALUES($1, $2, \
+                                   $3, $4, $5)",
                                   add.queue_name),
                          &[&log.id,
                            &add.task_name,
                            &String::from("pending"),
-                           &serde_json::to_value(&add.data)])
+                           &serde_json::to_value(&add.data),
+                           &raw_timestamp])
                 .unwrap();
+        }
+        QueueOperation::Progress(progress) => {
+            info!("progress: {:?}", progress);
+            let conn = get_pg_connection!(&req);
+            let results = try!(conn.query(&format!("SELECT task_name, state, hlc_tstamp from {} where id=$1",
+                                &progress.queue_name),
+                       &[&progress.id])
+                .map_err(iron_str_error));
+            if results.is_empty() {
+                return Ok(Response::with((status::NotFound,
+                                          format!("No queue item {} in {}",
+                                                  &progress.id,
+                                                  &progress.queue_name))));
+            } else {
+                let row = results.get(0);
+                let state = try!(row_to_state(&row));
+                let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
+                let when = try!(hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp))
+                    .map_err(iron_str_error));
+                if state == types::QueueState::Pending ||
+                   (state == types::QueueState::Working && log.when > when) {
+                    let raw_timestamp = get_raw_timestamp(&log.when);
+                    try!(conn.execute(&format!("UPDATE {} set hlc_tstamp=$1, worker=$2, state='working' where \
+                                           id=$3",
+                                          &progress.queue_name),
+                                 &[&raw_timestamp, &progress.worker_id, &progress.id])
+                        .map_err(iron_str_error));
+                } else {
+                    return Ok(Response::with((status::Conflict, "Out of date change")));
+                }
+            }
         }
         _ => {}
     };
@@ -132,11 +175,9 @@ fn get_queue_name(req: &mut Request) -> IronResult<String> {
 }
 
 fn row_to_queue_item(row: postgres::rows::Row) -> types::QueueListItem {
-    let raw_state: String = row.get("state");
     return types::QueueListItem {
         task_name: row.get("task_name"),
-        // FIXME: format! bit is a hacky workaround for https://github.com/serde-rs/serde/issues/251
-        state: serde_json::from_str(&format!("\"{}\"", raw_state)).unwrap(),
+        state: row_to_state(&row).unwrap(),
     };
 }
 
@@ -156,10 +197,14 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, serde_json::ser::to_string(&value).unwrap())))
 }
 
+fn get_item_id(req: &mut Request) -> IronResult<Uuid> {
+    Uuid::parse_str(&try!(get_req_key_with_iron_err(req, "id"))).map_err(iron_str_error)
+}
+
 fn get_queue_item(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
     let queue_name = try!(get_queue_name(req));
-    let id: Uuid = try!(Uuid::parse_str(&try!(get_req_key_with_iron_err(req, "id"))).map_err(iron_str_error));
+    let id = try!(get_item_id(req));
     let results = try!(conn.query(&format!("select task_name, state from {} where id=$1", &queue_name),
                &[&id])
         .map_err(iron_str_error));
@@ -186,8 +231,24 @@ fn add_queue_item(req: &mut Request) -> IronResult<Response> {
     }
 }
 
+fn progress_queue_item(req: &mut Request) -> IronResult<Response> {
+    let mut json = try!(json_from_body(req));
+    {
+        let queue_name = try!(get_queue_name(req));
+        let id = try!(get_item_id(req));
+        let map = json.as_object_mut().unwrap();
+        map.insert("queue_name".to_string(), serde_json::to_value(&queue_name));
+        map.insert("id".to_string(), serde_json::to_value(&id));
+    }
+    let op = try!(serde_json::from_value::<types::QueueProgress>(json).map_err(iron_str_error));
+    match add_queue_operation(QueueOperation::Progress(op)) {
+        Ok(_) => Ok(Response::with(status::Created)),
+        Err(val) => Err(val),
+    }
+}
+
 fn make_queue_table(conn: &PostgresConnection) {
-    conn.execute("CREATE TABLE IF NOT EXISTS queues (key VARCHAR(1024) PRIMARY KEY, config JSONB)",
+    conn.execute("CREATE TABLE IF NOT EXISTS queues (key VARCHAR(1024) PRIMARY KEY, config JSONB NOT NULL)",
                  &[])
         .expect("make queue table worked");
 }
@@ -214,8 +275,9 @@ fn main() {
     router.post("/create", create_queue);
     router.post("/event", new_event);
     router.get("/queue/:queue_name", get_queue_items);
-    router.get("/queue/:queue_name/:id", get_queue_item);
     router.post("/queue/:queue_name", add_queue_item);
+    router.get("/queue/:queue_name/:id", get_queue_item);
+    router.put("/queue/:queue_name/:id", progress_queue_item);
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);
