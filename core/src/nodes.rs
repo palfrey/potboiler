@@ -9,7 +9,7 @@ use persistent::State;
 use plugin::Pluggable;
 use postgres;
 use postgres::error::SqlState;
-use potboiler_common::{db, url_from_body, get_raw_timestamp};
+use potboiler_common::{db, get_raw_timestamp, url_from_body};
 use potboiler_common::string_error::StringError;
 use potboiler_common::types::Log;
 use r2d2;
