@@ -135,9 +135,11 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
     let mut queue = Map::new();
     for row in &results {
         let id: Uuid = row.get("id");
+        let raw_state: String = row.get("state");
         let item = types::QueueListItem {
             task_name: row.get("task_name"),
-            state: serde_json::from_str(&row.get::<&str, String>("state")).unwrap(),
+            // FIXME: format! bit is a hacky workaround for https://github.com/serde-rs/serde/issues/251
+            state: serde_json::from_str(&format!("\"{}\"", raw_state)).unwrap(),
         };
         queue.insert(id.to_string(), serde_json::to_value(&item));
     }
