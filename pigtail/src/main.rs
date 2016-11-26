@@ -88,6 +88,12 @@ fn create_queue(req: &mut Request) -> IronResult<Response> {
     }
 }
 
+fn delete_queue(req: &mut Request) -> IronResult<Response> {
+    let queue_name = try!(get_queue_name(req));
+    try!(add_queue_operation(QueueOperation::Delete(queue_name)));
+    Ok(Response::with(status::Ok))
+}
+
 fn row_to_state(row: &postgres::rows::Row) -> IronResult<types::QueueState> {
     let raw_state: String = row.get("state");
     // FIXME: format! bit is a hacky workaround for https://github.com/serde-rs/serde/issues/251
@@ -186,9 +192,11 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                 }
             });
         }
-        QueueOperation::Delete(_) => {
-            warn!("Haven't implemented queue delete yet");
-            return Ok(Response::with(status::BadRequest));
+        QueueOperation::Delete(queue_name) => {
+            let trans = try!(conn.transaction().map_err(iron_str_error));
+            try!(trans.execute(&format!("DROP TABLE IF EXISTS {}", queue_name), &[]).map_err(iron_str_error));
+            try!(trans.execute("DELETE FROM queues where key=$1", &[&queue_name]).map_err(iron_str_error));
+            try!(trans.commit().map_err(iron_str_error));
         }
     };
     Ok(Response::with(status::NoContent))
@@ -323,6 +331,7 @@ fn main() {
     router.post("/event", new_event);
     router.get("/queue/:queue_name", get_queue_items);
     router.post("/queue/:queue_name", add_queue_item);
+    router.delete("/queue/:queue_name", delete_queue);
     router.get("/queue/:queue_name/:id", get_queue_item);
     router.put("/queue/:queue_name/:id", progress_queue_item);
     router.delete("/queue/:queue_name/:id", finish_queue_item);
