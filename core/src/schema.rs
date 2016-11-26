@@ -1,6 +1,5 @@
-extern crate schemamama_postgres;
-extern crate postgres;
-
+use postgres;
+use schemamama;
 use schemamama::Migrator;
 use schemamama_postgres::{PostgresAdapter, PostgresMigration};
 
@@ -83,7 +82,7 @@ fn migrate(connection: &postgres::Connection) -> Migrator<PostgresAdapter> {
     return migrator;
 }
 
-pub fn up(connection: &postgres::Connection) -> Result<(), postgres::error::Error> {
+pub fn up(connection: &postgres::Connection) -> Result<(), schemamama::Error<postgres::error::Error>> {
     let migrator = migrate(connection);
-    return migrator.up(migrator.last_version().unwrap());
+    return migrator.up(None);
 }

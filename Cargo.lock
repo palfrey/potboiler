@@ -249,7 +249,7 @@ dependencies = [
  "r2d2_postgres 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "router 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemamama 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "schemamama_postgres 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "schemamama_postgres 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 0.8.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_codegen 0.8.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -492,7 +492,7 @@ dependencies = [
  "r2d2_postgres 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "router 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "schemamama 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "schemamama_postgres 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "schemamama_postgres 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 0.8.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_codegen 0.8.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -562,8 +562,8 @@ dependencies = [
  "r2d2_postgres 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "resolve 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "router 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "schemamama 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "schemamama_postgres 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "schemamama 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "schemamama_postgres 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 0.8.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_codegen 0.8.17 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -675,14 +675,6 @@ dependencies = [
 
 [[package]]
 name = "schemamama"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "schemamama"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
@@ -691,11 +683,11 @@ dependencies = [
 
 [[package]]
 name = "schemamama_postgres"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "postgres 0.11.11 (registry+https://github.com/rust-lang/crates.io-index)",
- "schemamama 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "schemamama 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1065,9 +1057,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum router 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ff665ba113dc57ef54604ded19375c5ddd23ec44b550a3667c595205b5f98b42"
 "checksum rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)" = "6159e4e6e559c81bd706afe9c8fd68f547d3e851ce12e76b1de7914bab61691b"
 "checksum rustc_version 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "c5f5376ea5e30ce23c03eb77cbe4962b988deead10910c372b226388b594c084"
-"checksum schemamama 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6f5f553933adce9dd7c684d8d3084f7acb44df4716693e1a162d1df8b589b13c"
 "checksum schemamama 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a38995516ed8eb02836478a930356dfb3aa24071c10e005a78b5ab1f8af2f0ac"
-"checksum schemamama_postgres 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bebe6264b10fa2fa88cd9c201402330f1c5f92ab48615be50121010ba75bb319"
+"checksum schemamama_postgres 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "40f5ae44e1a0385d2face973a543b432591320c66cf251eba0d4e215f2e924c9"
 "checksum semver 0.1.20 (registry+https://github.com/rust-lang/crates.io-index)" = "d4f410fedcf71af0345d7607d246e7ad15faaadd49d240ee3b24e5dc21a820ac"
 "checksum serde 0.8.17 (registry+https://github.com/rust-lang/crates.io-index)" = "784e249221c84265caeb1e2fe48aeada86f67f5acb151bd3903c4585969e43f6"
 "checksum serde-value 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c1ee59e10cc2c23ae5728feed4c6f1d45c2fc6cec69c3919fa2a279071bc65e3"
