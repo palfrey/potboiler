@@ -29,10 +29,10 @@ pub struct QueueProgress {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum QueueOperation {
     Create(QueueCreate),
-    Delete { name: String },
+    Delete(String),
     Add(QueueAdd),
     Progress(QueueProgress),
-    Done { queue_id: Uuid, worker_id: Uuid }
+    Done(QueueProgress)
 }
 
 enum_str!(QueueState {

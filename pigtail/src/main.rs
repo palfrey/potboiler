@@ -18,6 +18,7 @@ extern crate router;
 extern crate uuid;
 extern crate hybrid_clocks;
 
+use hybrid_clocks::{Timestamp, WallT};
 use iron::modifiers::Redirect;
 use iron::prelude::{Chain, Iron, IronError, IronResult, Request, Response};
 use iron::status;
@@ -93,10 +94,44 @@ fn row_to_state(row: &postgres::rows::Row) -> IronResult<types::QueueState> {
     return serde_json::from_str(&format!("\"{}\"", raw_state)).map_err(iron_str_error);
 }
 
+fn parse_progress<F>(req: &mut Request,
+                     progress: types::QueueProgress,
+                     should_update: F)
+                     -> IronResult<Response>
+    where F: Fn(&types::QueueState, &Timestamp<WallT>) -> Option<(Timestamp<WallT>, String)>
+{
+    let conn = get_pg_connection!(&req);
+    let results = try!(conn.query(&format!("SELECT task_name, state, hlc_tstamp from {} where id=$1",
+                        &progress.queue_name),
+               &[&progress.id])
+        .map_err(iron_str_error));
+    if results.is_empty() {
+        return Ok(Response::with((status::NotFound,
+                                  format!("No queue item {} in {}", &progress.id, &progress.queue_name))));
+    } else {
+        let row = results.get(0);
+        let state = try!(row_to_state(&row));
+        let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
+        let when = try!(hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp))
+            .map_err(iron_str_error));
+        if let Some((log_when, status)) = should_update(&state, &when) {
+            let raw_timestamp = get_raw_timestamp(&log_when);
+            try!(conn.execute(&format!("UPDATE {} set hlc_tstamp=$1, worker=$2, state=$3 where id=$4",
+                                  &progress.queue_name),
+                         &[&raw_timestamp, &progress.worker_id, &status, &progress.id])
+                .map_err(iron_str_error));
+            return Ok(Response::with(status::NoContent));
+        } else {
+            return Ok(Response::with((status::Conflict, "Out of date change")));
+        }
+    }
+}
+
 fn new_event(req: &mut Request) -> IronResult<Response> {
     let json = try!(json_from_body(req));
     let log = try!(serde_json::from_value::<Log>(json).map_err(iron_str_error));
     info!("log: {:?}", log);
+    let log_when = log.when.clone();
     let op = try!(serde_json::from_value::<QueueOperation>(log.data).map_err(iron_str_error));
     info!("op: {:?}", op);
     let conn = get_pg_connection!(&req);
@@ -131,36 +166,30 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
         }
         QueueOperation::Progress(progress) => {
             info!("progress: {:?}", progress);
-            let conn = get_pg_connection!(&req);
-            let results = try!(conn.query(&format!("SELECT task_name, state, hlc_tstamp from {} where id=$1",
-                                &progress.queue_name),
-                       &[&progress.id])
-                .map_err(iron_str_error));
-            if results.is_empty() {
-                return Ok(Response::with((status::NotFound,
-                                          format!("No queue item {} in {}",
-                                                  &progress.id,
-                                                  &progress.queue_name))));
-            } else {
-                let row = results.get(0);
-                let state = try!(row_to_state(&row));
-                let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
-                let when = try!(hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp))
-                    .map_err(iron_str_error));
-                if state == types::QueueState::Pending ||
-                   (state == types::QueueState::Working && log.when > when) {
-                    let raw_timestamp = get_raw_timestamp(&log.when);
-                    try!(conn.execute(&format!("UPDATE {} set hlc_tstamp=$1, worker=$2, state='working' where \
-                                           id=$3",
-                                          &progress.queue_name),
-                                 &[&raw_timestamp, &progress.worker_id, &progress.id])
-                        .map_err(iron_str_error));
+            return parse_progress(req, progress, |state, when| {
+                if state == &types::QueueState::Pending ||
+                   (state == &types::QueueState::Working && &log_when > when) {
+                    Some((log_when, String::from("working")))
                 } else {
-                    return Ok(Response::with((status::Conflict, "Out of date change")));
+                    None
                 }
-            }
+            });
         }
-        _ => {}
+        QueueOperation::Done(done) => {
+            info!("done: {:?}", done);
+            return parse_progress(req, done, |state, when| {
+                if state != &types::QueueState::Done ||
+                   (state == &types::QueueState::Done && &log_when > when) {
+                    Some((log_when, String::from("done")))
+                } else {
+                    None
+                }
+            });
+        }
+        QueueOperation::Delete(_) => {
+            warn!("Haven't implemented queue delete yet");
+            return Ok(Response::with(status::BadRequest));
+        }
     };
     Ok(Response::with(status::NoContent))
 }
@@ -191,6 +220,9 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
     for row in &results {
         let id: Uuid = row.get("id");
         let item = row_to_queue_item(row);
+        if item.state == types::QueueState::Done {
+            continue;
+        }
         queue.insert(id.to_string(), serde_json::to_value(&item));
     }
     let value = Value::Object(queue);
@@ -231,7 +263,7 @@ fn add_queue_item(req: &mut Request) -> IronResult<Response> {
     }
 }
 
-fn progress_queue_item(req: &mut Request) -> IronResult<Response> {
+fn build_queue_progress(req: &mut Request) -> IronResult<types::QueueProgress> {
     let mut json = try!(json_from_body(req));
     {
         let queue_name = try!(get_queue_name(req));
@@ -240,9 +272,21 @@ fn progress_queue_item(req: &mut Request) -> IronResult<Response> {
         map.insert("queue_name".to_string(), serde_json::to_value(&queue_name));
         map.insert("id".to_string(), serde_json::to_value(&id));
     }
-    let op = try!(serde_json::from_value::<types::QueueProgress>(json).map_err(iron_str_error));
+    return Ok(try!(serde_json::from_value::<types::QueueProgress>(json).map_err(iron_str_error)));
+}
+
+fn progress_queue_item(req: &mut Request) -> IronResult<Response> {
+    let op = try!(build_queue_progress(req));
     match add_queue_operation(QueueOperation::Progress(op)) {
-        Ok(_) => Ok(Response::with(status::Created)),
+        Ok(_) => Ok(Response::with(status::Ok)),
+        Err(val) => Err(val),
+    }
+}
+
+fn finish_queue_item(req: &mut Request) -> IronResult<Response> {
+    let op = try!(build_queue_progress(req));
+    match add_queue_operation(QueueOperation::Done(op)) {
+        Ok(_) => Ok(Response::with(status::Ok)),
         Err(val) => Err(val),
     }
 }
@@ -278,6 +322,7 @@ fn main() {
     router.post("/queue/:queue_name", add_queue_item);
     router.get("/queue/:queue_name/:id", get_queue_item);
     router.put("/queue/:queue_name/:id", progress_queue_item);
+    router.delete("/queue/:queue_name/:id", finish_queue_item);
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);
