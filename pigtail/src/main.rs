@@ -160,7 +160,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                          &[&log.id,
                            &add.task_name,
                            &String::from("pending"),
-                           &serde_json::to_value(&add.data),
+                           &serde_json::to_value(&add.info),
                            &raw_timestamp])
                 .unwrap();
         }
@@ -203,13 +203,6 @@ fn get_queue_name(req: &mut Request) -> IronResult<String> {
     get_req_key_with_iron_err(req, "queue_name")
 }
 
-fn row_to_queue_item(row: postgres::rows::Row) -> types::QueueListItem {
-    return types::QueueListItem {
-        task_name: row.get("task_name"),
-        state: row_to_state(&row).unwrap(),
-    };
-}
-
 fn get_queue_items(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
     let queue_name = try!(get_queue_name(req));
@@ -219,10 +212,14 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
     let mut queue = Map::new();
     for row in &results {
         let id: Uuid = row.get("id");
-        let item = row_to_queue_item(row);
-        if item.state == types::QueueState::Done {
+        let state = try!(row_to_state(&row));
+        if state == types::QueueState::Done {
             continue;
         }
+        let item = types::QueueListItem {
+            task_name: row.get("task_name"),
+            state: state,
+        };
         queue.insert(id.to_string(), serde_json::to_value(&item));
     }
     let value = Value::Object(queue);
@@ -237,14 +234,20 @@ fn get_queue_item(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
     let queue_name = try!(get_queue_name(req));
     let id = try!(get_item_id(req));
-    let results = try!(conn.query(&format!("select task_name, state from {} where id=$1", &queue_name),
+    let results = try!(conn.query(&format!("select task_name, state, info, worker from {} where id=$1",
+                        &queue_name),
                &[&id])
         .map_err(iron_str_error));
     if results.is_empty() {
         Ok(Response::with((status::NotFound, format!("No queue item {} in {}", id, queue_name))))
     } else {
         let row = results.get(0);
-        let item = row_to_queue_item(row);
+        let item = types::QueueItem {
+            task_name: row.get("task_name"),
+            state: try!(row_to_state(&row)),
+            info: row.get("info"),
+            worker: row.get("worker"),
+        };
         Ok(Response::with((status::Ok, serde_json::to_string(&item).unwrap())))
     }
 }

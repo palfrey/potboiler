@@ -16,7 +16,7 @@ pub struct QueueConfig {
 pub struct QueueAdd {
     pub queue_name: String,
     pub task_name: String,
-    pub data: serde_json::Value
+    pub info: serde_json::Value
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -45,4 +45,12 @@ enum_str!(QueueState {
 pub struct QueueListItem {
     pub task_name: String,
     pub state: QueueState
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct QueueItem {
+    pub task_name: String,
+    pub state: QueueState,
+    pub info: serde_json::Value,
+    pub worker: Option<Uuid>
 }
