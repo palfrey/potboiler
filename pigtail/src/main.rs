@@ -297,14 +297,21 @@ fn get_queue_item(req: &mut Request) -> IronResult<Response> {
 
 fn add_queue_item(req: &mut Request) -> IronResult<Response> {
     let mut json = try!(json_from_body(req));
+    let queue_name = try!(get_queue_name(req));
     {
-        let queue_name = try!(get_queue_name(req));
         let map = json.as_object_mut().unwrap();
         map.insert("queue_name".to_string(), serde_json::to_value(&queue_name));
     }
     let op = try!(serde_json::from_value::<types::QueueAdd>(json).map_err(iron_str_error));
     match add_queue_operation(QueueOperation::Add(op)) {
-        Ok(_) => Ok(Response::with(status::Created)),
+        Ok(val) => {
+            let new_url = format!("http://{}:8000/queue/{}/{}",
+                                  HOST.deref(),
+                                  &queue_name,
+                                  &val);
+            Ok(Response::with((status::Created,
+                               Redirect(iron::Url::parse(&new_url).expect("URL parsed ok")))))
+        }
         Err(val) => Err(val),
     }
 }
