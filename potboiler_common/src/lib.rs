@@ -13,6 +13,7 @@ pub mod db;
 pub mod server_id;
 pub mod string_error;
 pub mod types;
+pub mod clock;
 
 use hybrid_clocks::{Timestamp, WallT};
 use iron::prelude::{IronError, Request};

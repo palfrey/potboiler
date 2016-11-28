@@ -1,4 +1,3 @@
-use clock;
 use hybrid_clocks;
 use iron;
 use iron::modifiers::Redirect;
@@ -9,7 +8,7 @@ use notifications;
 use persistent;
 use postgres::rows::{Row, RowIndex};
 use postgres::types::FromSql;
-use potboiler_common::{db, server_id};
+use potboiler_common::{clock, db, server_id};
 use potboiler_common::types::Log;
 use router::Router;
 use serde_json::{self, Map, Value};

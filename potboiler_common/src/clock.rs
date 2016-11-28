@@ -31,8 +31,12 @@ pub fn init_clock() -> ClockMiddleware {
     ClockMiddleware { clock_state: clock_state }
 }
 
+pub fn get_clock(req: &mut Request) -> Arc<RwLock<HClock<Wall>>> {
+    req.extensions.get::<Clock>().expect("get clock").clone()
+}
+
 pub fn get_timestamp(req: &mut Request) -> Timestamp<WallT> {
-    get_timestamp_from_state(req.extensions.get_mut::<Clock>().expect("get clock"))
+    get_timestamp_from_state(&get_clock(req))
 }
 
 pub fn get_timestamp_from_state(clock: &Arc<RwLock<HClock<Wall>>>) -> Timestamp<WallT> {

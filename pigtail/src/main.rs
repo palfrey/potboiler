@@ -17,6 +17,7 @@ extern crate hyper;
 extern crate router;
 extern crate uuid;
 extern crate hybrid_clocks;
+extern crate time;
 
 use hybrid_clocks::{Timestamp, WallT};
 use iron::modifiers::Redirect;
@@ -25,13 +26,14 @@ use iron::status;
 use logger::Logger;
 use persistent::Read as PRead;
 use postgres::error::SqlState;
-use potboiler_common::{db, get_raw_timestamp};
+use potboiler_common::{clock, db, get_raw_timestamp};
 use potboiler_common::string_error::StringError;
 use potboiler_common::types::Log;
 use serde_json::{Map, Value};
 use std::env;
 use std::io::Cursor;
 use std::ops::Deref;
+use time::Duration;
 use types::QueueOperation;
 use uuid::Uuid;
 
@@ -139,6 +141,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
     let log = try!(serde_json::from_value::<Log>(json).map_err(iron_str_error));
     info!("log: {:?}", log);
     let log_when = log.when.clone();
+    clock::observe_timestamp(&clock::get_clock(req), log_when);
     let op = try!(serde_json::from_value::<QueueOperation>(log.data).map_err(iron_str_error));
     info!("op: {:?}", op);
     let conn = get_pg_connection!(&req);
@@ -226,15 +229,32 @@ fn get_queue_name(req: &mut Request) -> IronResult<String> {
 fn get_queue_items(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
     let queue_name = try!(get_queue_name(req));
-    let results = try!(conn.query(&format!("select id, task_name, state from {}", &queue_name),
+    let config_row = try!(conn.query("select config from queues where key=$1", &[&queue_name])
+        .map_err(iron_str_error));
+    let config: types::QueueConfig = try!(serde_json::from_value(config_row.get(0).get("config"))
+        .map_err(iron_str_error));
+    let results = try!(conn.query(&format!("select id, task_name, state, hlc_tstamp from {}",
+                        &queue_name),
                &[])
         .map_err(iron_str_error));
     let mut queue = Map::new();
+    let now = clock::get_timestamp(req).time.as_timespec();
+    let max_diff = Duration::milliseconds(config.timeout_ms);
     for row in &results {
         let id: Uuid = row.get("id");
-        let state = try!(row_to_state(&row));
+        let mut state = try!(row_to_state(&row));
         if state == types::QueueState::Done {
             continue;
+        }
+        if state == types::QueueState::Working {
+            let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
+            let when = try!(hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp))
+                .map_err(iron_str_error));
+            let diff = now - when.time.as_timespec();
+            if diff > max_diff {
+                debug!("{} is out of date, so marking as pending", id);
+                state = types::QueueState::Pending;
+            }
         }
         let item = types::QueueListItem {
             task_name: row.get("task_name"),
@@ -351,6 +371,8 @@ fn main() {
     chain.link_before(logger_before);
     chain.link_after(logger_after);
     chain.link(PRead::<db::PostgresDB>::both(pool));
+    let clock_state = clock::init_clock();
+    chain.link_before(clock_state);
     info!("Pigtail booted");
     Iron::new(chain).http("0.0.0.0:8000").unwrap();
 }

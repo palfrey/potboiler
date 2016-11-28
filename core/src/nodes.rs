@@ -1,4 +1,3 @@
-use clock;
 use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
 use hyper;
 use iron::prelude::{IronError, IronResult, Request, Response};
@@ -9,7 +8,7 @@ use persistent::State;
 use plugin::Pluggable;
 use postgres;
 use postgres::error::SqlState;
-use potboiler_common::{db, get_raw_timestamp, url_from_body};
+use potboiler_common::{clock, db, get_raw_timestamp, url_from_body};
 use potboiler_common::string_error::StringError;
 use potboiler_common::types::Log;
 use r2d2;
