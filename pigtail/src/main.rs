@@ -331,7 +331,7 @@ fn build_queue_progress(req: &mut Request) -> IronResult<types::QueueProgress> {
 fn progress_queue_item(req: &mut Request) -> IronResult<Response> {
     let op = try!(build_queue_progress(req));
     match add_queue_operation(QueueOperation::Progress(op)) {
-        Ok(_) => Ok(Response::with(status::Ok)),
+        Ok(_) => get_queue_item(req),
         Err(val) => Err(val),
     }
 }
