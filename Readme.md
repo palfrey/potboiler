@@ -63,3 +63,7 @@ Update operations:
 - Create table
   - Update key. "table" is "\_config", "key" is table name. It's a LWW table, with "[item]" being {"crdt": "[crdt]"} "[crdt]" being only "LWW" current. Other info for the config table is ignored.
    e.g `curl -vL http://localhost:8001/kv/_config/test -d "{\"op\": \"set\", \"change\": \"{\"crdt\": \"LWW\"}\"}"`
+
+### Pigtail
+
+Pigtail is a task queue implementation. Best docs for it at the moment are the example worker and provider in pigtail/example
