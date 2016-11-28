@@ -231,6 +231,9 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
     let queue_name = try!(get_queue_name(req));
     let config_row = try!(conn.query("select config from queues where key=$1", &[&queue_name])
         .map_err(iron_str_error));
+    if config_row.is_empty() {
+        return Ok(Response::with((status::NotFound, format!("No queue {}", queue_name))));
+    }
     let config: types::QueueConfig = try!(serde_json::from_value(config_row.get(0).get("config"))
         .map_err(iron_str_error));
     let results = try!(conn.query(&format!("select id, task_name, state, hlc_tstamp from {}",
