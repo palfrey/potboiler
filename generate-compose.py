@@ -1,6 +1,6 @@
 import yaml
 from collections import OrderedDict
-from sys import argv
+import argparse
 
 compose = OrderedDict()
 compose["version"] = "2"
@@ -52,15 +52,21 @@ def kv_browser(index):
     ret["links"] = ["postgres-kv%d:postgres"%index]
     return ret
 
-for index in range(int(argv[1])):
+parser = argparse.ArgumentParser()
+parser.add_argument('--component', action='append', default=[], dest="components", choices=["kv", "pigtail"])
+parser.add_argument('count', type=int)
+args = parser.parse_args()
+
+for index in range(args.count):
     compose["services"]["core%d"%index] = core(index)
     compose["services"]["postgres-core%d"%index] = postgres(index, 0)
-    compose["services"]["kv%d"%index] = kv(index)
-    compose["services"]["postgres-kv%d"%index] = postgres(index, 1)
-    compose["services"]["kv-browser%d"%index] = kv_browser(index)
-    compose["services"]["pigtail%d"%index] = pigtail(index)
-    compose["services"]["postgres-pigtail%d"%index] = postgres(index, 2)
-
+    if args.components == [] or "kv" in args.components:
+        compose["services"]["kv%d"%index] = kv(index)
+        compose["services"]["postgres-kv%d"%index] = postgres(index, 1)
+        compose["services"]["kv-browser%d"%index] = kv_browser(index)
+    if args.components == [] or "pigtail" in args.components:
+        compose["services"]["pigtail%d"%index] = pigtail(index)
+        compose["services"]["postgres-pigtail%d"%index] = postgres(index, 2)
 
 # from http://blog.elsdoerfer.name/2012/07/26/make-pyyaml-output-an-ordereddict/
 def represent_odict(dump, tag, mapping, flow_style=None):
