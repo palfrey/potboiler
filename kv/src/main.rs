@@ -23,7 +23,7 @@ use persistent::Read as PRead;
 use persistent::State;
 use potboiler_common::{db, iron_str_error, server_id};
 use potboiler_common::string_error::StringError;
-use potboiler_common::types::{CRDT, LWW};
+use potboiler_common::types::{CRDT, LWW, Log};
 use r2d2_postgres::PostgresConnectionManager;
 use router::Router;
 use std::env;
@@ -59,9 +59,8 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
                serde_json::to_value(&potboiler_common::get_req_key(req, "key").unwrap()));
 
     let client = hyper::client::Client::new();
-
     let res = client.post(SERVER_URL.deref())
-        .body(&serde_json::ser::to_string(&map).unwrap())
+        .body(&serde_json::ser::to_string(map).unwrap())
         .send()
         .expect("sender ok");
     assert_eq!(res.status, hyper::status::StatusCode::Created);
@@ -91,9 +90,9 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
     info!("body: {:?}", json);
-    let data = json.find("data").unwrap();
-    let when: Timestamp<WallT> = serde_json::from_value(json.find("when").unwrap().clone()).unwrap();
-    let change: Change = serde_json::from_value(data.clone()).unwrap();
+    let log = try!(serde_json::from_value::<Log>(json).map_err(iron_str_error));
+    info!("log: {:?}", log);
+    let change: Change = serde_json::from_value(log.data).unwrap();
     info!("change: {:?}", change);
     let tables = tables::get_tables(req);
     match tables.get(&change.table) {
@@ -124,7 +123,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                             let results = stmt.query(&[&change.key]).expect("bad query");
                             if results.is_empty() {
                                 let lww = LWW {
-                                    when: when,
+                                    when: log.when,
                                     data: change.change.clone(),
                                 };
                                 conn.execute(&format!("INSERT INTO {} (key, value, crdt) VALUES ($1, $2, \
@@ -140,8 +139,8 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                                 let row = results.get(0);
                                 let raw_crdt: serde_json::Value = row.get("crdt");
                                 let mut lww: LWW = serde_json::from_value(raw_crdt).expect("bad raw crdt");
-                                if lww.when < when {
-                                    lww.when = when;
+                                if lww.when < log.when {
+                                    lww.when = log.when;
                                     lww.data = change.change.clone();
                                     conn.execute(&format!("UPDATE {} set value=$2, crdt=$3 where key=$1",
                                                           &change.table),
