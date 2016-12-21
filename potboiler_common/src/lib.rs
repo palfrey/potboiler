@@ -46,3 +46,8 @@ pub fn get_raw_timestamp(timestamp: &Timestamp<WallT>) -> Vec<u8> {
     timestamp.write_bytes(&mut raw_timestamp).unwrap();
     return raw_timestamp;
 }
+
+pub fn iron_str_error<T: std::error::Error + std::marker::Send + 'static>(se: T) -> iron::IronError {
+    let desc = format!("{:?}", se);
+    return IronError::new(se, (status::BadRequest, desc));
+}

@@ -26,7 +26,7 @@ use iron::status;
 use logger::Logger;
 use persistent::Read as PRead;
 use postgres::error::SqlState;
-use potboiler_common::{clock, db, get_raw_timestamp};
+use potboiler_common::{clock, db, get_raw_timestamp, iron_str_error};
 use potboiler_common::string_error::StringError;
 use potboiler_common::types::Log;
 use serde_json::{Map, Value};
@@ -44,11 +44,6 @@ pub type PostgresConnection = r2d2::PooledConnection<r2d2_postgres::PostgresConn
 lazy_static! {
     static ref SERVER_URL: String = env::var("SERVER_URL").expect("Needed SERVER_URL");
     static ref HOST: String = env::var("HOST").expect("Needed HOST");
-}
-
-fn iron_str_error<T: std::error::Error + std::marker::Send + 'static>(se: T) -> iron::IronError {
-    let desc = format!("{:?}", se);
-    return IronError::new(se, (status::BadRequest, desc));
 }
 
 fn string_from_body<T: std::io::Read>(body: &mut T) -> IronResult<String> {

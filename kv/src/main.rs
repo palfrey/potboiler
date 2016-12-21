@@ -21,8 +21,7 @@ use iron::status;
 use logger::Logger;
 use persistent::Read as PRead;
 use persistent::State;
-use potboiler_common::db;
-use potboiler_common::server_id;
+use potboiler_common::{db, iron_str_error, server_id};
 use potboiler_common::string_error::StringError;
 use potboiler_common::types::{CRDT, LWW};
 use r2d2_postgres::PostgresConnectionManager;
@@ -104,6 +103,20 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                 CRDT::LWW => {
                     match change.op {
                         Operation::Set => {
+                            if &change.table == tables::CONFIG_TABLE {
+                                let raw_crdt: &str = change.change
+                                    .find("crdt")
+                                    .ok_or(StringError::from("No CRDT key"))
+                                    .map_err(iron_str_error)?
+                                    .as_str()
+                                    .ok_or(StringError::from("CRDT value isn't string!"))
+                                    .map_err(iron_str_error)?;
+                                // FIXME: format! bit is a hacky workaround for
+                                // https://github.com/serde-rs/serde/issues/251
+                                let crdt_to_use: CRDT = serde_json::from_str(&format!("\"{}\"", raw_crdt))
+                                    .map_err(iron_str_error)?;
+                                info!("CRDT in use: {:?}", crdt_to_use);
+                            }
                             let conn = get_pg_connection!(&req);
                             let stmt =
                                 conn.prepare(&format!("select crdt from {} where key=$1", &change.table))
