@@ -37,12 +37,12 @@ pub fn init_tables(conn: &PostgresConnection) -> HashMap<String, CRDT> {
     tables
 }
 
-pub fn add_table(req: &mut Request, table_name: &String, crdt_type: CRDT) {
+pub fn add_table(req: &mut Request, table_name: &String, crdt_type: &CRDT) {
     req.extensions
         .get_mut::<State<Tables>>()
         .unwrap()
         .write()
         .unwrap()
         .deref_mut()
-        .insert(table_name.clone(), crdt_type);
+        .insert(table_name.clone(), crdt_type.clone());
 }

@@ -67,16 +67,54 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "update_key")))
 }
 
-fn make_table(conn: &PostgresConnection, table_name: &str) {
-    conn.execute(&format!("CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, value JSONB, \
-                           crdt JSONB)",
-                          &table_name),
-                 &[])
-        .expect("make table worked");
+fn make_table(conn: &PostgresConnection, table_name: &str, kind: &CRDT) -> IronResult<()> {
+    match kind {
+        &CRDT::LWW => {
+            conn.execute(&format!("CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, value \
+                                   JSONB, crdt JSONB)",
+                                  &table_name),
+                         &[])
+                .map_err(iron_str_error)?;
+        }
+        &CRDT::ORSET => {
+            conn.execute(&format!("CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, crdt \
+                                   JSONB)",
+                                  &table_name),
+                         &[])
+                .map_err(iron_str_error)?;
+            conn.execute(&format!("CREATE TABLE IF NOT EXISTS {}_items (\
+                                   key VARCHAR(1024), \
+                                   item VARCHAR(1024), PRIMARY KEY(key, item))",
+                                  &table_name),
+                         &[])
+                .map_err(iron_str_error)?;
+        }
+        &CRDT::GSET => {
+            error!("No G-Set make table yet");
+        }
+    }
+    return Ok(());
 }
 
 fn string_iron_error(error: &str) -> IronResult<Response> {
     Err(IronError::new(StringError(error.to_string()), (status::BadRequest, error)))
+}
+
+fn get_crdt(conn: &PostgresConnection,
+            table: &String,
+            key: &String)
+            -> IronResult<Option<serde_json::Value>> {
+    let stmt = conn.prepare(&format!("select crdt from {} where key=$1", table)).map_err(iron_str_error)?;
+    let results = stmt.query(&[&key]).map_err(iron_str_error)?;
+    if results.is_empty() {
+        Ok(None)
+    } else if results.len() == 1 {
+        let row = results.get(0);
+        let raw_crdt: serde_json::Value = row.get("crdt");
+        Ok(Some(raw_crdt))
+    } else {
+        Err(iron_str_error(StringError::from(format!("{} entries for key {}", results.len(), key))))
+    }
 }
 
 fn new_event(req: &mut Request) -> IronResult<Response> {
@@ -102,8 +140,8 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                 CRDT::LWW => {
                     match change.op {
                         Operation::Set => {
-                            if &change.table == tables::CONFIG_TABLE {
-                                let raw_crdt: &str = change.change
+                            let crdt_to_use: Option<CRDT> = if &change.table == tables::CONFIG_TABLE {
+                                let crdt_type: &str = change.change
                                     .find("crdt")
                                     .ok_or(StringError::from("No CRDT key"))
                                     .map_err(iron_str_error)?
@@ -112,53 +150,111 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                                     .map_err(iron_str_error)?;
                                 // FIXME: format! bit is a hacky workaround for
                                 // https://github.com/serde-rs/serde/issues/251
-                                let crdt_to_use: CRDT = serde_json::from_str(&format!("\"{}\"", raw_crdt))
-                                    .map_err(iron_str_error)?;
-                                info!("CRDT in use: {:?}", crdt_to_use);
-                            }
-                            let conn = get_pg_connection!(&req);
-                            let stmt =
-                                conn.prepare(&format!("select crdt from {} where key=$1", &change.table))
-                                    .expect("select prep worked");
-                            let results = stmt.query(&[&change.key]).expect("bad query");
-                            if results.is_empty() {
-                                let lww = LWW {
-                                    when: log.when,
-                                    data: change.change.clone(),
-                                };
-                                conn.execute(&format!("INSERT INTO {} (key, value, crdt) VALUES ($1, $2, \
-                                                       $3)",
-                                                      &change.table),
-                                             &[&change.key, &change.change, &serde_json::to_value(&lww)])
-                                    .expect("insert worked");
-                                if &change.table == tables::CONFIG_TABLE {
-                                    make_table(&conn, &change.key);
-                                    tables::add_table(req, &change.key, CRDT::LWW);
-                                }
+                                serde_json::from_str(&format!("\"{}\"", crdt_type)).map_err(iron_str_error)?
                             } else {
-                                let row = results.get(0);
-                                let raw_crdt: serde_json::Value = row.get("crdt");
-                                let mut lww: LWW = serde_json::from_value(raw_crdt).expect("bad raw crdt");
-                                if lww.when < log.when {
-                                    lww.when = log.when;
-                                    lww.data = change.change.clone();
-                                    conn.execute(&format!("UPDATE {} set value=$2, crdt=$3 where key=$1",
+                                None
+                            };
+                            let conn = get_pg_connection!(&req);
+                            let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
+                            match raw_crdt {
+                                None => {
+                                    let lww = LWW {
+                                        when: log.when,
+                                        data: change.change.clone(),
+                                    };
+                                    conn.execute(&format!("INSERT INTO {} (key, value, crdt) VALUES ($1, \
+                                                           $2, $3)",
                                                           &change.table),
                                                  &[&change.key, &change.change, &serde_json::to_value(&lww)])
-                                        .expect("update worked");
-                                } else {
-                                    info!("Earlier event, skipping");
+                                        .expect("insert worked");
+                                    if &change.table == tables::CONFIG_TABLE {
+                                        let crdt = crdt_to_use.unwrap();
+                                        make_table(&conn, &change.key, &crdt)?;
+                                        tables::add_table(req, &change.key, &crdt);
+                                    }
+                                }
+                                Some(raw_crdt) => {
+                                    let mut lww: LWW = serde_json::from_value(raw_crdt)
+                                        .expect("bad raw crdt");
+                                    if lww.when < log.when {
+                                        lww.when = log.when;
+                                        lww.data = change.change.clone();
+                                        conn.execute(&format!("UPDATE {} set value=$2, crdt=$3 where \
+                                                               key=$1",
+                                                              &change.table),
+                                                     &[&change.key,
+                                                       &change.change,
+                                                       &serde_json::to_value(&lww)])
+                                            .expect("update worked");
+                                    } else {
+                                        info!("Earlier event, skipping");
+                                    }
                                 }
                             }
                         }
                         _ => {
                             return string_iron_error("LWW only supports Set, not Add/Remove");
                         }
-
                     }
                 }
+                CRDT::ORSET => {
+                    let op: ORSetOp = serde_json::from_value(change.change).map_err(iron_str_error)?;
+                    let conn = get_pg_connection!(&req);
+                    let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
+                    let (mut crdt, existing) = match raw_crdt {
+                        Some(val) => (serde_json::from_value(val).map_err(iron_str_error)?, true),
+                        None => {
+                            (ORSet {
+                                 adds: HashMap::new(),
+                                 removes: HashMap::new(),
+                             },
+                             false)
+                        }
+                    };
+                    let trans = conn.transaction().unwrap();
+                    match change.op {
+                        Operation::Add => {
+                            if !crdt.removes.contains_key(&op.key) && !crdt.adds.contains_key(&op.key) {
+                                trans.execute(&format!("INSERT INTO {}_items (key, item) VALUES ($1, $2)",
+                                                      &change.table),
+                                             &[&op.key, &op.item])
+                                    .map_err(iron_str_error)?;
+                                crdt.adds.insert(op.key, op.item);
+                            }
+                        }
+                        Operation::Remove => {
+                            trans.execute(&format!("DELETE FROM {}_items where key=$1", &change.table),
+                                         &[&op.key])
+                                .map_err(iron_str_error)?;
+                            crdt.adds.remove(&op.key);
+                            crdt.removes.insert(op.key, op.item);
+                        }
+                        _ => {
+                            return string_iron_error("ORSET only supports Add/Remove");
+                        }
+                    }
+                    debug!("OR-Set for {}: {:?}", &change.table, &crdt);
+                    if existing {
+                        trans.execute(&format!("UPDATE {} set crdt=$2 where key=$1", &change.table),
+                                     &[&change.key, &serde_json::to_value(&crdt)])
+                            .map_err(iron_str_error)?;
+                    } else {
+                        trans.execute(&format!("INSERT INTO {} (key, crdt) VALUES ($1, $2)", &change.table),
+                                     &[&change.key, &serde_json::to_value(&crdt)])
+                            .map_err(iron_str_error)?;
+                    }
+                    let mut items: Vec<&str> = Vec::new();
+                    for key in crdt.adds.keys() {
+                        if crdt.removes.contains_key(key) {
+                            continue;
+                        }
+                        items.push(crdt.adds.get(key).unwrap());
+                    }
+                    debug!("Items: {:?}", items);
+                    trans.commit().map_err(iron_str_error)?;
+                }
                 _ => {
-                    return string_iron_error("Only support LWW so far");
+                    return string_iron_error("Only support LWW and OR-Set so far");
                 }
             }
         }
@@ -183,7 +279,13 @@ fn main() {
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = db::get_pool(db_url);
     let conn = pool.get().unwrap();
-    make_table(&conn, "_config");
+    match make_table(&conn, "_config", &CRDT::LWW) {
+        Ok(_) => {}
+        Err(err) => {
+            error!("Error while making config table: {}", err);
+            return;
+        }
+    }
     let (logger_before, logger_after) = Logger::new(None);
     let mut router = Router::new();
     router.get("/kv/:table/:key", get_key);

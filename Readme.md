@@ -53,9 +53,12 @@ For subsequent nodes, add 100 to the port numbers (e.g. 8100-2 for the second, 8
   - [table] and [key] here are alphanumeric strings
 
 Update operations:
-- "[item]" is any JSON value. "[key]" is a string.
+"[item]" is any JSON value. "[key]" is a string.
 - LWW
   - "set": "[item]"
+- OR-Set:
+  - "add": {"item":"[item]", "key":"[key]"}
+  - "remove": {"item":"[item]", "key":"[key]"}
 
 - Update key
   - `curl http://localhost:8001/kv/[table]/[key] -d "{\"op\": \"[operation]\", \"change\": \"[data]\"}"` => Always 200 if data format is correct, regardless of whether the table has been seen
