@@ -1,4 +1,4 @@
-FROM palfrey/rustup-watchexec:1.13.0
+FROM palfrey/rustup-watchexec:1.14.0
 WORKDIR /code/kv
 ADD kv/Cargo.* /code/kv/
 ADD potboiler_common/Cargo.* /code/potboiler_common/
