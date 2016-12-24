@@ -12,7 +12,7 @@ if [ "$PROJECT" = "docker" ]; then
 	exit 0
 fi
 
-cargo install rustfmt || true
+cargo install --force rustfmt
 
 export PATH=$PATH:~/.cargo/bin &&
 cd $PROJECT
