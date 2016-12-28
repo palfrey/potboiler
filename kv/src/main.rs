@@ -83,8 +83,9 @@ fn make_table(conn: &PostgresConnection, table_name: &str, kind: &CRDT) -> IronR
                          &[])
                 .map_err(iron_str_error)?;
             conn.execute(&format!("CREATE TABLE IF NOT EXISTS {}_items (\
+                                   collection VARCHAR(1024),
                                    key VARCHAR(1024), \
-                                   item VARCHAR(1024), PRIMARY KEY(key, item))",
+                                   item VARCHAR(1024), PRIMARY KEY(collection, key, item))",
                                   &table_name),
                          &[])
                 .map_err(iron_str_error)?;
@@ -211,16 +212,18 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
             match change.op {
                 Operation::Add => {
                     if !crdt.removes.contains_key(&op.key) && !crdt.adds.contains_key(&op.key) {
-                        trans.execute(&format!("INSERT INTO {}_items (key, item) VALUES ($1, $2)",
+                        trans.execute(&format!("INSERT INTO {}_items (collection, key, item) VALUES ($1, \
+                                               $2, $3)",
                                               &change.table),
-                                     &[&op.key, &op.item])
+                                     &[&change.key, &op.key, &op.item])
                             .map_err(iron_str_error)?;
                         crdt.adds.insert(op.key, op.item);
                     }
                 }
                 Operation::Remove => {
-                    trans.execute(&format!("DELETE FROM {}_items where key=$1", &change.table),
-                                 &[&op.key])
+                    trans.execute(&format!("DELETE FROM {}_items where collection=$1 and key=$2",
+                                          &change.table),
+                                 &[&change.key, &op.key])
                         .map_err(iron_str_error)?;
                     crdt.adds.remove(&op.key);
                     crdt.removes.insert(op.key, op.item);
