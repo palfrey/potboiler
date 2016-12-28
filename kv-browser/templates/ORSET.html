@@ -1,0 +1,19 @@
+{% extends "table.html" -%}
+{% block content %}
+<thead>
+    <tr>
+        <th>Key</th>
+        <th>Values</th>
+        <th>CRDT</th>
+    </tr>
+</thead>
+<tbody>
+    {% for row in table %}
+    <tr>
+        <td>{{ row.key }}</td>
+        <td>{{ extra[row.key] }}
+        <td>{{ row.crdt }}</td>
+    </tr>
+    {% endfor %}
+</tbody>
+{% endblock content %}

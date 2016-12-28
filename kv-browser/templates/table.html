@@ -12,22 +12,7 @@
 				{% if table_name != "_config" %}<h3><a href="/">Back to table index</a></h3>{% endif %}
 				<div class="table-responsive">
 					<table class="table table-striped">
-						<thead>
-							<tr>
-								<th>Key</th>
-								<th>Value</th>
-								<th>CRDT</th>
-							</tr>
-						</thead>
-						<tbody>
-							{% for row in table %}
-							<tr>
-								<td>{% if table_name == "_config" %}<a href="/?table={{ row.key }}">{% endif %}{{ row.key }}</a></td>
-								<td>{{ row.value }}</td>
-								<td>{{ row.crdt }}</td>
-							</tr>
-							{% endfor %}
-						</tbody>
+{% block content %}{% endblock content %}
 					<table>
 				</div>
 			</div>
