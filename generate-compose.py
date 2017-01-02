@@ -11,62 +11,124 @@ def extend(od, kind):
     od["extends"]["file"] = "common.yml"
     od["extends"]["service"] = kind
 
-def postgres(index, additional=0):
-    ret = OrderedDict()
-    extend(ret, "postgres-base")
-    base_port = 6432 + index*1000 + additional
-    ret["ports"] = ["%d:5432"%base_port]
-    return ret
+class Postgres:
+    def __init__(self, name, index, additional=0):
+        self.base_port = 6432 + index*1000 + additional
+        self.name = name
+    def service(self):
+        ret = OrderedDict()
+        ret["image"] = "postgres"
+        ret["environment"] = {"POSTGRES_PASSWORD":"mysecretpassword"}
+        ret["ports"] = ["%d:5432"%self.base_port]
+        return ret
+    def db_url(self):
+        return "postgres://postgres:mysecretpassword@postgres:5432"
 
-def core(index):
-    ret = OrderedDict()
-    extend(ret, "core-base")
-    base_port = 8000 + index*100
-    ret["ports"] = ["%d:8000"%base_port]
-    ret["links"] = ["postgres-core%d:postgres"%index]
-    return ret
+class Core:
+    def __init__(self, name, index, postgres):
+        self.base_port = 8000 + index*100
+        self.name = name
+        self.postgres = postgres
+    def service(self):
+        ret = OrderedDict()
+        ret["build"] = {
+            "context": ".", 
+            "dockerfile": "core/Dockerfile"
+        }
+        ret["image"] = "potboiler/core:latest"
+        ret["volumes"] = [".:/code"]
+        ret["environment"] = {"DATABASE_URL": self.postgres.db_url()}
+        ret["ports"] = ["%d:8000"%self.base_port]
+        ret["links"] = ["%s:postgres"%self.postgres.name]
+        return ret
+    def log_url(self):
+        return "http://core:8000/log"
 
-def kv(index):
-    ret = OrderedDict()
-    extend(ret, "kv-base")
-    base_port = 8001 + index*100
-    ret["ports"] = ["%d:8001"%base_port]
-    ret["links"] = ["postgres-kv%d:postgres"%index, "core%d:core"%index]
-    ret["environment"] = ["HOST=kv%d" % index]
-    return ret
+class KV:
+    def __init__(self, name, index, postgres, core):
+        self.base_port = 8001 + index*100
+        self.name = name
+        self.postgres = postgres
+        self.core = core
+    def service(self):
+        ret = OrderedDict()
+        ret["build"] = {
+            "context": ".",
+            "dockerfile": "kv/Dockerfile"
+        }
+        ret["image"] = "potboiler/kv:latest"
+        ret["volumes"] = [".:/code"]
+        ret["environment"] = {
+            "DATABASE_URL": self.postgres.db_url(),
+            "SERVER_URL": self.core.log_url()
+        }
+        ret["ports"] = ["%d:8001"%self.base_port]
+        ret["links"] = ["%s:postgres"%self.postgres.name, "%s:core"%self.core.name]
+        ret["environment"] = ["HOST=%s" % self.name]
+        return ret
 
-def pigtail(index):
-    ret = OrderedDict()
-    extend(ret, "pigtail-base")
-    base_port = 8003 + index*100
-    ret["ports"] = ["%d:8000"%base_port]
-    ret["links"] = ["postgres-pigtail%d:postgres"%index, "core%d:core"%index]
-    ret["environment"] = ["HOST=pigtail%d" % index]
-    return ret
+class Pigtail:
+    def __init__(self, name, index, postgres, core):
+        self.base_port = 8003 + index*100
+        self.name = name
+        self.postgres = postgres
+        self.core = core
+    def service(self):
+        ret = OrderedDict()
+        ret["build"] = {
+            "context": ".",
+            "dockerfile": "pigtail/Dockerfile"
+        }
+        ret["image"] = "potboiler/pigtail:latest"
+        ret["volumes"] = [".:/code"]
+        ret["environment"] = {
+            "DATABASE_URL": self.postgres.db_url(),
+            "SERVER_URL": self.core.log_url()
+        }
+        ret["ports"] = ["%d:8000"%self.base_port]
+        ret["links"] = ["%s:postgres"%self.postgres.name, "%s:core"%self.core.name]
+        ret["environment"] = ["HOST=%s" % self.name]
+        return ret
 
-def kv_browser(index):
-    ret = OrderedDict()
-    extend(ret, "kv-browser-base")
-    base_port = 8002 + index*100
-    ret["ports"] = ["%d:5000"%base_port]
-    ret["links"] = ["postgres-kv%d:postgres"%index]
-    return ret
+class KVBrowser:
+    def __init__(self, name, index, postgres):
+        self.base_port = 8002 + index*100
+        self.name = name
+        self.postgres = postgres
+    def service(self):
+        ret = OrderedDict()
+        ret["build"] = "kv-browser"
+        ret["image"] = "potboiler/kv-browser:latest"
+        ret["volumes"] = ["./kv-browser/:/code"]
+        ret["environment"] = {"DATABASE_URL": self.postgres.db_url()}
+        ret["ports"] = ["%d:5000"%self.base_port]
+        ret["links"] = ["%s:postgres"%self.postgres.name]
+        return ret
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--component', action='append', default=[], dest="components", choices=["kv", "pigtail"])
 parser.add_argument('count', type=int)
 args = parser.parse_args()
 
+services = []
 for index in range(args.count):
-    compose["services"]["core%d"%index] = core(index)
-    compose["services"]["postgres-core%d"%index] = postgres(index, 0)
+    postgres = Postgres("postgres-core%d"%index, index, 0)
+    services.append(postgres)
+    core = Core("core%d"%index, index, postgres)
+    services.append(core)
+
     if args.components == [] or "kv" in args.components:
-        compose["services"]["kv%d"%index] = kv(index)
-        compose["services"]["postgres-kv%d"%index] = postgres(index, 1)
-        compose["services"]["kv-browser%d"%index] = kv_browser(index)
+        postgres = Postgres("postgres-kv%d"%index, index, 1)
+        services.append(postgres)
+        services.append(KV("kv%d"%index, index, postgres, core))
+        services.append(KVBrowser("kv-browser%d"%index, index, postgres))
     if args.components == [] or "pigtail" in args.components:
-        compose["services"]["pigtail%d"%index] = pigtail(index)
-        compose["services"]["postgres-pigtail%d"%index] = postgres(index, 2)
+        postgres = Postgres("postgres-pigtail%d"%index, index, 2)
+        services.append(postgres)
+        services.append(Pigtail("pigtail%d"%index, index, postgres, core))
+
+for service in services:
+    compose["services"][service.name] = service.service()
 
 # from http://blog.elsdoerfer.name/2012/07/26/make-pyyaml-output-an-ordereddict/
 def represent_odict(dump, tag, mapping, flow_style=None):
