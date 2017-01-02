@@ -67,6 +67,8 @@ class KV(LocallyBuilt):
         ret["ports"] = ["%d:8001"%self.base_port]
         ret["links"] = ["%s:postgres"%self.postgres.name, "%s:core"%self.core.name]
         return ret
+    def base_url(self):
+        return "http://kv:8001/kv"
 
 class Pigtail(LocallyBuilt):
     def __init__(self, name, index, postgres, core):
@@ -100,8 +102,24 @@ class KVBrowser:
         ret["links"] = ["%s:postgres"%self.postgres.name]
         return ret
 
+class Correspondence:
+    def __init__(self, name, index, kv):
+        self.base_port = 8004 + index*100
+        self.name = name
+        self.kv = kv
+    def service(self):
+        ret = OrderedDict()
+        ret["build"] = "../correspondence"
+        ret["image"] = "potboiler/correspondence:latest"
+        ret["volumes"] = ["../correspondence/:/code"]
+        ret["environment"] = {"SERVER_URL": self.kv.base_url()}
+        ret["ports"] = ["%d:5000"%self.base_port]
+        ret["links"] = ["%s:kv"%self.kv.name]
+        ret["command"] = "bash -c \"./wait-for-port.sh kv 8001 && flask run --host=0.0.0.0\""
+        return ret
+
 parser = argparse.ArgumentParser()
-parser.add_argument('--component', action='append', default=[], dest="components", choices=["kv", "pigtail"])
+parser.add_argument('--component', action='append', default=[], dest="components", choices=["kv", "pigtail", "correspondence"])
 parser.add_argument('count', type=int)
 args = parser.parse_args()
 
@@ -112,15 +130,18 @@ for index in range(args.count):
     core = Core("core%d"%index, index, postgres)
     services.append(core)
 
-    if args.components == [] or "kv" in args.components:
+    if args.components == [] or "kv" in args.components or "correspondence" in args.components:
         postgres = Postgres("postgres-kv%d"%index)
         services.append(postgres)
-        services.append(KV("kv%d"%index, index, postgres, core))
+        kv = KV("kv%d"%index, index, postgres, core)
+        services.append(kv)
         services.append(KVBrowser("kv-browser%d"%index, index, postgres))
     if args.components == [] or "pigtail" in args.components:
         postgres = Postgres("postgres-pigtail%d"%index)
         services.append(postgres)
         services.append(Pigtail("pigtail%d"%index, index, postgres, core))
+    if "correspondence" in args.components:
+        services.append(Correspondence("correspondence%d"%index, index, kv))
 
 for service in services:
     compose["services"][service.name] = service.service()
