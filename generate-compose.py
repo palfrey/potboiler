@@ -12,8 +12,10 @@ def extend(od, kind):
     od["extends"]["service"] = kind
 
 class Postgres:
-    def __init__(self, name, index, additional=0):
-        self.base_port = 6432 + index*1000 + additional
+    next_port = 6432
+    def __init__(self, name):
+        self.base_port = Postgres.next_port
+        Postgres.next_port +=1
         self.name = name
     def service(self):
         ret = OrderedDict()
@@ -24,19 +26,24 @@ class Postgres:
     def db_url(self):
         return "postgres://postgres:mysecretpassword@postgres:5432"
 
-class Core:
+class LocallyBuilt:
+    def build_context(self, kind):
+        ret = OrderedDict()
+        ret["build"] = {
+            "context": ".", 
+            "dockerfile": "%s/Dockerfile" % kind
+        }
+        ret["image"] = "potboiler/%s:latest" % kind
+        ret["volumes"] = [".:/code"]
+        return ret
+
+class Core(LocallyBuilt):
     def __init__(self, name, index, postgres):
         self.base_port = 8000 + index*100
         self.name = name
         self.postgres = postgres
     def service(self):
-        ret = OrderedDict()
-        ret["build"] = {
-            "context": ".", 
-            "dockerfile": "core/Dockerfile"
-        }
-        ret["image"] = "potboiler/core:latest"
-        ret["volumes"] = [".:/code"]
+        ret = self.build_context("core")
         ret["environment"] = {"DATABASE_URL": self.postgres.db_url()}
         ret["ports"] = ["%d:8000"%self.base_port]
         ret["links"] = ["%s:postgres"%self.postgres.name]
@@ -44,20 +51,14 @@ class Core:
     def log_url(self):
         return "http://core:8000/log"
 
-class KV:
+class KV(LocallyBuilt):
     def __init__(self, name, index, postgres, core):
         self.base_port = 8001 + index*100
         self.name = name
         self.postgres = postgres
         self.core = core
     def service(self):
-        ret = OrderedDict()
-        ret["build"] = {
-            "context": ".",
-            "dockerfile": "kv/Dockerfile"
-        }
-        ret["image"] = "potboiler/kv:latest"
-        ret["volumes"] = [".:/code"]
+        ret = self.build_context("kv")
         ret["environment"] = {
             "DATABASE_URL": self.postgres.db_url(),
             "SERVER_URL": self.core.log_url()
@@ -67,20 +68,14 @@ class KV:
         ret["environment"] = ["HOST=%s" % self.name]
         return ret
 
-class Pigtail:
+class Pigtail(LocallyBuilt):
     def __init__(self, name, index, postgres, core):
         self.base_port = 8003 + index*100
         self.name = name
         self.postgres = postgres
         self.core = core
     def service(self):
-        ret = OrderedDict()
-        ret["build"] = {
-            "context": ".",
-            "dockerfile": "pigtail/Dockerfile"
-        }
-        ret["image"] = "potboiler/pigtail:latest"
-        ret["volumes"] = [".:/code"]
+        ret = self.build_context("pigtail")
         ret["environment"] = {
             "DATABASE_URL": self.postgres.db_url(),
             "SERVER_URL": self.core.log_url()
@@ -112,18 +107,18 @@ args = parser.parse_args()
 
 services = []
 for index in range(args.count):
-    postgres = Postgres("postgres-core%d"%index, index, 0)
+    postgres = Postgres("postgres-core%d"%index)
     services.append(postgres)
     core = Core("core%d"%index, index, postgres)
     services.append(core)
 
     if args.components == [] or "kv" in args.components:
-        postgres = Postgres("postgres-kv%d"%index, index, 1)
+        postgres = Postgres("postgres-kv%d"%index)
         services.append(postgres)
         services.append(KV("kv%d"%index, index, postgres, core))
         services.append(KVBrowser("kv-browser%d"%index, index, postgres))
     if args.components == [] or "pigtail" in args.components:
-        postgres = Postgres("postgres-pigtail%d"%index, index, 2)
+        postgres = Postgres("postgres-pigtail%d"%index)
         services.append(postgres)
         services.append(Pigtail("pigtail%d"%index, index, postgres, core))
 
