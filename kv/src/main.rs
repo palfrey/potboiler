@@ -259,6 +259,15 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with(status::NoContent))
 }
 
+fn list_tables(req: &mut Request) -> IronResult<Response> {
+    let tables = tables::get_tables(req);
+    let mut table_names = vec![];
+    for t in tables.keys() {
+        table_names.push(t);
+    }
+    Ok(Response::with((status::Ok, serde_json::to_string(&table_names).unwrap())))
+}
+
 fn main() {
     log4rs::init_file("log.yaml", Default::default()).expect("log config ok");
     let client = hyper::client::Client::new();
@@ -276,7 +285,7 @@ fn main() {
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = db::get_pool(db_url);
     let conn = pool.get().unwrap();
-    match make_table(&conn, "_config", &CRDT::LWW) {
+    match make_table(&conn, tables::CONFIG_TABLE, &CRDT::LWW) {
         Ok(_) => {}
         Err(err) => {
             error!("Error while making config table: {}", err);
@@ -285,6 +294,7 @@ fn main() {
     }
     let (logger_before, logger_after) = Logger::new(None);
     let mut router = Router::new();
+    router.get("/kv", list_tables);
     router.get("/kv/:table/:key", get_key);
     router.post("/kv/:table/:key", update_key);
     router.post("/kv/event", new_event);
