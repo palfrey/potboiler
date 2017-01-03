@@ -271,7 +271,7 @@ fn list_tables(req: &mut Request) -> IronResult<Response> {
     for t in tables.keys() {
         table_names.push(t);
     }
-    Ok(Response::with((status::Ok, serde_json::to_string(&table_names).unwrap())))
+    Ok(Response::with((status::Ok, mime!(Application / Json), serde_json::to_string(&table_names).unwrap())))
 }
 
 fn list_keys(req: &mut Request) -> IronResult<Response> {
