@@ -14,6 +14,8 @@ extern crate potboiler_common;
 extern crate serde_json;
 extern crate hyper;
 extern crate hybrid_clocks;
+#[macro_use]
+extern crate mime;
 mod tables;
 
 use iron::prelude::*;
@@ -97,8 +99,12 @@ fn make_table(conn: &PostgresConnection, table_name: &str, kind: &CRDT) -> IronR
     return Ok(());
 }
 
+fn raw_string_iron_error(error: &str) -> IronError {
+    IronError::new(StringError(error.to_string()), (status::BadRequest, error))
+}
+
 fn string_iron_error(error: &str) -> IronResult<Response> {
-    Err(IronError::new(StringError(error.to_string()), (status::BadRequest, error)))
+    Err(raw_string_iron_error(error))
 }
 
 fn get_crdt(conn: &PostgresConnection,
@@ -268,6 +274,20 @@ fn list_tables(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, serde_json::to_string(&table_names).unwrap())))
 }
 
+fn list_keys(req: &mut Request) -> IronResult<Response> {
+    let table = potboiler_common::get_req_key(req, "table").ok_or(raw_string_iron_error("No table key"))?;
+    let mut key_names = vec![];
+    let conn = get_pg_connection!(&req);
+    let stmt = conn.prepare(&format!("select key from {}", table)).map_err(iron_str_error)?;
+    for row in &stmt.query(&[]).map_err(iron_str_error)? {
+        let key: String = row.get("key");
+        key_names.push(key);
+    }
+    Ok(Response::with((status::Ok,
+                       mime!(Application / Json),
+                       serde_json::to_string(&key_names).map_err(iron_str_error)?)))
+}
+
 fn main() {
     log4rs::init_file("log.yaml", Default::default()).expect("log config ok");
     let client = hyper::client::Client::new();
@@ -295,6 +315,7 @@ fn main() {
     let (logger_before, logger_after) = Logger::new(None);
     let mut router = Router::new();
     router.get("/kv", list_tables);
+    router.get("/kv/:table", list_keys);
     router.get("/kv/:table/:key", get_key);
     router.post("/kv/:table/:key", update_key);
     router.post("/kv/event", new_event);
