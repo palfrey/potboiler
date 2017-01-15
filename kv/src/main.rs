@@ -68,6 +68,9 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
         Operation::Add | Operation::Remove => {
             serde_json::from_value::<ORSetOp>(change.change).map_err(iron_str_error)?;
         }
+        Operation::Create => {
+            serde_json::from_value::<ORCreateOp>(change.change).map_err(iron_str_error)?;
+        }
         Operation::Set => {
             if &change.table == tables::CONFIG_TABLE {
                 serde_json::from_value::<LWWConfigOp>(change.change).map_err(iron_str_error)?;
@@ -208,7 +211,12 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
             }
         }
         CRDT::ORSET => {
-            let op: ORSetOp = serde_json::from_value(change.change).map_err(iron_str_error)?;
+            let op: Option<ORSetOp> = match change.op {
+                Operation::Add | Operation::Remove => {
+                    Some(serde_json::from_value(change.change).map_err(iron_str_error)?)
+                }
+                Operation::Create | Operation::Set => None,
+            };
             let conn = get_pg_connection!(&req);
             let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
             let (mut crdt, existing) = match raw_crdt {
@@ -224,25 +232,30 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
             let trans = conn.transaction().unwrap();
             match change.op {
                 Operation::Add => {
-                    if !crdt.removes.contains_key(&op.key) && !crdt.adds.contains_key(&op.key) {
+                    let unwrap_op = op.unwrap();
+                    if !crdt.removes.contains_key(&unwrap_op.key) && !crdt.adds.contains_key(&unwrap_op.key) {
                         trans.execute(&format!("INSERT INTO {}_items (collection, key, item) VALUES ($1, \
                                                $2, $3)",
                                               &change.table),
-                                     &[&change.key, &op.key, &op.item])
+                                     &[&change.key, &unwrap_op.key, &unwrap_op.item])
                             .map_err(iron_str_error)?;
-                        crdt.adds.insert(op.key, op.item);
+                        crdt.adds.insert(unwrap_op.key, unwrap_op.item);
                     }
                 }
                 Operation::Remove => {
+                    let unwrap_op = op.unwrap();
                     trans.execute(&format!("DELETE FROM {}_items where collection=$1 and key=$2",
                                           &change.table),
-                                 &[&change.key, &op.key])
+                                 &[&change.key, &unwrap_op.key])
                         .map_err(iron_str_error)?;
-                    crdt.adds.remove(&op.key);
-                    crdt.removes.insert(op.key, op.item);
+                    crdt.adds.remove(&unwrap_op.key);
+                    crdt.removes.insert(unwrap_op.key, unwrap_op.item);
+                }
+                Operation::Create => {
+                    // Don't need to actually do anything to the item lists
                 }
                 _ => {
-                    return string_iron_error("ORSET only supports Add/Remove");
+                    return string_iron_error("ORSET only supports Add/Create/Remove");
                 }
             }
             debug!("OR-Set for {}: {:?}", &change.table, &crdt);

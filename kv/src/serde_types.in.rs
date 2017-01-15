@@ -5,6 +5,7 @@ enum_str!(Operation {
     Set("set"),
     Add("add"),
     Remove("remove"),
+    Create("create"),
 });
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -18,6 +19,10 @@ struct Change {
 #[derive(Serialize, Deserialize, Debug)]
 struct LWWConfigOp {
     crdt: CRDT
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct ORCreateOp {
 }
 
 #[derive(Serialize, Deserialize, Debug)]

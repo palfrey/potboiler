@@ -57,6 +57,7 @@ Update operations:
 - LWW
   - "set": "[item]"
 - OR-Set:
+  - "create": {} // makes an empty OR-Set if it doesn't exist
   - "add": {"item":"[item]", "key":"[key]"}
   - "remove": {"item":"[item]", "key":"[key]"}
 
