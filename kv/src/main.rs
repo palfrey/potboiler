@@ -54,15 +54,29 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
         Ok(val) => val,
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
-    let map = json.as_object_mut().unwrap();
-    map.insert("table".to_string(),
-               serde_json::to_value(&potboiler_common::get_req_key(req, "table").unwrap()));
-    map.insert("key".to_string(),
-               serde_json::to_value(&potboiler_common::get_req_key(req, "key").unwrap()));
+    {
+        let map = json.as_object_mut().unwrap();
+        map.insert("table".to_string(),
+                   serde_json::to_value(&potboiler_common::get_req_key(req, "table").unwrap()));
+        map.insert("key".to_string(),
+                   serde_json::to_value(&potboiler_common::get_req_key(req, "key").unwrap()));
+    }
 
+    let change: Change = serde_json::from_value(json).map_err(iron_str_error)?;
+    let string_change = serde_json::ser::to_string(&change).map_err(iron_str_error)?;
+    match change.op {
+        Operation::Add | Operation::Remove => {
+            serde_json::from_value::<ORSetOp>(change.change).map_err(iron_str_error)?;
+        }
+        Operation::Set => {
+            if &change.table == tables::CONFIG_TABLE {
+                serde_json::from_value::<LWWConfigOp>(change.change).map_err(iron_str_error)?;
+            }
+        }
+    }
     let client = hyper::client::Client::new();
     let res = client.post(SERVER_URL.deref())
-        .body(&serde_json::ser::to_string(map).unwrap())
+        .body(&string_change)
         .send()
         .expect("sender ok");
     assert_eq!(res.status, hyper::status::StatusCode::Created);
@@ -149,16 +163,9 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
             match change.op {
                 Operation::Set => {
                     let crdt_to_use: Option<CRDT> = if &change.table == tables::CONFIG_TABLE {
-                        let crdt_type: &str = change.change
-                            .find("crdt")
-                            .ok_or(StringError::from("No CRDT key"))
-                            .map_err(iron_str_error)?
-                            .as_str()
-                            .ok_or(StringError::from("CRDT value isn't string!"))
-                            .map_err(iron_str_error)?;
-                        // FIXME: format! bit is a hacky workaround for
-                        // https://github.com/serde-rs/serde/issues/251
-                        serde_json::from_str(&format!("\"{}\"", crdt_type)).map_err(iron_str_error)?
+                        let config_op: LWWConfigOp =
+                            serde_json::from_value(change.change.clone()).map_err(iron_str_error)?;
+                        Some(config_op.crdt)
                     } else {
                         None
                     };

@@ -7,12 +7,17 @@ enum_str!(Operation {
     Remove("remove"),
 });
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct Change {
     table: String,
     key: String,
     op: Operation,
     change: serde_json::Value,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct LWWConfigOp {
+    crdt: CRDT
 }
 
 #[derive(Serialize, Deserialize, Debug)]
