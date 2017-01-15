@@ -25,7 +25,7 @@ use persistent::Read as PRead;
 use persistent::State;
 use potboiler_common::{db, iron_str_error, server_id};
 use potboiler_common::string_error::StringError;
-use potboiler_common::types::{CRDT, LWW, Log};
+use potboiler_common::types::{CRDT, Log};
 use r2d2_postgres::PostgresConnectionManager;
 use router::Router;
 use std::env;

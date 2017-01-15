@@ -1,5 +1,6 @@
 extern crate serde;
 use std::collections::HashMap;
+use hybrid_clocks::{Timestamp, WallT};
 
 enum_str!(Operation {
     Set("set"),
@@ -19,6 +20,12 @@ struct Change {
 #[derive(Serialize, Deserialize, Debug)]
 struct LWWConfigOp {
     crdt: CRDT
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LWW {
+    pub when: Timestamp<WallT>,
+    pub data: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

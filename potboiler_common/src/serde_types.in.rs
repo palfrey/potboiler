@@ -58,12 +58,6 @@ pub enum CRDT {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct LWW {
-    pub when: Timestamp<WallT>,
-    pub data: serde_json::Value,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct Log {
     pub id: Uuid,
     pub owner: Uuid,
