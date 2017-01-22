@@ -40,8 +40,18 @@ lazy_static! {
 
 include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
-fn get_key(_: &mut Request) -> IronResult<Response> {
-    Ok(Response::with((status::Ok, "get_key")))
+fn get_key(req: &mut Request) -> IronResult<Response> {
+    let conn = get_pg_connection!(&req);
+    let stmt = conn.prepare(&format!("SELECT key, item FROM {}_items where collection=$1",
+            &potboiler_common::get_req_key(req, "table").ok_or(raw_string_iron_error("No table key"))?))
+        .map_err(iron_str_error)?;
+    let mut items = serde_json::Map::new();
+    for row in &stmt.query(&[&potboiler_common::get_req_key(req, "key")]).map_err(iron_str_error)? {
+        let key: String = row.get("key");
+        let item: String = row.get("item");
+        items.insert(key, item);
+    }
+    Ok(Response::with((status::Ok, serde_json::ser::to_string(&items).unwrap())))
 }
 
 fn update_key(req: &mut Request) -> IronResult<Response> {
