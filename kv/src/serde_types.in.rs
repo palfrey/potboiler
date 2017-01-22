@@ -36,7 +36,7 @@ struct ORCreateOp {
 struct ORSetOp {
     item: String,
     key: String,
-    metadata: LWW
+    metadata: serde_json::Value
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -54,7 +54,7 @@ fn get_key(req: &mut Request) -> IronResult<Response> {
         items.push(ORSetOp {
             item: item,
             key: key,
-            metadata: serde_json::from_value(metadata).map_err(iron_str_error)?,
+            metadata: metadata,
         });
     }
     Ok(Response::with((status::Ok, serde_json::ser::to_string(&items).unwrap())))
@@ -252,7 +252,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                 Operation::Add => {
                     let unwrap_op = op.unwrap();
                     if !crdt.removes.contains_key(&unwrap_op.key) {
-                        let metadata = serde_json::to_value(unwrap_op.metadata);
+                        let metadata = unwrap_op.metadata;
                         if crdt.adds.contains_key(&unwrap_op.key) {
                             trans.execute(&format!("UPDATE {}_items set metadata=$1 where collection=$2 \
                                                    and key=$3",

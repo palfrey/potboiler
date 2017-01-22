@@ -24,6 +24,7 @@ def schema(table_name, crdt_type):
             db.Column('collection', db.String, primary_key=True),
             db.Column('key', db.String, primary_key=True),
             db.Column('item', db.String, primary_key=True),
+            db.Column('metadata', db.String),
             extend_existing=True
         )]
     else:
@@ -46,8 +47,8 @@ def index():
         extra = {}
         for x in data[1]:
             if x.collection not in extra:
-                extra[x.collection] = []
-            extra[x.collection].append(x.item)
+                extra[x.collection] = {}
+            extra[x.collection][x.item] = x.metadata
     else:
         extra = None
     return render_template("%s.html" % crdt, table=data[0], table_name=table, extra=extra)
