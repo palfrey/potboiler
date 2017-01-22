@@ -80,11 +80,11 @@ class Pigtail(LocallyBuilt):
         ret = self.build_context("pigtail")
         ret["environment"] = {
             "DATABASE_URL": self.postgres.db_url(),
-            "SERVER_URL": self.core.log_url()
+            "SERVER_URL": self.core.log_url(),
+            "HOST": self.name
         }
         ret["ports"] = ["%d:8000"%self.base_port]
         ret["links"] = ["%s:postgres"%self.postgres.name, "%s:core"%self.core.name]
-        ret["environment"] = ["HOST=%s" % self.name]
         return ret
 
 class KVBrowser:
