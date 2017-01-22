@@ -35,7 +35,8 @@ struct ORCreateOp {
 #[derive(Serialize, Deserialize, Debug)]
 struct ORSetOp {
     item: String,
-    key: String
+    key: String,
+    metadata: LWW
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -42,14 +42,19 @@ include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
 fn get_key(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
-    let stmt = conn.prepare(&format!("SELECT key, item FROM {}_items where collection=$1",
+    let stmt = conn.prepare(&format!("SELECT key, item, metadata FROM {}_items where collection=$1",
             &potboiler_common::get_req_key(req, "table").ok_or(raw_string_iron_error("No table key"))?))
         .map_err(iron_str_error)?;
-    let mut items = serde_json::Map::new();
+    let mut items = Vec::new();
     for row in &stmt.query(&[&potboiler_common::get_req_key(req, "key")]).map_err(iron_str_error)? {
         let key: String = row.get("key");
         let item: String = row.get("item");
-        items.insert(key, item);
+        let metadata: serde_json::Value = row.get("metadata");
+        items.push(ORSetOp {
+            item: item,
+            key: key,
+            metadata: serde_json::from_value(metadata).map_err(iron_str_error)?,
+        });
     }
     Ok(Response::with((status::Ok, serde_json::ser::to_string(&items).unwrap())))
 }
@@ -100,21 +105,23 @@ fn make_table(conn: &PostgresConnection, table_name: &str, kind: &CRDT) -> IronR
     match kind {
         &CRDT::LWW => {
             conn.execute(&format!("CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, value \
-                                   JSONB, crdt JSONB)",
+                                   JSONB NOT NULL, crdt JSONB NOT NULL)",
                                   &table_name),
                          &[])
                 .map_err(iron_str_error)?;
         }
         &CRDT::ORSET => {
             conn.execute(&format!("CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, crdt \
-                                   JSONB)",
+                                   JSONB NOT NULL)",
                                   &table_name),
                          &[])
                 .map_err(iron_str_error)?;
             conn.execute(&format!("CREATE TABLE IF NOT EXISTS {}_items (\
-                                   collection VARCHAR(1024),
-                                   key VARCHAR(1024), \
-                                   item VARCHAR(1024), PRIMARY KEY(collection, key, item))",
+                                   collection VARCHAR(1024) NOT NULL,
+                                   key VARCHAR(1024) NOT NULL, \
+                                   item VARCHAR(1024) NOT NULL, \
+                                   metadata JSONB NOT NULL, \
+                                   PRIMARY KEY(collection, key, item))",
                                   &table_name),
                          &[])
                 .map_err(iron_str_error)?;
@@ -243,13 +250,22 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
             match change.op {
                 Operation::Add => {
                     let unwrap_op = op.unwrap();
-                    if !crdt.removes.contains_key(&unwrap_op.key) && !crdt.adds.contains_key(&unwrap_op.key) {
-                        trans.execute(&format!("INSERT INTO {}_items (collection, key, item) VALUES ($1, \
-                                               $2, $3)",
-                                              &change.table),
-                                     &[&change.key, &unwrap_op.key, &unwrap_op.item])
-                            .map_err(iron_str_error)?;
-                        crdt.adds.insert(unwrap_op.key, unwrap_op.item);
+                    if !crdt.removes.contains_key(&unwrap_op.key) {
+                        let metadata = serde_json::to_value(unwrap_op.metadata);
+                        if crdt.adds.contains_key(&unwrap_op.key) {
+                            trans.execute(&format!("UPDATE {}_items set metadata=$1 where collection=$2 \
+                                                   and key=$3",
+                                                  &change.table),
+                                         &[&metadata, &change.key, &unwrap_op.key])
+                                .map_err(iron_str_error)?;
+                        } else {
+                            trans.execute(&format!("INSERT INTO {}_items (collection, key, item, metadata) \
+                                                   VALUES ($1, $2, $3, $4)",
+                                                  &change.table),
+                                         &[&change.key, &unwrap_op.key, &unwrap_op.item, &metadata])
+                                .map_err(iron_str_error)?;
+                            crdt.adds.insert(unwrap_op.key, unwrap_op.item);
+                        }
                     }
                 }
                 Operation::Remove => {
