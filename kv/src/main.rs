@@ -7,6 +7,7 @@ extern crate router;
 extern crate persistent;
 extern crate r2d2;
 extern crate r2d2_postgres;
+extern crate postgres;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -322,9 +323,18 @@ fn list_tables(req: &mut Request) -> IronResult<Response> {
 
 fn list_keys(req: &mut Request) -> IronResult<Response> {
     let table = potboiler_common::get_req_key(req, "table").ok_or(raw_string_iron_error("No table key"))?;
-    let mut key_names = vec![];
     let conn = get_pg_connection!(&req);
-    let stmt = conn.prepare(&format!("select key from {}", table)).map_err(iron_str_error)?;
+    let stmt = match conn.prepare(&format!("select key from {}", table)) {
+        Ok(val) => val,
+        Err(postgres::error::Error::Db(err)) => {
+            if err.code == postgres::error::SqlState::UndefinedTable {
+                return Ok(Response::with((status::NotFound, format!("No table {}", table))));
+            }
+            return Err(iron_str_error(err));
+        }
+        Err(err) => return Err(iron_str_error(err)),
+    };
+    let mut key_names = vec![];
     for row in &stmt.query(&[]).map_err(iron_str_error)? {
         let key: String = row.get("key");
         key_names.push(key);
