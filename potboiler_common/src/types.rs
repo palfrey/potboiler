@@ -1,4 +1,3 @@
-
 use hybrid_clocks::{Timestamp, WallT};
 use serde_json;
 use uuid::Uuid;
