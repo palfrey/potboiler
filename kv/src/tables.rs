@@ -32,7 +32,7 @@ pub fn init_tables(conn: &PostgresConnection) -> HashMap<String, CRDT> {
         let key: String = row.get("key");
         let value: Value = row.get("value");
         tables.insert(key.to_string(),
-                      serde_json::from_value(value.find("crdt").unwrap().clone()).unwrap());
+                      serde_json::from_value(value.get("crdt").unwrap().clone()).unwrap());
     }
     tables
 }

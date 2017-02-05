@@ -43,16 +43,20 @@ fn main() {
     schema::up(&conn).unwrap();
     let (logger_before, logger_after) = Logger::new(None);
     let mut router = Router::new();
-    router.get("/log", logs::log_lasts);
-    router.post("/log", logs::new_log);
-    router.post("/log/other", logs::other_log);
-    router.get("/log/first", logs::log_firsts);
-    router.get("/log/:entry_id", logs::get_log);
-    router.post("/log/register", notifications::log_register);
-    router.post("/log/deregister", notifications::log_deregister);
-    router.get("/nodes", nodes::node_list);
-    router.post("/nodes", nodes::node_add);
-    router.delete("/nodes", nodes::node_remove);
+    router.get("/log", logs::log_lasts, "last logs");
+    router.post("/log", logs::new_log, "new log");
+    router.post("/log/other", logs::other_log, "add from other");
+    router.get("/log/first", logs::log_firsts, "get first logs");
+    router.get("/log/:entry_id", logs::get_log, "get specific log");
+    router.post("/log/register",
+                notifications::log_register,
+                "register log listener");
+    router.post("/log/deregister",
+                notifications::log_deregister,
+                "deregister log listener");
+    router.get("/nodes", nodes::node_list, "list other nodes");
+    router.post("/nodes", nodes::node_add, "add new node");
+    router.delete("/nodes", nodes::node_remove, "remove node");
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);

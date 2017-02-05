@@ -2,22 +2,19 @@
 name = "potboiler_common"
 version = "0.1.0"
 authors = ["Tom Parker <palfrey@tevp.net>"]
-build = "../build.rs"
-
-[build-dependencies]
-serde_codegen = ">=0.8"
 
 [dependencies]
 iron = "*"
 uuid = {version = "*", features=["use_std","v4","serde"]}
+postgres = {features=["with-uuid","with-serde_json"], version=">=0.13.5"}
 r2d2 = "*"
-r2d2_postgres = "0.10"
-postgres = "0.11.11"
-serde = ">=0.8"
-serde_json = "*"
+r2d2_postgres = "*"
+serde = "0.9"
+serde_derive = "0.9"
+serde_json = "0.9"
 log = "*"
-hybrid-clocks = {version=">=0.3.2", features = ["serde"]}
-router = "0.2.0"
+hybrid-clocks = { git = "https://github.com/palfrey/hybrid-clocks.git", branch = "serde-0.9", features = ["serde"] }
+router = "0.5"
 
 [lib]
 name = "potboiler_common"

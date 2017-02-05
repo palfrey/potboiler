@@ -19,6 +19,11 @@ extern crate hybrid_clocks;
 extern crate mime;
 mod tables;
 
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+mod serde_types;
+
 use iron::prelude::*;
 use iron::status;
 use logger::Logger;
@@ -29,6 +34,8 @@ use potboiler_common::string_error::StringError;
 use potboiler_common::types::{CRDT, Log};
 use r2d2_postgres::PostgresConnectionManager;
 use router::Router;
+use serde_types::*;
+use std::collections::HashMap;
 use std::env;
 use std::io::Read;
 use std::ops::Deref;
@@ -38,8 +45,6 @@ pub type PostgresConnection = r2d2::PooledConnection<PostgresConnectionManager>;
 lazy_static! {
     static ref SERVER_URL: String = env::var("SERVER_URL").expect("Needed SERVER_URL");
 }
-
-include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
 fn get_key(req: &mut Request) -> IronResult<Response> {
     let conn = get_pg_connection!(&req);
@@ -73,9 +78,11 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
     {
         let map = json.as_object_mut().unwrap();
         map.insert("table".to_string(),
-                   serde_json::to_value(&potboiler_common::get_req_key(req, "table").unwrap()));
+                   serde_json::to_value(
+                       &potboiler_common::get_req_key(req, "table").unwrap()).map_err(iron_str_error)?);
         map.insert("key".to_string(),
-                   serde_json::to_value(&potboiler_common::get_req_key(req, "key").unwrap()));
+                   serde_json::to_value(
+                       &potboiler_common::get_req_key(req, "key").unwrap()).map_err(iron_str_error)?);
     }
 
     let change: Change = serde_json::from_value(json).map_err(iron_str_error)?;
@@ -200,7 +207,9 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                             };
                             conn.execute(&format!("INSERT INTO {} (key, value, crdt) VALUES ($1, $2, $3)",
                                                   &change.table),
-                                         &[&change.key, &change.change, &serde_json::to_value(&lww)])
+                                         &[&change.key,
+                                           &change.change,
+                                           &serde_json::to_value(&lww).map_err(iron_str_error)?])
                                 .expect("insert worked");
                             if &change.table == tables::CONFIG_TABLE {
                                 let crdt = crdt_to_use.unwrap();
@@ -215,7 +224,9 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                                 lww.data = change.change.clone();
                                 conn.execute(&format!("UPDATE {} set value=$2, crdt=$3 where key=$1",
                                                       &change.table),
-                                             &[&change.key, &change.change, &serde_json::to_value(&lww)])
+                                             &[&change.key,
+                                               &change.change,
+                                               &serde_json::to_value(&lww).map_err(iron_str_error)?])
                                     .expect("update worked");
                             } else {
                                 info!("Earlier event, skipping");
@@ -288,11 +299,11 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
             debug!("OR-Set for {}: {:?}", &change.table, &crdt);
             if existing {
                 trans.execute(&format!("UPDATE {} set crdt=$2 where key=$1", &change.table),
-                             &[&change.key, &serde_json::to_value(&crdt)])
+                             &[&change.key, &serde_json::to_value(&crdt).map_err(iron_str_error)?])
                     .map_err(iron_str_error)?;
             } else {
                 trans.execute(&format!("INSERT INTO {} (key, crdt) VALUES ($1, $2)", &change.table),
-                             &[&change.key, &serde_json::to_value(&crdt)])
+                             &[&change.key, &serde_json::to_value(&crdt).map_err(iron_str_error)?])
                     .map_err(iron_str_error)?;
             }
             let mut items: Vec<&str> = Vec::new();
@@ -348,10 +359,10 @@ fn main() {
     log4rs::init_file("log.yaml", Default::default()).expect("log config ok");
     let client = hyper::client::Client::new();
 
-    let mut map: serde_json::Map<String, String> = serde_json::Map::new();
+    let mut map = serde_json::Map::new();
     let host: &str = &env::var("HOST").unwrap_or("localhost".to_string());
     map.insert("url".to_string(),
-               format!("http://{}:8001/kv/event", host).to_string());
+               serde_json::Value::String(format!("http://{}:8001/kv/event", host)));
     let res = client.post(&format!("{}/register", SERVER_URL.deref()))
         .body(&serde_json::ser::to_string(&map).unwrap())
         .send()
@@ -370,11 +381,11 @@ fn main() {
     }
     let (logger_before, logger_after) = Logger::new(None);
     let mut router = Router::new();
-    router.get("/kv", list_tables);
-    router.get("/kv/:table", list_keys);
-    router.get("/kv/:table/:key", get_key);
-    router.post("/kv/:table/:key", update_key);
-    router.post("/kv/event", new_event);
+    router.get("/kv", list_tables, "list tables");
+    router.get("/kv/:table", list_keys, "list keys for a table");
+    router.get("/kv/:table/:key", get_key, "get a key");
+    router.post("/kv/:table/:key", update_key, "update a key");
+    router.post("/kv/event", new_event, "process new event");
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);

@@ -18,6 +18,8 @@ extern crate router;
 extern crate uuid;
 extern crate hybrid_clocks;
 extern crate time;
+#[macro_use]
+extern crate serde_derive;
 
 use hybrid_clocks::{Timestamp, WallT};
 use iron::modifiers::Redirect;
@@ -145,7 +147,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
             info!("create: {:?}", create);
             let qc = types::QueueConfig { timeout_ms: create.timeout_ms };
             match conn.execute("INSERT INTO queues (key, config) VALUES($1, $2)",
-                               &[&create.name, &serde_json::to_value(&qc)]) {
+                               &[&create.name, &serde_json::to_value(&qc).map_err(iron_str_error)?]) {
                 Ok(_) => {
                     try!(conn.execute(
                         &format!("CREATE TABLE IF NOT EXISTS {} (id UUID PRIMARY KEY, task_name \
@@ -176,7 +178,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                          &[&log.id,
                            &add.task_name,
                            &String::from("pending"),
-                           &serde_json::to_value(&add.info),
+                           &serde_json::to_value(&add.info).map_err(iron_str_error)?,
                            &raw_timestamp])
                 .unwrap();
         }
@@ -258,7 +260,8 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
             task_name: row.get("task_name"),
             state: state,
         };
-        queue.insert(id.to_string(), serde_json::to_value(&item));
+        queue.insert(id.to_string(),
+                     serde_json::to_value(&item).map_err(iron_str_error)?);
     }
     let value = Value::Object(queue);
     Ok(Response::with((status::Ok, serde_json::ser::to_string(&value).unwrap())))
@@ -295,7 +298,8 @@ fn add_queue_item(req: &mut Request) -> IronResult<Response> {
     let queue_name = try!(get_queue_name(req));
     {
         let map = json.as_object_mut().unwrap();
-        map.insert("queue_name".to_string(), serde_json::to_value(&queue_name));
+        map.insert("queue_name".to_string(),
+                   serde_json::to_value(&queue_name).map_err(iron_str_error)?);
     }
     let op = try!(serde_json::from_value::<types::QueueAdd>(json).map_err(iron_str_error));
     match add_queue_operation(QueueOperation::Add(op)) {
@@ -317,8 +321,10 @@ fn build_queue_progress(req: &mut Request) -> IronResult<types::QueueProgress> {
         let queue_name = try!(get_queue_name(req));
         let id = try!(get_item_id(req));
         let map = json.as_object_mut().unwrap();
-        map.insert("queue_name".to_string(), serde_json::to_value(&queue_name));
-        map.insert("id".to_string(), serde_json::to_value(&id));
+        map.insert("queue_name".to_string(),
+                   serde_json::to_value(&queue_name).map_err(iron_str_error)?);
+        map.insert("id".to_string(),
+                   serde_json::to_value(&id).map_err(iron_str_error)?);
     }
     return Ok(try!(serde_json::from_value::<types::QueueProgress>(json).map_err(iron_str_error)));
 }
@@ -349,9 +355,9 @@ fn main() {
     log4rs::init_file("log.yaml", Default::default()).expect("log config ok");
     let client = hyper::client::Client::new();
 
-    let mut map: serde_json::Map<String, String> = serde_json::Map::new();
+    let mut map = serde_json::Map::new();
     map.insert("url".to_string(),
-               format!("http://{}:8000/event", HOST.deref()).to_string());
+               serde_json::Value::String(format!("http://{}:8000/event", HOST.deref()).to_string()));
     let res = client.post(&format!("{}/register", SERVER_URL.deref()))
         .body(&serde_json::ser::to_string(&map).unwrap())
         .send()
@@ -364,14 +370,20 @@ fn main() {
     make_queue_table(&conn);
     let (logger_before, logger_after) = Logger::new(None);
     let mut router = router::Router::new();
-    router.post("/create", create_queue);
-    router.post("/event", new_event);
-    router.get("/queue/:queue_name", get_queue_items);
-    router.post("/queue/:queue_name", add_queue_item);
-    router.delete("/queue/:queue_name", delete_queue);
-    router.get("/queue/:queue_name/:id", get_queue_item);
-    router.put("/queue/:queue_name/:id", progress_queue_item);
-    router.delete("/queue/:queue_name/:id", finish_queue_item);
+    router.post("/create", create_queue, "make a new queue");
+    router.post("/event", new_event, "process incoming event");
+    router.get("/queue/:queue_name", get_queue_items, "get items in queue");
+    router.post("/queue/:queue_name", add_queue_item, "add a queue item");
+    router.delete("/queue/:queue_name", delete_queue, "delete a queue");
+    router.get("/queue/:queue_name/:id",
+               get_queue_item,
+               "get item from queue");
+    router.put("/queue/:queue_name/:id",
+               progress_queue_item,
+               "mark progress on queue item");
+    router.delete("/queue/:queue_name/:id",
+                  finish_queue_item,
+                  "mark queue item as finished");
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);

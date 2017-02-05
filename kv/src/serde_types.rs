@@ -1,6 +1,8 @@
-extern crate serde;
-use std::collections::HashMap;
 use hybrid_clocks::{Timestamp, WallT};
+use potboiler_common::types::CRDT;
+use serde_json;
+use std::collections::HashMap;
+use std::fmt;
 
 enum_str!(Operation {
     Set("set"),
@@ -10,16 +12,16 @@ enum_str!(Operation {
 });
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct Change {
-    table: String,
-    key: String,
-    op: Operation,
-    change: serde_json::Value,
+pub struct Change {
+    pub table: String,
+    pub key: String,
+    pub op: Operation,
+    pub change: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct LWWConfigOp {
-    crdt: CRDT
+pub struct LWWConfigOp {
+    pub crdt: CRDT,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -29,18 +31,18 @@ pub struct LWW {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ORCreateOp {
+pub struct ORCreateOp {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ORSetOp {
-    item: String,
-    key: String,
-    metadata: serde_json::Value
+pub struct ORSetOp {
+    pub item: String,
+    pub key: String,
+    pub metadata: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct ORSet {
-    adds: HashMap<String, String>,
-    removes: HashMap<String, String>
+pub struct ORSet {
+    pub adds: HashMap<String, String>,
+    pub removes: HashMap<String, String>,
 }

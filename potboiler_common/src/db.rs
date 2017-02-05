@@ -1,6 +1,6 @@
 use iron::typemap::Key;
 use r2d2;
-use r2d2_postgres::{PostgresConnectionManager, SslMode};
+use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 
 pub type PostgresPool = r2d2::Pool<PostgresConnectionManager>;
 pub type PostgresConnection = r2d2::PooledConnection<PostgresConnectionManager>;
@@ -29,6 +29,6 @@ macro_rules! get_pg_connection {
 }
 
 pub fn get_pool(uri: &str) -> PostgresPool {
-    let manager = PostgresConnectionManager::new(uri, SslMode::None).expect("Needed a working DATABASE_URL");
+    let manager = PostgresConnectionManager::new(uri, TlsMode::None).expect("Needed a working DATABASE_URL");
     r2d2::Pool::new(r2d2::Config::default(), manager).unwrap()
 }

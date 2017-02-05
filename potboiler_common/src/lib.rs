@@ -8,6 +8,9 @@ extern crate postgres;
 extern crate serde_json;
 extern crate hybrid_clocks;
 extern crate router;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 
 pub mod db;
 pub mod server_id;
@@ -30,7 +33,7 @@ pub fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
         Ok(val) => val,
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
-    Ok(Some(String::from(json.find("url").unwrap().as_str().unwrap())))
+    Ok(Some(String::from(json.get("url").unwrap().as_str().unwrap())))
 }
 
 pub fn get_req_key<T: Into<String>>(req: &Request, key: T) -> Option<String> {

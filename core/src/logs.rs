@@ -15,6 +15,7 @@ use serde_json::{self, Map, Value};
 use std::io::{Cursor, Read};
 use std::ops::Deref;
 use std::sync::Arc;
+use url::Url;
 use uuid::Uuid;
 
 fn log_status<T: Into<String>>(req: &mut Request, stmt: T) -> IronResult<Response> {
@@ -24,7 +25,8 @@ fn log_status<T: Into<String>>(req: &mut Request, stmt: T) -> IronResult<Respons
     for row in &stmt.query(&[]).expect("last select works") {
         let id: Uuid = row.get("id");
         let owner: Uuid = row.get("owner");
-        logs.insert(owner.to_string(), serde_json::to_value(&id.to_string()));
+        logs.insert(owner.to_string(),
+                    serde_json::to_value(&id.to_string()).unwrap());
     }
     let value = Value::Object(logs);
     Ok(Response::with((status::Ok, serde_json::ser::to_string(&value).unwrap())))
@@ -84,7 +86,7 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
     nodes::notify_everyone(req, log_arc.clone());
     let new_url = {
         let req_url = req.url.clone();
-        let base_url = req_url.into_generic_url();
+        let base_url: Url = req_url.into();
         base_url.join(&format!("/log/{}", &hyphenated)).expect("join url works")
     };
     Ok(Response::with((status::Created,

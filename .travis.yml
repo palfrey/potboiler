@@ -3,6 +3,8 @@ services:
   - docker
 
 language: rust
+rust:
+  - 1.15.0
 cache: cargo
 env:
   - PROJECT=potboiler_common
