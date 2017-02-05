@@ -1,5 +1,6 @@
-use serde_json;
+
 use hybrid_clocks::{Timestamp, WallT};
+use serde_json;
 use uuid::Uuid;
 
 #[macro_export]
@@ -65,5 +66,5 @@ pub struct Log {
     pub prev: Option<Uuid>,
     pub next: Option<Uuid>,
     pub when: Timestamp<WallT>,
-    pub data: serde_json::Value
+    pub data: serde_json::Value,
 }

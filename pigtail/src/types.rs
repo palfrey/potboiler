@@ -1,4 +1,3 @@
-
 use serde_json;
 use std::fmt;
 use uuid::Uuid;
