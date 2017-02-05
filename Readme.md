@@ -58,7 +58,7 @@ Update operations:
   - "set": "[item]"
 - OR-Set:
   - "create": {} // makes an empty OR-Set if it doesn't exist
-  - "add": {"item":"[item]", "key":"[key]"}
+  - "add": {"item":"[item]", "key":"[key]", "metadata": "[metadata]"}
   - "remove": {"item":"[item]", "key":"[key]"}
 
 - Update key
