@@ -13,7 +13,7 @@ serde = "0.9"
 serde_derive = "0.9"
 serde_json = "0.9"
 log = "*"
-hybrid-clocks = { git = "https://github.com/palfrey/hybrid-clocks.git", branch = "serde-0.9", features = ["serde"] }
+hybrid-clocks = "0.3.3"
 router = "0.5"
 
 [lib]
