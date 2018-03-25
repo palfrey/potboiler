@@ -40,7 +40,7 @@ pub fn log_firsts(req: &mut Request) -> IronResult<Response> {
     log_status(req, "SELECT id, owner from log WHERE prev is null")
 }
 
-fn json_from_body(mut req: &mut Request) -> Result<serde_json::Value, serde_json::Error> {
+fn json_from_body(req: &mut Request) -> Result<serde_json::Value, serde_json::Error> {
     let body_string = {
         let mut body = String::new();
         req.body.read_to_string(&mut body).expect("could read from body");
@@ -94,7 +94,7 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
                        Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")))))
 }
 
-pub fn other_log(mut req: &mut Request) -> IronResult<Response> {
+pub fn other_log(req: &mut Request) -> IronResult<Response> {
     let json = json_from_body(req).unwrap();
     let log: Log = serde_json::from_value(json).unwrap();
     let conn = get_pg_connection!(&req);

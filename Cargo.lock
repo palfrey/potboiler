@@ -1,20 +1,3 @@
-[root]
-name = "potboiler_common"
-version = "0.1.0"
-dependencies = [
- "hybrid-clocks 0.3.2 (git+https://github.com/palfrey/hybrid-clocks.git?branch=serde-0.9)",
- "iron 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "postgres 0.13.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "r2d2 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "r2d2_postgres 0.11.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "router 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde 0.9.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_derive 0.9.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_json 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "uuid 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
 [[package]]
 name = "aho-corasick"
 version = "0.5.3"
@@ -505,6 +488,23 @@ dependencies = [
  "serde_json 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "urlencoded 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "uuid 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "potboiler_common"
+version = "0.1.0"
+dependencies = [
+ "hybrid-clocks 0.3.2 (git+https://github.com/palfrey/hybrid-clocks.git?branch=serde-0.9)",
+ "iron 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "postgres 0.13.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "r2d2 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "r2d2_postgres 0.11.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "router 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 0.9.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 0.9.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 0.9.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

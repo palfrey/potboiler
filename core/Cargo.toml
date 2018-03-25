@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Tom Parker <palfrey@tevp.net>"]
 
 [[bin]]
-name = "core"
+name = "potboiler"
 
 [dependencies]
 hybrid-clocks = { git = "https://github.com/palfrey/hybrid-clocks.git", branch = "serde-0.9", features = ["serde"] }
