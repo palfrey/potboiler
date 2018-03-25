@@ -7,29 +7,29 @@ authors = ["Tom Parker <palfrey@tevp.net>"]
 name = "potboiler"
 
 [dependencies]
-hybrid-clocks = { git = "https://github.com/palfrey/hybrid-clocks.git", branch = "serde-0.9", features = ["serde"] }
-uuid = {version = "*", features=["v4","serde"]}
+hybrid-clocks = { version = "0.3", features = ["serde"] }
+uuid = {version = "^0.4", features=["v4","serde"]}
 log = "*"
-log4rs = {version = ">= 0.4", features=["yaml_format"]}
+log4rs = {version = ">= 0.4, <0.7", features=["yaml_format"]}
 
-iron = "*"
-plugin = "*"
+iron = "0.5"
+plugin = "0.2"
 router = "0.5"
-logger = "*"
-serde = "*"
-serde_json = "*"
-urlencoded = "*"
+logger = "0.3"
+serde = "0.9"
+serde_json = "0.9"
+urlencoded = "0.5"
 
 potboiler_common = { path = "../potboiler_common" }
 
 url = "*"
-postgres = {features=["with-uuid","with-serde_json"], version=">=0.13.5"}
+postgres = {features=["with-uuid","with-serde_json"], version="0.13"}
 schemamama = "0.2"
-schemamama_postgres = "*"
+schemamama_postgres = "=0.2.0"
 
-r2d2 = "*"
-r2d2_postgres = "*"
+r2d2 = "0.7"
+r2d2_postgres = "0.11"
 persistent = "0.3"
 
-hyper = "*"
+hyper = "0.10"
 resolve = "0.1.2"

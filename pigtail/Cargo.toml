@@ -7,28 +7,28 @@ authors = ["Tom Parker <palfrey@tevp.net>"]
 name = "pigtail"
 
 [dependencies]
-iron = "*"
-router = "*"
-logger = "*"
-serde = ">=0.8"
-serde_json = ">=0.8"
-serde_derive = "*"
-hybrid-clocks = { git = "https://github.com/palfrey/hybrid-clocks.git", branch = "serde-0.9", features = ["serde"] }
-uuid = {version = "*", features=["use_std","v4","serde"]}
+iron = "0.5"
+router = "0.5"
+logger = "0.3"
+serde = "0.9"
+serde_json = "0.9"
+serde_derive = "0.9"
+hybrid-clocks = { version = "^0.3.3", features = ["serde"] }
+uuid = {version = "0.4", features=["use_std","v4","serde"]}
 
 url = "*"
-postgres = {features=["with-uuid","with-serde_json"], version=">=0.13.5"}
+postgres = {features=["with-uuid","with-serde_json"], version="0.13"}
 
 potboiler_common = { path = "../potboiler_common" }
 
-r2d2 = "*"
-r2d2_postgres = "*"
-persistent = "*"
+r2d2 = "0.7"
+r2d2_postgres = "0.11"
+persistent = "0.3"
 
 log = "*"
-log4rs = {version = ">= 0.4", features=["yaml_format"]}
+log4rs = {version = ">= 0.4, <0.7", features=["yaml_format"]}
 
-hyper = "*"
+hyper = "0.10"
 
-lazy_static = "0.1.*"
+lazy_static = "0.2"
 time = "0.1"
