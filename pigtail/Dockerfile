@@ -1,4 +1,4 @@
-FROM palfrey/rustup-watchexec:1.15
+FROM palfrey/rustup-watchexec:1.24
 WORKDIR /code/pigtail
 ADD pigtail/Cargo.* /code/pigtail/
 ADD potboiler_common/Cargo.* /code/potboiler_common/
