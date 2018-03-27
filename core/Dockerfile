@@ -1,7 +1,7 @@
 FROM palfrey/rustup-watchexec:1.24
 WORKDIR /code/core
-ADD core/Cargo.* /code/core/
 ADD potboiler_common/Cargo.* /code/potboiler_common/
+ADD core/Cargo.* /code/core/
 RUN cargo fetch
 ADD . /code
 RUN cargo build

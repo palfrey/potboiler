@@ -5,6 +5,7 @@ authors = ["Tom Parker <palfrey@tevp.net>"]
 
 [[bin]]
 name = "kv"
+path = "src/main.rs"
 
 [dependencies]
 iron = "0.5"

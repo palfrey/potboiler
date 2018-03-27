@@ -5,6 +5,7 @@ authors = ["Tom Parker <palfrey@tevp.net>"]
 
 [[bin]]
 name = "potboiler"
+path = "src/main.rs"
 
 [dependencies]
 hybrid-clocks = { version = "0.3", features = ["serde"] }

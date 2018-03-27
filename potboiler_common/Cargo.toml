@@ -18,3 +18,4 @@ router = "0.5"
 
 [lib]
 name = "potboiler_common"
+path = "src/lib.rs"
