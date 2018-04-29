@@ -5,18 +5,14 @@ use iron::status;
 use iron::typemap::Key;
 use persistent;
 use persistent::State;
-use postgres;
-use postgres::error::SqlState;
 use potboiler_common::{db, url_from_body};
 use potboiler_common::types::Log;
-use r2d2;
-use r2d2_postgres;
 use serde_json;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::thread;
 use url::Url;
-pub type PostgresConnection = r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>;
+use deuterium::{Deletable, Insertable, Queryable, NamedField, ToIsPredicate, TableDef, ToExpression};
 
 #[derive(Copy, Clone)]
 pub struct Notifications;
@@ -25,10 +21,21 @@ impl Key for Notifications {
     type Value = Vec<String>;
 }
 
-pub fn init_notifiers(conn: &PostgresConnection) -> Vec<String> {
+struct NotificationsTable;
+
+impl NotificationsTable {
+    fn table() -> TableDef {
+        TableDef::new("notifications")
+    }
+
+    fn url() -> NamedField<String> {
+        return NamedField::<String>::field_of("url", &NotificationsTable::table());
+    }
+}
+
+pub fn init_notifiers(conn: &db::Connection) -> Vec<String> {
     let mut notifiers = Vec::new();
-    let stmt = conn.prepare("select url from notifications").expect("prepare failure");
-    for row in &stmt.query(&[]).expect("notifications select works") {
+    for row in &conn.query("select url from notifications").expect("notifications select works") {
         let url: String = row.get("url");
         notifiers.push(url);
     }
@@ -52,7 +59,7 @@ fn insert_notifier(req: &mut Request, to_notify: &String) {
 pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
     let notifications = get_notifications_list(req);
     for notifier in notifications {
-        let local_log = log_arc.clone();
+        let local_log = log_arc.clone().deref();
         thread::spawn(move || {
             let client = hyper::client::Client::new();
             debug!("Notifying {:?}", notifier);
@@ -74,26 +81,24 @@ pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
 }
 
 pub fn log_register(req: &mut Request) -> IronResult<Response> {
-    let conn = get_pg_connection!(&req);
+    let conn = get_db_connection!(&req);
     let url = url_from_body(req).unwrap().unwrap();
     debug!("Registering {:?}", url);
     match Url::parse(&url) {
         Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
         Ok(_) => {
-            match conn.execute("INSERT INTO notifications (url) VALUES ($1)", &[&url]) {
+            let insert = NotificationsTable::table().insert_fields(&[&NotificationsTable::url()]);
+            insert.push_untyped(&[url.as_expr()]);
+            match conn.dexecute(&insert) {
                 Ok(_) => {
                     insert_notifier(req, &url);
                     Ok(Response::with((status::NoContent)))
                 }
+                Err(db::Error(db::ErrorKind::UniqueViolation, _)) => {
+                    Ok(Response::with((status::NoContent)))
+                }
                 Err(err) => {
-                    if let postgres::error::Error::Db(dberr) = err {
-                        match dberr.code {
-                            SqlState::UniqueViolation => Ok(Response::with((status::NoContent))),
-                            _ => Err(IronError::new(dberr, (status::BadRequest, "Some other error"))),
-                        }
-                    } else {
-                        Err(IronError::new(err, (status::BadRequest, "Some other error")))
-                    }
+                    Err(IronError::new(err, (status::BadRequest, "Some other error")))
                 }
             }
         }
@@ -101,9 +106,8 @@ pub fn log_register(req: &mut Request) -> IronResult<Response> {
 }
 
 pub fn log_deregister(req: &mut Request) -> IronResult<Response> {
-    let conn = get_pg_connection!(&req);
-    conn.execute("DELETE from notifications where url = $1",
-                 &[&url_from_body(req).unwrap().unwrap()])
+    let conn = get_db_connection!(&req);
+    conn.dexecute(&NotificationsTable::table().delete().where_(NotificationsTable::url().is(url_from_body(req)?.unwrap())))
         .expect("delete worked");
     Ok(Response::with((status::NoContent)))
 }

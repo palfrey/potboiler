@@ -6,8 +6,6 @@ use iron::status;
 use nodes;
 use notifications;
 use persistent;
-use postgres::rows::{Row, RowIndex};
-use postgres::types::FromSql;
 use potboiler_common::{clock, db, server_id};
 use potboiler_common::types::Log;
 use router::Router;
@@ -17,12 +15,44 @@ use std::ops::Deref;
 use std::sync::Arc;
 use url::Url;
 use uuid::Uuid;
+use deuterium::*;
+
+pub struct LogTable;
+
+impl LogTable {
+    pub fn table() -> TableDef {
+        TableDef::new("log")
+    }
+
+    pub fn id() -> NamedField<Uuid> {
+        return NamedField::<Uuid>::field_of("id", &LogTable::table());
+    }
+
+    pub fn owner() -> NamedField<Uuid> {
+        return NamedField::<Uuid>::field_of("owner", &LogTable::table());
+    }
+
+    pub fn next() -> NamedField<Option<Uuid>> {
+        return NamedField::<Option<Uuid>>::field_of("next", &LogTable::table());
+    }
+
+    pub fn prev() -> NamedField<Option<Uuid>> {
+        return NamedField::<Option<Uuid>>::field_of("prev", &LogTable::table());
+    }
+
+    pub fn data() -> NamedField<Uuid> {
+        return NamedField::<Uuid>::field_of("data", &LogTable::table());
+    }
+
+    pub fn hlc_tstamp() -> NamedField<Uuid> {
+        return NamedField::<Uuid>::field_of("hlc_tstamp", &LogTable::table());
+    }
+}
 
 fn log_status<T: Into<String>>(req: &mut Request, stmt: T) -> IronResult<Response> {
-    let conn = get_pg_connection!(&req);
-    let stmt = conn.prepare(&stmt.into()).expect("prepare failure");
+    let conn = get_db_connection!(&req);
     let mut logs = Map::new();
-    for row in &stmt.query(&[]).expect("last select works") {
+    for row in conn.query(&stmt.into()).expect("last select works").iter() {
         let id: Uuid = row.get("id");
         let owner: Uuid = row.get("owner");
         logs.insert(owner.to_string(),
@@ -53,7 +83,7 @@ fn json_from_body(req: &mut Request) -> Result<serde_json::Value, serde_json::Er
 }
 
 pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
-    let conn = get_pg_connection!(&req);
+    let conn = get_db_connection!(&req);
     let json: Value = match json_from_body(req) {
         Ok(val) => val,
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
@@ -61,9 +91,11 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
     let id = Uuid::new_v4();
     let hyphenated = id.hyphenated().to_string();
     let server_id = get_server_id!(&req).deref().clone();
-    let stmt = conn.prepare("SELECT id from log WHERE next is null and owner = $1 LIMIT 1")
-        .expect("prepare failure");
-    let results = stmt.query(&[&server_id]).expect("last select works");
+    let results = conn.dquery(&LogTable::table()
+        .select(&[&LogTable::id()])
+        .where_(LogTable::next().is_null()).and(LogTable::owner().is(server_id))
+        .limit(1))
+        .expect("last select works");
     let previous = if results.is_empty() {
         None
     } else {
@@ -97,8 +129,11 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
 pub fn other_log(req: &mut Request) -> IronResult<Response> {
     let json = json_from_body(req).unwrap();
     let log: Log = serde_json::from_value(json).unwrap();
-    let conn = get_pg_connection!(&req);
-    let existing = conn.query("SELECT id from log WHERE id=$1 limit 1", &[&log.id])
+    let conn = get_db_connection!(&req);
+    let existing = conn.dquery(&LogTable::table()
+        .select(&[&LogTable::id()])
+        .where_(LogTable::id().is(log.id))
+        .limit(1))
         .expect("bad existing query");
     if existing.is_empty() {
         nodes::insert_log(&conn, &log);
@@ -111,9 +146,8 @@ pub fn other_log(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "Added")))
 }
 
-fn get_with_null<I, T>(row: &Row, index: I) -> Option<T>
-    where I: RowIndex,
-          T: FromSql
+fn get_with_null<T>(row: &db::Row, index: &str) -> Option<T>
+    where T: db::FromSql
 {
     match row.get_opt(index) {
         Some(val) => {
@@ -139,10 +173,12 @@ pub fn get_log(req: &mut Request) -> IronResult<Response> {
             return Ok(Response::with((status::NotFound, format!("No log {}", query))));
         }
     };
-    let conn = get_pg_connection!(&req);
-    let stmt = conn.prepare("SELECT owner, next, prev, data, hlc_tstamp from log where id=$1")
-        .expect("prepare failure");
-    let results = stmt.query(&[&query_id]).expect("bad query");
+    let conn = get_db_connection!(&req);
+
+    let results = conn.dquery(&LogTable::table()
+        .select(&[&LogTable::owner(), &LogTable::next(), &LogTable::prev(), &LogTable::data(), &LogTable::hlc_tstamp()])
+        .where_(LogTable::id().is(query_id))).expect("log query issue");
+
     if results.is_empty() {
         Ok(Response::with((status::NotFound, format!("No log {}", query))))
     } else {

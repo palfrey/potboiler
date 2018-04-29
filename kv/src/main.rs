@@ -32,7 +32,6 @@ use persistent::State;
 use potboiler_common::{db, iron_str_error, server_id};
 use potboiler_common::string_error::StringError;
 use potboiler_common::types::{CRDT, Log};
-use r2d2_postgres::PostgresConnectionManager;
 use router::Router;
 use serde_types::*;
 use std::collections::HashMap;
@@ -40,14 +39,12 @@ use std::env;
 use std::io::Read;
 use std::ops::Deref;
 
-pub type PostgresConnection = r2d2::PooledConnection<PostgresConnectionManager>;
-
 lazy_static! {
     static ref SERVER_URL: String = env::var("SERVER_URL").expect("Needed SERVER_URL");
 }
 
 fn get_key(req: &mut Request) -> IronResult<Response> {
-    let conn = get_pg_connection!(&req);
+    let conn = get_db_connection!(&req);
     let stmt = conn.prepare(&format!("SELECT key, item, metadata FROM {}_items where collection=$1",
             &potboiler_common::get_req_key(req, "table").ok_or(raw_string_iron_error("No table key"))?))
         .map_err(iron_str_error)?;
@@ -109,7 +106,7 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "update_key")))
 }
 
-fn make_table(conn: &PostgresConnection, table_name: &str, kind: &CRDT) -> IronResult<()> {
+fn make_table(conn: &db::PostgresConnection, table_name: &str, kind: &CRDT) -> IronResult<()> {
     match kind {
         &CRDT::LWW => {
             conn.execute(&format!("CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, value \
@@ -149,7 +146,7 @@ fn string_iron_error(error: &str) -> IronResult<Response> {
     Err(raw_string_iron_error(error))
 }
 
-fn get_crdt(conn: &PostgresConnection,
+fn get_crdt(conn: &db::PostgresConnection,
             table: &String,
             key: &String)
             -> IronResult<Option<serde_json::Value>> {
@@ -197,7 +194,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                     } else {
                         None
                     };
-                    let conn = get_pg_connection!(&req);
+                    let conn = get_db_connection!(&req);
                     let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
                     match raw_crdt {
                         None => {
@@ -246,7 +243,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                 }
                 Operation::Create | Operation::Set => None,
             };
-            let conn = get_pg_connection!(&req);
+            let conn = get_db_connection!(&req);
             let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
             let (mut crdt, existing) = match raw_crdt {
                 Some(val) => (serde_json::from_value(val).map_err(iron_str_error)?, true),
@@ -334,7 +331,7 @@ fn list_tables(req: &mut Request) -> IronResult<Response> {
 
 fn list_keys(req: &mut Request) -> IronResult<Response> {
     let table = potboiler_common::get_req_key(req, "table").ok_or(raw_string_iron_error("No table key"))?;
-    let conn = get_pg_connection!(&req);
+    let conn = get_db_connection!(&req);
     let stmt = match conn.prepare(&format!("select key from {}", table)) {
         Ok(val) => val,
         Err(postgres::error::Error::Db(err)) => {

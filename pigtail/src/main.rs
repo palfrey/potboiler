@@ -106,7 +106,7 @@ fn parse_progress<F>(req: &mut Request,
                      -> IronResult<Response>
     where F: Fn(&types::QueueState, &Timestamp<WallT>) -> Option<(Timestamp<WallT>, String)>
 {
-    let conn = get_pg_connection!(&req);
+    let conn = get_db_connection!(&req);
     let results = try!(conn.query(&format!("SELECT task_name, state, hlc_tstamp from {} where id=$1",
                         &progress.queue_name),
                &[&progress.id])
@@ -141,7 +141,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
     clock::observe_timestamp(&clock::get_clock(req), log_when);
     let op = try!(serde_json::from_value::<QueueOperation>(log.data).map_err(iron_str_error));
     info!("op: {:?}", op);
-    let conn = get_pg_connection!(&req);
+    let conn = get_db_connection!(&req);
     match op {
         QueueOperation::Create(create) => {
             info!("create: {:?}", create);
@@ -224,7 +224,7 @@ fn get_queue_name(req: &mut Request) -> IronResult<String> {
 }
 
 fn get_queue_items(req: &mut Request) -> IronResult<Response> {
-    let conn = get_pg_connection!(&req);
+    let conn = get_db_connection!(&req);
     let queue_name = try!(get_queue_name(req));
     let config_row = try!(conn.query("select config from queues where key=$1", &[&queue_name])
         .map_err(iron_str_error));
@@ -272,7 +272,7 @@ fn get_item_id(req: &mut Request) -> IronResult<Uuid> {
 }
 
 fn get_queue_item(req: &mut Request) -> IronResult<Response> {
-    let conn = get_pg_connection!(&req);
+    let conn = get_db_connection!(&req);
     let queue_name = try!(get_queue_name(req));
     let id = try!(get_item_id(req));
     let results = try!(conn.query(&format!("select task_name, state, info, worker from {} where id=$1",
