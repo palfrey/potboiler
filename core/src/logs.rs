@@ -15,37 +15,16 @@ use std::ops::Deref;
 use std::sync::Arc;
 use url::Url;
 use uuid::Uuid;
-use deuterium::*;
+use schema::logs;
+use diesel::prelude::*;
+use models;
+use diesel;
+use diesel::dsl::exists;
+use diesel::select;
 
-pub struct LogTable;
-
-impl LogTable {
-    pub fn table() -> TableDef {
-        TableDef::new("log")
-    }
-
-    pub fn id() -> NamedField<Uuid> {
-        return NamedField::<Uuid>::field_of("id", &LogTable::table());
-    }
-
-    pub fn owner() -> NamedField<Uuid> {
-        return NamedField::<Uuid>::field_of("owner", &LogTable::table());
-    }
-
-    pub fn next() -> NamedField<Option<Uuid>> {
-        return NamedField::<Option<Uuid>>::field_of("next", &LogTable::table());
-    }
-
-    pub fn prev() -> NamedField<Option<Uuid>> {
-        return NamedField::<Option<Uuid>>::field_of("prev", &LogTable::table());
-    }
-
-    pub fn data() -> NamedField<Uuid> {
-        return NamedField::<Uuid>::field_of("data", &LogTable::table());
-    }
-
-    pub fn hlc_tstamp() -> NamedField<Uuid> {
-        return NamedField::<Uuid>::field_of("hlc_tstamp", &LogTable::table());
+error_chain! {
+    foreign_links {
+        DieselError(diesel::result::Error);
     }
 }
 
@@ -70,7 +49,7 @@ pub fn log_firsts(req: &mut Request) -> IronResult<Response> {
     log_status(req, "SELECT id, owner from log WHERE prev is null")
 }
 
-fn json_from_body(req: &mut Request) -> Result<serde_json::Value, serde_json::Error> {
+fn json_from_body(req: &mut Request) -> Result<serde_json::Value> {
     let body_string = {
         let mut body = String::new();
         req.body.read_to_string(&mut body).expect("could read from body");
@@ -91,19 +70,19 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
     let id = Uuid::new_v4();
     let hyphenated = id.hyphenated().to_string();
     let server_id = get_server_id!(&req).deref().clone();
-    let results = conn.dquery(&LogTable::table()
-        .select(&[&LogTable::id()])
-        .where_(LogTable::next().is_null()).and(LogTable::owner().is(server_id))
-        .limit(1))
+    let results = logs::table
+        .filter(logs::next.is_null())
+        .filter(logs::owner.eq(&server_id))
+        .load::<Log>(conn)
         .expect("last select works");
     let previous = if results.is_empty() {
         None
     } else {
-        let row = results.get(0);
-        let id: Uuid = row.get("id");
+        let row = results.get(0).unwrap();
+        let id: Uuid = row.id;
         Some(id)
     };
-    let when = clock::get_timestamp(&mut req);
+    let when = clock::get_timestamp(req);
     let log = Log {
         id: id,
         owner: server_id.clone(),
@@ -112,7 +91,7 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
         when: when,
         data: json.clone(),
     };
-    nodes::insert_log(&conn, &log);
+    nodes::insert_log(conn, &log);
     let log_arc = Arc::new(log);
     notifications::notify_everyone(req, log_arc.clone());
     nodes::notify_everyone(req, log_arc.clone());
@@ -126,17 +105,16 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
                        Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")))))
 }
 
-pub fn other_log(req: &mut Request) -> IronResult<Response> {
+pub fn other_log(req: &mut Request) -> IronResult<Response>{
     let json = json_from_body(req).unwrap();
     let log: Log = serde_json::from_value(json).unwrap();
     let conn = get_db_connection!(&req);
-    let existing = conn.dquery(&LogTable::table()
-        .select(&[&LogTable::id()])
-        .where_(LogTable::id().is(log.id))
-        .limit(1))
-        .expect("bad existing query");
-    if existing.is_empty() {
-        nodes::insert_log(&conn, &log);
+    let existing = select(exists(logs::table
+        .filter(logs::id.eq(&log.id))))
+        .get_result(conn)
+        .map_err(|e| IronError::new(e, status::BadRequest))?;
+    if ! existing {
+        nodes::insert_log(conn, &log);
         let log_arc = Arc::new(log);
         notifications::notify_everyone(req, log_arc.clone());
         nodes::notify_everyone(req, log_arc.clone());
@@ -146,19 +124,19 @@ pub fn other_log(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "Added")))
 }
 
-fn get_with_null<T>(row: &db::Row, index: &str) -> Option<T>
-    where T: db::FromSql
-{
-    match row.get_opt(index) {
-        Some(val) => {
-            match val {
-                Ok(val) => Some(val),
-                Err(_) => None,
-            }
-        }
-        None => None,
-    }
-}
+// fn get_with_null<T>(row: &db::Row, index: &str) -> Option<T>
+//     where T: db::FromSql
+// {
+//     match row.get_opt(index) {
+//         Some(val) => {
+//             match val {
+//                 Ok(val) => Some(val),
+//                 Err(_) => None,
+//             }
+//         }
+//         None => None,
+//     }
+// }
 
 pub fn get_log(req: &mut Request) -> IronResult<Response> {
     let query = req.extensions
@@ -174,25 +152,23 @@ pub fn get_log(req: &mut Request) -> IronResult<Response> {
         }
     };
     let conn = get_db_connection!(&req);
-
-    let results = conn.dquery(&LogTable::table()
-        .select(&[&LogTable::owner(), &LogTable::next(), &LogTable::prev(), &LogTable::data(), &LogTable::hlc_tstamp()])
-        .where_(LogTable::id().is(query_id))).expect("log query issue");
+    let results = logs::table.filter(logs::id.eq(query_id)).load::<models::Log>(conn).expect("log query issue");
 
     if results.is_empty() {
-        Ok(Response::with((status::NotFound, format!("No log {}", query))))
-    } else {
-        let row = results.get(0);
-        let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
+        return Ok(Response::with((status::NotFound, format!("No log {}", query))));
+    }
+    for row in results {
+        let hlc_tstamp: Vec<u8> = row.hlc_tstamp;
         let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).unwrap();
         let log = Log {
             id: query_id,
-            owner: row.get("owner"),
-            prev: get_with_null(&row, "prev"),
-            next: get_with_null(&row, "next"),
-            data: row.get("data"),
+            owner: row.owner,
+            prev: row.prev,
+            next: row.next,
+            data: row.data,
             when: when,
         };
-        Ok(Response::with((status::Ok, serde_json::to_string(&log).unwrap())))
+        return Ok(Response::with((status::Ok, serde_json::to_string(&log).unwrap())));
     }
+    unimplemented!();
 }

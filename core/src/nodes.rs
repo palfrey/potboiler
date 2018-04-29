@@ -24,9 +24,10 @@ use std::time::Duration;
 use url::Url;
 use urlencoded::{UrlDecodingError, UrlEncodedQuery};
 use uuid::Uuid;
-use deuterium::{Selectable, Updatable, Deletable, Insertable, NamedField, Queryable, TableDef, ToIsPredicate, ToIsNullPredicate, ToExpression, ToFieldUpdate};
-//use deuterium::*;
-use logs::LogTable;
+use schema::logs as log_table;
+use diesel;
+use std::marker;
+use diesel::QueryDsl;
 
 pub type LockedNode = Arc<RwLock<HashMap<String, NodeInfo>>>;
 pub type SyncClock = Arc<RwLock<Clock<Wall>>>;
@@ -49,16 +50,9 @@ impl Key for Nodes {
     type Value = NodeList;
 }
 
-struct NodeTable;
-
-impl NodeTable {
-    fn table() -> TableDef {
-        TableDef::new("nodes")
-    }
-
-    fn url() -> NamedField<String> {
-        return NamedField::<String>::field_of("url", &NodeTable::table());
-    }
+#[derive(Debug, Queryable)]
+pub struct NodeTable {
+    pub url: String
 }
 
 error_chain! {
@@ -126,7 +120,7 @@ fn parse_object_from_request(raw_result: StdResult<hyper::client::Response, hype
 }
 
 fn check_host_once(host_url: &String,
-                   conn: &db::Connection,
+                   conn: &C,
                    clock_state: SyncClock)
                    -> Result<()> {
     let mut client = hyper::client::Client::new();
@@ -157,19 +151,17 @@ fn check_host_once(host_url: &String,
                 continue;
             }
         };
-        let single_item = conn.dquery(&LogTable::table()
-            .select(&[])
-            .where_(LogTable::id().is(value_uuid)))?;
+        let single_item = log_table::table.filter(log_table::id.eq(value_uuid));
         if !single_item.is_empty() {
             debug!("Already have {} locally", value_uuid);
             continue;
         }
 
-        let first_item = conn.dquery(&LogTable::table()
-            .select(&[&LogTable::id()])
-            .where_(LogTable::prev().is_null())
-            .and(LogTable::owner().is(key_uuid))
-            .limit(1))?;
+        let first_item = log_table::table()
+            .filter(log_table::prev().is_null())
+            .filter(log_table::owner().eq(key_uuid))
+            .limit(1)
+            .get_result::<Log>(&conn)?;
         let start_uuid = if first_item.is_empty() {
             let first_url = format!("{}/log/first", &host_url);
             debug!("Get first from {:?}", host_url);
@@ -185,11 +177,11 @@ fn check_host_once(host_url: &String,
         } else {
             info!("Already have an entry from the list with server id {:?}",
                   key);
-            let last_items = conn.dquery(&LogTable::table()
-                .select(&[&LogTable::id()])
-                .where_(LogTable::next().is_null())
-                .and(LogTable::owner().is(key_uuid))
-                .limit(1))?;
+            let last_items = log_table::table
+                .filter(log_table::next.is_null())
+                .filter(log_table::owner.eq(key_uuid))
+                .limit(1)
+                .get_result::<Log>(&conn)?;
             if last_items.is_empty() {
                 bail!(ErrorKind::NoLastEntry(key.clone()));
             }
@@ -264,27 +256,39 @@ fn get_uuid_from_map(map: &serde_json::value::Map<String, serde_json::Value>, ke
     };
 }
 
-pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
+#[derive(Debug, Insertable)]
+#[table_name="log_table"]
+pub struct NewLog {
+    pub id: Uuid,
+    pub owner: Uuid,
+    pub prev: Option<Uuid>,
+    pub next: Option<Uuid>,
+    pub hlc_tstamp: Vec<u8>,
+    pub data: serde_json::Value,
+}
+
+pub fn insert_log(conn: &C, log: &Log) -> Result<()> {
     debug!("Inserting {:?}", log);
     if let Some(prev) = log.prev {
-        conn.dexecute(&LogTable::table()
-            .update()
-            .field(LogTable::next().set(&log.id))
-            .where_(LogTable::owner().is(log.owner))
-            .and(LogTable::id().is(prev)))
+        diesel::update(log_table::table.filter(log_table::owner.eq(log.owner)).filter(log_table::id.eq(prev)))
+            .set(log_table::next.eq(log.id))
+            .get_result::<Log>(conn)
             .expect("update worked");
     }
     let raw_timestamp = get_raw_timestamp(&log.when);
-    let command = LogTable::table().insert_fields(&[&LogTable::id()]);
-    command.push_untyped(&[log.id.as_expr(), log.owner.as_expr(), log.data.as_expr()]);
-    if let Some(prev) = log.prev {
-        command.push_untyped(&[prev.as_expr()]);
-    }
-    command.push_untyped(&[raw_timestamp.as_expr()]);
-    conn.dexecute(&command)?;
-    // conn.execute( "INSERT INTO log (id, owner, data, prev, hlc_tstamp) VALUES ($1, $2, $3, $4, $5)",
-    //              )
-    //     .expect("insert worked");
+
+    let new_log = NewLog {
+        id: log.id,
+        owner: log.owner,
+        prev: log.prev,
+        next: None,
+        when: raw_timestamp,
+        data: log.data
+    };
+    
+    diesel::insert_into(log_table::table)
+        .values(new_log)
+        .get_result(conn)?;
     Ok(())
 }
 
@@ -304,7 +308,7 @@ fn hashset_from_json_array(nodes: &Vec<serde_json::Value>) -> Result<HashSet<Str
 }
 
 fn check_new_nodes(host_url: &String,
-                   conn: &db::Connection,
+                   conn: &C,
                    nodelist: NodeList)
                    -> Result<()> {
     let client = hyper::client::Client::new();
@@ -387,7 +391,8 @@ fn check_host(host_url: String, nodelist: NodeList, recv: Receiver<()>) {
     }
 }
 
-pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList> {
+pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList>
+    {
     let conn = pool.get()?.connect()?;
     let locked_nodes = Arc::new(RwLock::new(HashMap::new()));
     let mut nodes = locked_nodes.write().unwrap();
@@ -471,7 +476,8 @@ enum InsertResult {
     Error(Error),
 }
 
-fn node_insert(conn: &db::Connection, url: &String) -> InsertResult {
+fn node_insert(conn: &C, url: &String) -> InsertResult 
+    {
     let query = &NodeTable::table().insert_fields(&[&NodeTable::url()]);
     query.push_untyped(&[url.as_expr()]);
     return match conn.dexecute(query) {
@@ -485,10 +491,11 @@ fn node_insert(conn: &db::Connection, url: &String) -> InsertResult {
     };
 }
 
-fn node_add_core(conn: &db::Connection,
+fn node_add_core(conn: &C,
                  url: &String,
                  req: &mut Request)
-                 -> Result<()> {
+                 -> Result<()>
+                 {
     match node_insert(&conn, &url) {
         InsertResult::Inserted => {
             insert_node(req, &url);
@@ -543,7 +550,7 @@ pub fn node_remove(req: &mut Request) -> IronResult<Response> {
 
 fn add_node_from_req(req: &mut Request,
                      nodes: &Vec<String>,
-                     conn: &db::Connection)
+                     conn: &C)
                      -> Result<()> {
     let host = try!(resolve::resolver::resolve_addr(&req.remote_addr.ip()));
     let port = {

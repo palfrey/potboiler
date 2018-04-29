@@ -5,10 +5,9 @@
         unstable_features,
         unused, future_incompatible)]
 
-#[macro_use]
-extern crate schemamama;
-extern crate schemamama_postgres;
-extern crate postgres;
+// #[macro_use]
+// extern crate schemamama;
+// extern crate schemamama_postgres;
 #[macro_use]
 extern crate log;
 extern crate log4rs;
@@ -27,7 +26,9 @@ extern crate potboiler_common;
 extern crate urlencoded;
 extern crate plugin;
 extern crate resolve;
-extern crate deuterium;
+#[macro_use]
+extern crate diesel;
+extern crate r2d2_diesel;
 #[macro_use]
 extern crate error_chain;
 
@@ -43,19 +44,18 @@ mod notifications;
 mod nodes;
 mod logs;
 mod schema;
-
+mod models;
 
 error_chain! {
     errors {
-        MigrationsOnNonPostgres(pool: db::Pool)
+        MigrationsOnNonPostgres(pool: String)
     }
     links {
         NodeError(nodes::Error, nodes::ErrorKind);
         DbError(db::Error, db::ErrorKind);
     }
     foreign_links {
-        PostgresError(r2d2::Error);
-        SchemammaError(schemamama::Error<postgres::Error>);
+        R2D2Error(r2d2::Error);
         LogError(log4rs::Error);
         HyperError(hyper::Error);
     }
@@ -65,7 +65,7 @@ fn app_router(pool: db::Pool) -> Result<Chain> {
     let (logger_before, logger_after) = Logger::new(None);
     let mut router = Router::new();
     router.get("/log", logs::log_lasts, "last logs");
-    router.post("/log", logs::new_log, "new log");
+    router.post("/log", logs::new_log::, "new log");
     router.post("/log/other", logs::other_log, "add from other");
     router.get("/log/first", logs::log_firsts, "get first logs");
     router.get("/log/:entry_id", logs::get_log, "get specific log");
@@ -82,7 +82,7 @@ fn app_router(pool: db::Pool) -> Result<Chain> {
     chain.link_before(logger_before);
     chain.link_after(logger_after);
     chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
-    let conn = pool.get()?.connect()?;
+    let conn = pool.get()?;
     chain.link_before(State::<notifications::Notifications>::one(notifications::init_notifiers(&conn)));
     let clock_state = clock::init_clock();
     chain.link_before(State::<nodes::Nodes>::one(nodes::initial_nodes(pool.clone(),
@@ -92,12 +92,12 @@ fn app_router(pool: db::Pool) -> Result<Chain> {
     return Ok(chain);
 }
 
-fn db_setup() -> Result<db::Pool> {
+fn db_setup() -> Result<db::Pool<diesel::PgConnection>> {
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = pg::get_pool(db_url)?;
     if let db::Pool::Postgres(pg_pool) = pool {
         let conn = pg_pool.get()?;
-        schema::up(&conn)?;
+        //schema::up(&conn)?;
     }
     else {
         bail!(ErrorKind::MigrationsOnNonPostgres(pool));

@@ -6,9 +6,7 @@
 
 extern crate iron;
 extern crate r2d2;
-extern crate r2d2_postgres;
 extern crate uuid;
-extern crate postgres;
 extern crate serde_json;
 extern crate hybrid_clocks;
 extern crate router;
@@ -16,11 +14,12 @@ extern crate router;
 extern crate serde_derive;
 #[macro_use]
 extern crate error_chain;
-extern crate deuterium;
+extern crate diesel;
+extern crate r2d2_diesel;
+extern crate byteorder;
 
 pub mod db;
 pub mod server_id;
-//pub mod string_error;
 pub mod types;
 pub mod clock;
 pub mod pg;

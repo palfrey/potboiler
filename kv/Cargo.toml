@@ -11,24 +11,24 @@ path = "src/main.rs"
 iron = "0.5"
 router = "0.5"
 logger = "0.3"
-serde = "0.9"
-serde_derive = "0.9"
-serde_json = "0.9"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
 hybrid-clocks = { version = "^0.3.3", features = ["serde"] }
-uuid = {version = "^0.4", features=["use_std","v4","serde"]}
+uuid = {version = "0.5", features=["use_std","v4","serde"]}
 mime = "0.2"
 
 url = "*"
-postgres = {features=["with-uuid","with-serde_json"], version="0.13"}
+postgres = {features=["with-uuid","with-serde_json"], version="0.15"}
 
 potboiler_common = { path = "../potboiler_common" }
 
-r2d2 = "0.7"
-r2d2_postgres = "0.11"
+r2d2 = "0.8"
+r2d2_postgres = "0.14"
 persistent = "0.3"
 
 log = "*"
-log4rs = {version = ">= 0.4, <0.7", features=["yaml_format"]}
+log4rs = {version = "0.8", features=["yaml_format"]}
 
 hyper = "0.10"
 

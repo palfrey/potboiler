@@ -12,7 +12,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::thread;
 use url::Url;
-use deuterium::{Deletable, Insertable, Queryable, NamedField, ToIsPredicate, TableDef, ToExpression};
+use diesel;
 
 #[derive(Copy, Clone)]
 pub struct Notifications;
@@ -21,19 +21,12 @@ impl Key for Notifications {
     type Value = Vec<String>;
 }
 
-struct NotificationsTable;
-
-impl NotificationsTable {
-    fn table() -> TableDef {
-        TableDef::new("notifications")
-    }
-
-    fn url() -> NamedField<String> {
-        return NamedField::<String>::field_of("url", &NotificationsTable::table());
-    }
+#[derive(Queryable, Debug)]
+struct NotificationsTable {
+    pub url: String
 }
 
-pub fn init_notifiers(conn: &db::Connection) -> Vec<String> {
+pub fn init_notifiers(conn: &C) -> Vec<String> {
     let mut notifiers = Vec::new();
     for row in &conn.query("select url from notifications").expect("notifications select works") {
         let url: String = row.get("url");
