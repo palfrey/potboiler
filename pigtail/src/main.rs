@@ -29,7 +29,6 @@ use logger::Logger;
 use persistent::Read as PRead;
 use postgres::error::SqlState;
 use potboiler_common::{clock, db, get_raw_timestamp, iron_str_error};
-use potboiler_common::string_error::StringError;
 use potboiler_common::types::Log;
 use serde_json::{Map, Value};
 use std::env;

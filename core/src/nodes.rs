@@ -513,7 +513,7 @@ pub fn node_add(req: &mut Request) -> IronResult<Response> {
         Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
         Ok(_) => {
             match node_add_core(&conn, &url, req) {
-                Ok(_) => Ok(Response::with((status::NoContent))),
+                Ok(_) => Ok(Response::with(status::NoContent)),
                 Err(err) => Err(IronError::new(err, (status::BadRequest, "Some other error"))),
             }
         }
@@ -538,13 +538,13 @@ pub fn node_remove(req: &mut Request) -> IronResult<Response> {
             Some(val) => val,
             None => {
                 return Err(IronError::new(Error::from_kind(ErrorKind::NoSuchNotifier(notifier)),
-                                          (status::NotFound)));
+                                          status::NotFound));
             }
         };
         info.sender.lock().unwrap().deref().send(()).unwrap();
     }
     nodes.remove(&notifier);
-    Ok(Response::with((status::NoContent)))
+    Ok(Response::with(status::NoContent))
 }
 
 fn add_node_from_req(req: &mut Request,

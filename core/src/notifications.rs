@@ -92,10 +92,10 @@ pub fn log_register(req: &mut Request) -> IronResult<Response> {
             match conn.dexecute(&insert) {
                 Ok(_) => {
                     insert_notifier(req, &url);
-                    Ok(Response::with((status::NoContent)))
+                    Ok(Response::with(status::NoContent))
                 }
                 Err(db::Error(db::ErrorKind::UniqueViolation, _)) => {
-                    Ok(Response::with((status::NoContent)))
+                    Ok(Response::with(status::NoContent))
                 }
                 Err(err) => {
                     Err(IronError::new(err, (status::BadRequest, "Some other error")))
@@ -109,5 +109,5 @@ pub fn log_deregister(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     conn.dexecute(&NotificationsTable::table().delete().where_(NotificationsTable::url().is(url_from_body(req)?.unwrap())))
         .expect("delete worked");
-    Ok(Response::with((status::NoContent)))
+    Ok(Response::with(status::NoContent))
 }
