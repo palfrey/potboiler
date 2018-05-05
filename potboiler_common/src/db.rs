@@ -5,9 +5,8 @@ use std::iter;
 use deuterium;
 use r2d2;
 use r2d2_postgres;
-use std::ops::Deref;
 use postgres;
-use std::marker;
+use std::convert::From;
 
 error_chain! {
     errors {
@@ -105,7 +104,14 @@ impl<'stmt> Rows {
         unimplemented!();
     }
     pub fn is_empty(&self) -> bool {
-        unimplemented!();
+        match self {
+            &Rows::Postgres(ref rows) => {
+                rows.is_empty()
+            }
+            &Rows::Test(ref rows) => {
+                rows.is_empty()
+            }
+        }
     }
     pub fn iter<'a>(&'a self) -> RowIterator<'a> {
         match self {
@@ -141,6 +147,9 @@ impl TestConnection {
     fn get_rows(&self) -> Vec<TestRow> {
         vec!()
     }
+    fn execute(&self, cmd: &str) -> Result<u64> {
+        Ok(0)
+    }
 }
 
 #[derive(Debug)]
@@ -163,7 +172,14 @@ impl<'conn> Connection {
         self.query(&squery.to_final_sql(&mut deuterium::SqlContext::new(Box::new(deuterium::sql::PostgreSqlAdapter))))
     }
     pub fn execute(&self, equery: &str) -> Result<u64> {
-        unimplemented!();
+        match self {
+            &Connection::Postgres(ref conn) => {
+                conn.execute(equery, &[]).map_err(|e|From::from(e))
+            }
+            &Connection::Test(ref conn) => {
+                conn.execute(equery)
+            }
+        }
     }
     pub fn dexecute(&self, equery: &deuterium::QueryToSql) -> Result<u64> {
         self.execute(&equery.to_final_sql(&mut deuterium::SqlContext::new(Box::new(deuterium::sql::PostgreSqlAdapter))))
@@ -206,12 +222,12 @@ macro_rules! get_db_connection {
             }
             Err(_) => {
                 println!("Couldn't get a connection to pg!");
-                return Ok(Response::with((status::InternalServerError)));
+                return Ok(Response::with(status::InternalServerError));
             }
         },
         None => {
             println!("Couldn't get the pg pool from the request!");
-            return Ok(Response::with((status::InternalServerError)));
+            return Ok(Response::with(status::InternalServerError));
         }
     })
 }

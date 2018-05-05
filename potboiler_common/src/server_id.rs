@@ -19,7 +19,7 @@ macro_rules! get_server_id {
         Some(id) => id,
         None => {
             println!("Couldn't get the pg pool from the request!");
-            return Ok(Response::with((status::InternalServerError)));
+            return Ok(Response::with(status::InternalServerError));
         }
     })
 }

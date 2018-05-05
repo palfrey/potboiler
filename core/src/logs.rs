@@ -15,7 +15,20 @@ use std::ops::Deref;
 use std::sync::Arc;
 use url::Url;
 use uuid::Uuid;
-use deuterium::*;
+use deuterium::{NamedField, ToIsPredicate, TableDef, Selectable, ToIsNullPredicate, Queryable};
+
+error_chain! {
+    foreign_links {
+        SerdeError(serde_json::Error);
+    }
+}
+
+impl From<Error> for IronError {
+    fn from(error: Error) -> Self {
+        let desc = format!("{:?}", error);
+        return IronError::new(error, (status::BadRequest, desc));
+    }
+}
 
 pub struct LogTable;
 
@@ -70,16 +83,18 @@ pub fn log_firsts(req: &mut Request) -> IronResult<Response> {
     log_status(req, "SELECT id, owner from log WHERE prev is null")
 }
 
-fn json_from_body(req: &mut Request) -> Result<serde_json::Value, serde_json::Error> {
+fn json_from_body(req: &mut Request) -> Result<serde_json::Value> {
     let body_string = {
         let mut body = String::new();
         req.body.read_to_string(&mut body).expect("could read from body");
         body
     };
-    return match serde_json::de::from_str(&body_string) {
-        Ok(val) => Ok(val),
-        Err(err) => Err(err),
-    };
+    return serde_json::de::from_str(&body_string).map_err(|e| e.into());
+}
+
+#[derive(Serialize)]
+struct NewLogResponse {
+    id: Uuid
 }
 
 pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
@@ -122,7 +137,7 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
         base_url.join(&format!("/log/{}", &hyphenated)).expect("join url works")
     };
     Ok(Response::with((status::Created,
-                       hyphenated,
+                       serde_json::to_string(&NewLogResponse{id:id}).map_err(|e| Error::from_kind(ErrorKind::SerdeError(e)))?,
                        Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")))))
 }
 

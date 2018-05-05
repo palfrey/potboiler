@@ -18,6 +18,8 @@ extern crate logger;
 extern crate hyper;
 extern crate url;
 extern crate uuid;
+#[macro_use]
+extern crate serde_derive;
 extern crate serde_json;
 extern crate hybrid_clocks;
 extern crate r2d2;
@@ -121,13 +123,63 @@ mod test {
     use self::iron_test::request;
 
     use iron::Headers;
+    use iron::headers;
     use iron::status::Status;
+    use serde_json;
+
+    extern crate regex;
+    use self::regex::Regex;
 
     use super::{app_router};
 
-    #[test]
-    fn test_router() {
+    fn test_route(path: &str, expected: &str) {
         let pool = super::db::Pool::TestPool(super::db::TestConnection);
+        let response = request::get(&format!("http://localhost:8000/{}", path),
+                                    Headers::new(),
+                                    &app_router(pool).unwrap()).unwrap();
+        assert_eq!(response.status.unwrap(), Status::Ok);
+        let result = extract_body_to_string(response);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_log() {
+        test_route("log", "{}");
+    }
+
+    #[test]
+    fn test_nodes() {
+        test_route("nodes", "[]");
+    }
+
+    #[test]
+    fn test_log_first() {
+        test_route("log/first", "{}");
+    }
+
+    #[test]
+    fn test_new_log() {
+        let pool = super::db::Pool::TestPool(super::db::TestConnection);
+        let response = request::post("http://localhost:8000/log",
+                                    Headers::new(),
+                                    "{}",
+                                    &app_router(pool).unwrap()).unwrap();
+        assert_eq!(response.status.unwrap(), Status::Created);
+        let uuid = {
+            let re = Regex::new(r"http://localhost:8000/log/([a-z0-9-]+)").unwrap();
+            let url = String::from(response.headers.get::<headers::Location>().unwrap().as_str());
+            assert!(url.starts_with("http://localhost:8000/log/"));
+            String::from(re.captures(&url).unwrap().at(1).unwrap())
+        };
+        let result = extract_body_to_string(response);
+        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(v.is_object());
+        assert_eq!(v["id"].as_str().unwrap(), uuid);
+    }
+
+    #[test]
+    fn test_pg_router() {
+        let pool = super::db_setup().unwrap();
         let response = request::get("http://localhost:8000/log",
                                     Headers::new(),
                                     &app_router(pool).unwrap()).unwrap();
