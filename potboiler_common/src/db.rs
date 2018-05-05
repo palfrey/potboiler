@@ -14,6 +14,7 @@ error_chain! {
     errors {
         UniqueViolation
         NoTestQuery(cmd: String)
+        NoTestExecute(cmd: String)
     }
     foreign_links {
         R2D2Error(r2d2::Error);
@@ -179,14 +180,9 @@ impl<'a> Iterator for RowIterator<'a> {
 pub enum Rows {
     Postgres(postgres::rows::Rows),
     Test(Vec<TestRow>)
-    //_marker: &'stmt str
 }
-impl<'stmt> Rows {
-    // fn new() -> Rows<'stmt>
-    // {
-    //     Rows{ _marker: "" }
-    // }
 
+impl<'stmt> Rows {
     pub fn get<'a>(&'a self, id: usize) -> Row<'a> {
         match self {
             &Rows::Postgres(ref rows) => {
@@ -237,33 +233,35 @@ impl<'a> iter::IntoIterator for &'a Rows {
     }
 }
 
-pub struct Statement;
-impl Statement {
-    pub fn query(&self, query: &str) -> Result<Rows> {
-        unimplemented!();
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct TestConnection {
-    results: HashMap<String, Vec<TestRow>>
+    query_results: HashMap<String, Vec<TestRow>>,
+    execute_results: HashMap<String, u64>
 }
 
 impl TestConnection {
     pub fn new() -> TestConnection {
-        TestConnection { results: HashMap::new() }
+        TestConnection {
+            query_results: HashMap::new(),
+            execute_results: HashMap::new()
+        }
     }
 
     pub fn add_test_query<C>(&mut self, cmd: C, results: Vec<TestRow>)
         where C: Into<String> {
-        self.results.insert(cmd.into(), results);
+        self.query_results.insert(cmd.into(), results);
+    }
+
+    pub fn add_test_execute<C>(&mut self, cmd: C, results: u64)
+        where C: Into<String> {
+        self.execute_results.insert(cmd.into(), results);
     }
 
     fn get_rows(&self, cmd: &str) -> Vec<TestRow> {
-        self.results.get(cmd).ok_or_else(|| ErrorKind::NoTestQuery(String::from(cmd))).unwrap().clone()
+        self.query_results.get(cmd).ok_or_else(|| ErrorKind::NoTestQuery(String::from(cmd))).unwrap().clone()
     }
     fn execute(&self, cmd: &str) -> Result<u64> {
-        unimplemented!();
+        self.execute_results.get(cmd).map(|i| *i ) .ok_or_else(|| Error::from(ErrorKind::NoTestExecute(String::from(cmd))))
     }
 }
 

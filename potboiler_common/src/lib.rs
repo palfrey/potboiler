@@ -79,4 +79,13 @@ mod test {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows.get(0).get::<u32, &str>("id"), 1);
     }
+
+    #[test]
+    fn test_insert() {
+        let mut conn = super::db::TestConnection::new();
+        conn.add_test_execute("insert into test (id) values(1)", 1);
+        let pool = super::db::Pool::TestPool(conn);
+        let res = pool.get().unwrap().execute("insert into test (id) values(1)").unwrap();
+        assert_eq!(res, 1);
+    }
 }
