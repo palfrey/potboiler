@@ -20,7 +20,6 @@ extern crate deuterium;
 
 pub mod db;
 pub mod server_id;
-//pub mod string_error;
 pub mod types;
 pub mod clock;
 pub mod pg;
