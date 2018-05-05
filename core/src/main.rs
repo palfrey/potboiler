@@ -46,7 +46,6 @@ mod nodes;
 mod logs;
 mod schema;
 
-
 error_chain! {
     errors {
         MigrationsOnNonPostgres(pool: db::Pool)

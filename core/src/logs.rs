@@ -23,12 +23,7 @@ error_chain! {
     }
 }
 
-impl From<Error> for IronError {
-    fn from(error: Error) -> Self {
-        let desc = format!("{:?}", error);
-        return IronError::new(error, (status::BadRequest, desc));
-    }
-}
+iron_error_from!();
 
 pub struct LogTable;
 

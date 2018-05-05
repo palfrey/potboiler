@@ -90,12 +90,7 @@ error_chain! {
     }
 }
 
-impl convert::From<Error> for IronError {
-    fn from(error: Error) -> Self {
-        let msg = format!("{:?}", &error);
-        IronError::new(error, (status::BadRequest, msg))
-    }
-}
+iron_error_from!();
 
 fn parse_json_from_request(raw_result: StdResult<hyper::client::Response, hyper::Error>)
                            -> Result<serde_json::value::Value> {

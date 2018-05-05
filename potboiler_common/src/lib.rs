@@ -57,7 +57,12 @@ pub fn get_raw_timestamp(timestamp: &Timestamp<WallT>) -> Vec<u8> {
     return raw_timestamp;
 }
 
-pub fn iron_str_error<T: std::error::Error + std::marker::Send + 'static>(se: T) -> iron::IronError {
-    let desc = format!("{:?}", se);
-    return IronError::new(se, (status::BadRequest, desc));
+#[macro_export]
+macro_rules! iron_error_from {
+    () => (impl From<Error> for IronError {
+        fn from(error: Error) -> Self {
+            let desc = format!("{:?}", error);
+            return IronError::new(error, (status::BadRequest, desc));
+        }
+    })
 }
