@@ -7,10 +7,13 @@ use r2d2;
 use r2d2_postgres;
 use postgres;
 use std::convert::From;
+use std::collections::HashMap;
+use std::fmt;
 
 error_chain! {
     errors {
         UniqueViolation
+        NoTestQuery(cmd: String)
     }
     foreign_links {
         R2D2Error(r2d2::Error);
@@ -19,26 +22,110 @@ error_chain! {
 }
 
 pub trait FromSql {}
+impl FromSql for u32 {}
 impl FromSql for Uuid {}
 impl FromSql for String {}
 impl <'a> FromSql for &'a str {}
 impl FromSql for Vec<u8> {}
 impl FromSql for serde_json::Value {}
 
-pub trait RowIndex {}
-impl RowIndex for String {}
-impl <'a> RowIndex for &'a str {}
+#[derive(Debug, Clone)]
+pub enum SqlValue {
+    U32(u32),
+    UUID(Uuid),
+    String(String),
+    U8Bytes(Vec<u8>),
+    JSON(serde_json::Value),
+}
 
-#[derive(Debug)]
-pub struct TestRow;
+impl From<u32> for SqlValue {
+    fn from(i: u32) -> SqlValue { SqlValue::U32(i) }
+}
+
+#[derive(Hash, Eq, PartialEq, Clone, Debug)]
+pub enum ValueIndex
+{
+    U32(u32),
+    String(String),
+}
+
+impl<'a> From<&'a str> for ValueIndex {
+    fn from(s: &str) -> ValueIndex { ValueIndex::String(String::from(s))}
+}
+
+pub trait RowIndex {
+    fn val(&self) -> ValueIndex;
+}
+impl RowIndex for u32 {
+    fn val(&self) -> ValueIndex { ValueIndex::U32(*self)}
+}
+impl RowIndex for String {
+    fn val(&self) -> ValueIndex { ValueIndex::String(self.clone())}
+}
+impl <'a> RowIndex for &'a str {
+    fn val(&self) -> ValueIndex { ValueIndex::String(String::from(*self))}
+}
+
+#[derive(Debug, Clone)]
+pub struct TestRow
+{
+    data: HashMap<ValueIndex, SqlValue>
+}
+
+pub trait GetRow<T> {
+    fn get<R>(&self, id: R) -> T where T: FromSql, R: RowIndex + fmt::Display;
+}
+
+impl TestRow {
+    pub fn new() -> TestRow {
+        TestRow{data: HashMap::new()}
+    }
+
+    pub fn insert<K, V>(&mut self, k: K, v: V) -> Option<SqlValue>
+        where K: Into<ValueIndex>, V: Into<SqlValue> {
+        self.data.insert(k.into(), v.into())
+    }
+}
+
+impl GetRow<u32> for TestRow {
+    fn get<R>(&self, id: R) -> u32 where R: RowIndex + fmt::Display {
+        if !self.data.contains_key(&id.val()) {
+            panic!(format!("Can't find key {} in row", id));
+        }
+        match self.data[&id.val()] {
+            SqlValue::U32(val) => val,
+            _ => panic!()
+        }
+    }
+}
+
+impl GetRow<Uuid> for TestRow {
+    fn get<R>(&self, id: R) -> Uuid where R: RowIndex {
+        match self.data[&id.val()] {
+            SqlValue::UUID(val) => val,
+            _ => panic!()
+        }
+    }
+}
 
 pub enum Row<'a> {
     Postgres(postgres::rows::Row<'a>),
     Test(&'a TestRow)
 }
 impl<'a> Row<'a> {
-    pub fn get<T, R>(&self, id: R) -> T where T: FromSql, R: RowIndex {
-        unimplemented!();
+    pub fn get<T, R>(&self, id: R) -> T 
+    where
+        T: FromSql + postgres::types::FromSql, 
+        R: RowIndex + postgres::rows::RowIndex + fmt::Display + fmt::Debug,
+        TestRow: GetRow<T> {
+        match self {
+            &Row::Postgres(ref rows) => {
+                rows.get(id)
+            }
+            &Row::Test(ref rows) => {
+                rows.get(id)
+            }
+        }
     }
     pub fn get_opt<T, R>(&self, id: R) -> Option<Result<T>> where T: FromSql, R: RowIndex {
         unimplemented!();
@@ -100,8 +187,15 @@ impl<'stmt> Rows {
     //     Rows{ _marker: "" }
     // }
 
-    pub fn get<'a>(&self, id: i32) -> Row<'a> {
-        unimplemented!();
+    pub fn get<'a>(&'a self, id: usize) -> Row<'a> {
+        match self {
+            &Rows::Postgres(ref rows) => {
+                Row::Postgres(rows.get(id))
+            }
+            &Rows::Test(ref rows) => {
+                Row::Test(rows.get(id).unwrap())
+            }
+        }
     }
     pub fn is_empty(&self) -> bool {
         match self {
@@ -110,6 +204,16 @@ impl<'stmt> Rows {
             }
             &Rows::Test(ref rows) => {
                 rows.is_empty()
+            }
+        }
+    }
+    pub fn len(&self) -> usize {
+        match self {
+            &Rows::Postgres(ref rows) => {
+                rows.len()
+            }
+            &Rows::Test(ref rows) => {
+                rows.len()
             }
         }
     }
@@ -141,14 +245,25 @@ impl Statement {
 }
 
 #[derive(Debug, Clone)]
-pub struct TestConnection;
+pub struct TestConnection {
+    results: HashMap<String, Vec<TestRow>>
+}
 
 impl TestConnection {
-    fn get_rows(&self) -> Vec<TestRow> {
-        vec!()
+    pub fn new() -> TestConnection {
+        TestConnection { results: HashMap::new() }
+    }
+
+    pub fn add_test_query<C>(&mut self, cmd: C, results: Vec<TestRow>)
+        where C: Into<String> {
+        self.results.insert(cmd.into(), results);
+    }
+
+    fn get_rows(&self, cmd: &str) -> Vec<TestRow> {
+        self.results.get(cmd).ok_or_else(|| ErrorKind::NoTestQuery(String::from(cmd))).unwrap().clone()
     }
     fn execute(&self, cmd: &str) -> Result<u64> {
-        Ok(0)
+        unimplemented!();
     }
 }
 
@@ -164,7 +279,7 @@ impl<'conn> Connection {
                 Ok(Rows::Postgres(conn.query(query, &[])?))
             }
             &Connection::Test(ref conn) => {
-                Ok(Rows::Test(conn.get_rows()))
+                Ok(Rows::Test(conn.get_rows(query)))
             }
         }
     }

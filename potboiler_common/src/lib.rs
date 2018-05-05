@@ -66,3 +66,18 @@ macro_rules! iron_error_from {
         }
     })
 }
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_select() {
+        let mut conn = super::db::TestConnection::new();
+        let mut row = super::db::TestRow::new();
+        row.insert("id", 1);
+        conn.add_test_query("select 1 as id from test", vec!(row));
+        let pool = super::db::Pool::TestPool(conn);
+        let rows = pool.get().unwrap().query("select 1 as id from test").unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows.get(0).get::<u32, &str>("id"), 1);
+    }
+}
