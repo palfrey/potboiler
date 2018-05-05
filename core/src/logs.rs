@@ -112,7 +112,7 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
         when: when,
         data: json.clone(),
     };
-    nodes::insert_log(&conn, &log);
+    nodes::insert_log(&conn, &log)?;
     let log_arc = Arc::new(log);
     notifications::notify_everyone(req, log_arc.clone());
     nodes::notify_everyone(req, log_arc.clone());
@@ -136,7 +136,7 @@ pub fn other_log(req: &mut Request) -> IronResult<Response> {
         .limit(1))
         .expect("bad existing query");
     if existing.is_empty() {
-        nodes::insert_log(&conn, &log);
+        nodes::insert_log(&conn, &log)?;
         let log_arc = Arc::new(log);
         notifications::notify_everyone(req, log_arc.clone());
         nodes::notify_everyone(req, log_arc.clone());

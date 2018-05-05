@@ -59,12 +59,12 @@ fn insert_notifier(req: &mut Request, to_notify: &String) {
 pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
     let notifications = get_notifications_list(req);
     for notifier in notifications {
-        let local_log = log_arc.clone().deref();
+        let local_log = log_arc.clone();
         thread::spawn(move || {
             let client = hyper::client::Client::new();
             debug!("Notifying {:?}", notifier);
             let res = client.post(&notifier)
-                .body(&serde_json::ser::to_string(&local_log).unwrap())
+                .body(&serde_json::to_string(&local_log.deref()).unwrap())
                 .send();
             match res {
                 Ok(val) => {
@@ -87,7 +87,7 @@ pub fn log_register(req: &mut Request) -> IronResult<Response> {
     match Url::parse(&url) {
         Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
         Ok(_) => {
-            let insert = NotificationsTable::table().insert_fields(&[&NotificationsTable::url()]);
+            let mut insert = NotificationsTable::table().insert_fields(&[&NotificationsTable::url()]);
             insert.push_untyped(&[url.as_expr()]);
             match conn.dexecute(&insert) {
                 Ok(_) => {

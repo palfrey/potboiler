@@ -82,7 +82,7 @@ fn app_router(pool: db::Pool) -> Result<Chain> {
     chain.link_before(logger_before);
     chain.link_after(logger_after);
     chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
-    let conn = pool.get()?.connect()?;
+    let conn = pool.get()?;
     chain.link_before(State::<notifications::Notifications>::one(notifications::init_notifiers(&conn)));
     let clock_state = clock::init_clock();
     chain.link_before(State::<nodes::Nodes>::one(nodes::initial_nodes(pool.clone(),
@@ -98,11 +98,11 @@ fn db_setup() -> Result<db::Pool> {
     if let db::Pool::Postgres(pg_pool) = pool {
         let conn = pg_pool.get()?;
         schema::up(&conn)?;
+        return Ok(db::Pool::Postgres(pg_pool));
     }
     else {
         bail!(ErrorKind::MigrationsOnNonPostgres(pool));
     }
-    return Ok(pool);
 }
 
 quick_main!(|| -> Result<()> {
@@ -117,21 +117,23 @@ quick_main!(|| -> Result<()> {
 #[cfg(test)]
 mod test {
     extern crate iron_test;
+    use self::iron_test::response::extract_body_to_string;
+    use self::iron_test::request;
+
     use iron::Headers;
-    use iron_test::response::extract_body_to_string;
-    use iron_test::request;
     use iron::status::Status;
 
     use super::{app_router};
 
     #[test]
     fn test_router() {
+        let pool = super::db::Pool::TestPool(super::db::TestConnection);
         let response = request::get("http://localhost:8000/log",
                                     Headers::new(),
-                                    &app_router()).unwrap();
+                                    &app_router(pool).unwrap()).unwrap();
         assert_eq!(response.status.unwrap(), Status::Ok);
         let result = extract_body_to_string(response);
 
-        assert_eq!(result, "[]");
+        assert_eq!(result, "{}");
     }
 }

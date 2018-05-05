@@ -25,7 +25,6 @@ use url::Url;
 use urlencoded::{UrlDecodingError, UrlEncodedQuery};
 use uuid::Uuid;
 use deuterium::{Selectable, Updatable, Deletable, Insertable, NamedField, Queryable, TableDef, ToIsPredicate, ToIsNullPredicate, ToExpression, ToFieldUpdate};
-//use deuterium::*;
 use logs::LogTable;
 
 pub type LockedNode = Arc<RwLock<HashMap<String, NodeInfo>>>;
@@ -66,11 +65,11 @@ error_chain! {
         HostRetrieveError(host_url: String)
         NoQueryPort
         PoisonError
-        NonArrayRemoteNodes(nodes: serde_json::Value)
+        NonArrayRemoteNodes(nodes: String)
         NoSuchNotifier(notifier: String)
         NonStringRemoteNode(node: String)
         CrappyData(node: String)
-        NotAMap(node: serde_json::Value)
+        NotAMap(node: String)
         NoDataKey
         NoWhenKey
         NoNextKey
@@ -88,6 +87,13 @@ error_chain! {
         UrlEncoding(UrlDecodingError);
         LogFailure(hyper::Error);
         SerdeError(serde_json::Error);
+    }
+}
+
+impl convert::From<Error> for IronError {
+    fn from(error: Error) -> Self {
+        let msg = format!("{:?}", &error);
+        IronError::new(error, (status::BadRequest, msg))
     }
 }
 
@@ -117,11 +123,11 @@ fn parse_object_from_request(raw_result: StdResult<hyper::client::Response, hype
                              -> Result<serde_json::value::Map<String, serde_json::Value>> {
     let json: serde_json::Value = match parse_json_from_request(raw_result) {
         Ok(val) => val,
-        Err(err) => return Err(err),
+        Err(err) => bail!(err),
     };
     return match json.as_object() {
         Some(val) => Ok(val.clone()),
-        None => bail!(ErrorKind::NotAMap(json))
+        None => bail!(ErrorKind::NotAMap(serde_json::to_string(&json).unwrap()))
     };
 }
 
@@ -180,8 +186,8 @@ fn check_host_once(host_url: &String,
                     bail!(Error::with_chain(err, ErrorKind::HostRetrieveError(host_url.clone())));
                 }
             };
-            info!("First entry: {:?}", first_entry);
-            first_entry.get(key).ok_or(ErrorKind::KeyMissing(key.clone()))?
+            info!("First entry: {:?}", &first_entry);
+            first_entry.get(key).ok_or_else(|| ErrorKind::KeyMissing(key.clone()))?.clone()
         } else {
             info!("Already have an entry from the list with server id {:?}",
                   key);
@@ -206,13 +212,13 @@ fn check_host_once(host_url: &String,
                 }
             };
             info!("Last entry: {:?}", last_entry);
-            last_entry.get("next").ok_or(ErrorKind::NoNextKey)?
+            last_entry.get("next").ok_or(ErrorKind::NoNextKey)?.clone()
         };
         let mut current_uuid = start_uuid;
         loop {
             let real_uuid = {
                 let str_uuid = current_uuid.as_str();
-                String::from(try!(str_uuid.ok_or(format!("Current id ({}) is not a UUID", current_uuid))))
+                String::from(try!(str_uuid.ok_or_else(|| format!("Current id ({}) is not a UUID", current_uuid))))
             };
             let current_url = format!("{}/log/{}", &host_url, real_uuid);
             debug!("Get {} from {}", real_uuid, host_url);
@@ -236,11 +242,11 @@ fn check_host_once(host_url: &String,
                 data: try!(current_entry.get("data").ok_or(ErrorKind::NoDataKey)).clone(),
                 when: clock::get_timestamp_from_state(&clock_state),
             };
-            insert_log(conn, &log);
+            insert_log(conn, &log)?;
             if next.is_null() {
                 break;
             }
-            current_uuid = &next;
+            current_uuid = next.clone();
         }
     }
     return Ok(());
@@ -275,7 +281,7 @@ pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
             .expect("update worked");
     }
     let raw_timestamp = get_raw_timestamp(&log.when);
-    let command = LogTable::table().insert_fields(&[&LogTable::id()]);
+    let mut command = LogTable::table().insert_fields(&[&LogTable::id()]);
     command.push_untyped(&[log.id.as_expr(), log.owner.as_expr(), log.data.as_expr()]);
     if let Some(prev) = log.prev {
         command.push_untyped(&[prev.as_expr()]);
@@ -319,7 +325,7 @@ fn check_new_nodes(host_url: &String,
         }
     };
     let remote_node_array = remote_nodes.as_array()
-        .ok_or(ErrorKind::NonArrayRemoteNodes(remote_nodes))?;
+        .ok_or_else(|| ErrorKind::NonArrayRemoteNodes(serde_json::to_string(&remote_nodes).unwrap()))?;
     let remote_node_set: HashSet<String> = try!(hashset_from_json_array(remote_node_array));
     let existing_nodes = conn.query("SELECT url from nodes")?;
     let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter()
@@ -362,7 +368,7 @@ macro_rules! check_should_exit {
 
 fn check_host(host_url: String, nodelist: NodeList, recv: Receiver<()>) {
     let sleep_time = Duration::from_secs(5);
-    let conn = nodelist.pool.get().unwrap().connect().unwrap();
+    let conn = nodelist.pool.get().unwrap();
     loop {
         check_should_exit!(recv, host_url);
         match check_host_once(&host_url, &conn, nodelist.clock.clone()) {
@@ -388,7 +394,7 @@ fn check_host(host_url: String, nodelist: NodeList, recv: Receiver<()>) {
 }
 
 pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList> {
-    let conn = pool.get()?.connect()?;
+    let conn = pool.get()?;
     let locked_nodes = Arc::new(RwLock::new(HashMap::new()));
     let mut nodes = locked_nodes.write().unwrap();
     for row in &conn.query("select url from nodes").expect("nodes select works") {
@@ -472,9 +478,9 @@ enum InsertResult {
 }
 
 fn node_insert(conn: &db::Connection, url: &String) -> InsertResult {
-    let query = &NodeTable::table().insert_fields(&[&NodeTable::url()]);
+    let mut query = NodeTable::table().insert_fields(&[&NodeTable::url()]);
     query.push_untyped(&[url.as_expr()]);
-    return match conn.dexecute(query) {
+    return match conn.dexecute(&query) {
         Ok(_) => InsertResult::Inserted,
         Err(db::Error(db::ErrorKind::UniqueViolation, _)) => {
             InsertResult::Existing
@@ -517,7 +523,7 @@ pub fn node_add(req: &mut Request) -> IronResult<Response> {
 pub fn node_remove(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     let notifier = url_from_body(req).unwrap().unwrap();
-    conn.dexecute(&NodeTable::table().delete().where_(NodeTable::url().is(&notifier)))
+    conn.dexecute(&NodeTable::table().delete().where_(NodeTable::url().is(notifier.clone())))
         .expect("delete worked");
     let mut nodelist = req.extensions
         .get_mut::<State<Nodes>>()
