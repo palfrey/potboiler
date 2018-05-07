@@ -165,7 +165,7 @@ mod test {
         let mut conn = super::db::TestConnection::new();
         conn.add_test_query("select url from notifications", vec!());
         conn.add_test_query("select url from nodes", vec!());
-        conn.add_test_query("select id from log where next is null and owner == feedface-dead-feed-face-deadfacedead limit 1", vec!());
+        conn.add_test_query("select id from log where next is null and owner = 'feedface-dead-feed-face-deadfacedead' limit 1", vec!());
         let pool = super::db::Pool::TestPool(conn);
         let mut router = app_router(pool).unwrap();
         router.link_before(PRead::<server_id::ServerId>::one(server_id::test()));
@@ -189,12 +189,20 @@ mod test {
     #[test]
     fn test_pg_router() {
         let pool = super::db_setup().unwrap();
-        let response = request::get("http://localhost:8000/log",
+        pool.get().unwrap().execute("delete from log").unwrap();
+        let mut router = app_router(pool).unwrap();
+        router.link_before(PRead::<server_id::ServerId>::one(server_id::test()));
+        let mut response = request::get("http://localhost:8000/log",
                                     Headers::new(),
-                                    &app_router(pool).unwrap()).unwrap();
+                                    &router).unwrap();
         assert_eq!(response.status.unwrap(), Status::Ok);
         let result = extract_body_to_string(response);
-
         assert_eq!(result, "{}");
+
+        response = request::post("http://localhost:8000/log",
+                                    Headers::new(),
+                                    "{}",
+                                    &router).unwrap();
+        assert_eq!(response.status.unwrap(), Status::Created);
     }
 }

@@ -69,7 +69,7 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
     let hyphenated = id.hyphenated().to_string();
     let when = clock::get_timestamp(&mut req);
     let server_id = get_server_id!(&req).deref();
-    let results = conn.query(&format!("select id from log where next is null and owner == {} limit 1", &server_id))
+    let results = conn.query(&format!("select id from log where next is null and owner = '{}' limit 1", &server_id))
         .expect("last select works");
     let previous = if results.is_empty() {
         None
@@ -104,7 +104,7 @@ pub fn other_log(req: &mut Request) -> IronResult<Response> {
     let json = json_from_body(req).unwrap();
     let log: Log = serde_json::from_value(json).unwrap();
     let conn = get_db_connection!(&req);
-    let existing = conn.query(&format!("select id from log where id == {} limit 1", &log.id))
+    let existing = conn.query(&format!("select id from log where id = {} limit 1", &log.id))
         .expect("bad existing query");
     if existing.is_empty() {
         nodes::insert_log(&conn, &log)?;
@@ -146,7 +146,7 @@ pub fn get_log(req: &mut Request) -> IronResult<Response> {
     };
     let conn = get_db_connection!(&req);
 
-    let results = conn.query(&format!("select owner, next, prev, data from log where id == {}", query_id)).expect("log query issue");
+    let results = conn.query(&format!("select owner, next, prev, data from log where id = '{}'", query_id)).expect("log query issue");
 
     if results.is_empty() {
         Ok(Response::with((status::NotFound, format!("No log {}", query))))

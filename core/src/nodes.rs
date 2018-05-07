@@ -144,13 +144,13 @@ fn check_host_once(host_url: &String,
                 continue;
             }
         };
-        let single_item = conn.query(&format!("select 1 from log where id == {}", &value_uuid))?;
+        let single_item = conn.query(&format!("select 1 from log where id = '{}'", &value_uuid))?;
         if !single_item.is_empty() {
             debug!("Already have {} locally", value_uuid);
             continue;
         }
 
-        let first_item = conn.query(&format!("select id from log where prev is null and owner = {} limit 1", &key_uuid))?;
+        let first_item = conn.query(&format!("select id from log where prev is null and owner = '{}' limit 1", &key_uuid))?;
         let start_uuid = if first_item.is_empty() {
             let first_url = format!("{}/log/first", &host_url);
             debug!("Get first from {:?}", host_url);
@@ -166,7 +166,7 @@ fn check_host_once(host_url: &String,
         } else {
             info!("Already have an entry from the list with server id {:?}",
                   key);
-            let last_items = conn.query(&format!("select id from log where next is null and owner = {} limit 1", &key_uuid))?;
+            let last_items = conn.query(&format!("select id from log where next is null and owner = '{}' limit 1", &key_uuid))?;
             if last_items.is_empty() {
                 bail!(ErrorKind::NoLastEntry(key.clone()));
             }
@@ -244,11 +244,11 @@ fn get_uuid_from_map(map: &serde_json::value::Map<String, serde_json::Value>, ke
 pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
     debug!("Inserting {:?}", log);
     if let Some(prev) = log.prev {
-        conn.execute(&format!("update log set next = {} where owner = {} and id = {}", &log.id, &log.owner, &prev))?;
+        conn.execute(&format!("update log set next = {} where owner = '{}' and id = '{}'", &log.id, &log.owner, &prev))?;
     }
     let raw_timestamp = get_raw_timestamp(&log.when);
-    conn.execute(&format!("INSERT INTO log (id, owner, data, prev, hlc_tstamp) VALUES ({}, {}, {}, {}, decode('{}', 'hex'))",
-        &log.id, &log.owner, &log.data, log.prev.map(|u| u.to_string()).unwrap_or(String::from("NULL")), &db::HexSlice::new(&raw_timestamp)))?;
+    conn.execute(&format!("insert into log (id, owner, data, prev, hlc_tstamp) VALUES ('{}', '{}', '{}', {}, decode('{}', 'hex'))",
+        &log.id, &log.owner, &log.data, log.prev.map(|u| format!("'{}'", u.to_string())).unwrap_or(String::from("NULL")), &db::HexSlice::new(&raw_timestamp)))?;
     Ok(())
 }
 
@@ -479,7 +479,7 @@ pub fn node_add(req: &mut Request) -> IronResult<Response> {
 pub fn node_remove(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     let notifier = url_from_body(req).unwrap().unwrap();
-    conn.execute(&format!("delete from nodes where url == {}", &notifier))
+    conn.execute(&format!("delete from nodes where url = '{}'", &notifier))
         .expect("delete worked");
     let mut nodelist = req.extensions
         .get_mut::<State<Nodes>>()

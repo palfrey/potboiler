@@ -92,7 +92,7 @@ pub fn log_register(req: &mut Request) -> IronResult<Response> {
 
 pub fn log_deregister(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
-    conn.execute(&format!("delete from notifications where url == {}", &url_from_body(req)?.unwrap()))
+    conn.execute(&format!("delete from notifications where url = '{}'", &url_from_body(req)?.unwrap()))
         .expect("delete worked");
     Ok(Response::with(status::NoContent))
 }
