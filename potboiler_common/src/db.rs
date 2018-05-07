@@ -14,10 +14,10 @@ error_chain! {
         UniqueViolation
         NoTestQuery(cmd: String)
         NoTestExecute(cmd: String)
+        PostgresError(cmd: String)
     }
     foreign_links {
         R2D2Error(r2d2::Error);
-        PostgresError(postgres::Error);
     }
 }
 
@@ -290,7 +290,7 @@ impl<'conn> Connection {
     pub fn query(&'conn self, query: &str) -> Result<Rows> {
         match self {
             &Connection::Postgres(ref conn) => {
-                Ok(Rows::Postgres(conn.query(query, &[])?))
+                Ok(Rows::Postgres(conn.query(query, &[]).map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(query.to_string())))?))
             }
             &Connection::Test(ref conn) => {
                 Ok(Rows::Test(conn.get_rows(query)))
@@ -300,7 +300,7 @@ impl<'conn> Connection {
     pub fn execute(&self, equery: &str) -> Result<u64> {
         match self {
             &Connection::Postgres(ref conn) => {
-                conn.execute(equery, &[]).map_err(|e|From::from(e))
+                conn.execute(equery, &[]).map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(equery.to_string())))
             }
             &Connection::Test(ref conn) => {
                 conn.execute(equery)
