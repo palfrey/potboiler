@@ -16,6 +16,7 @@ log = "*"
 hybrid-clocks = { version = "^0.3.4", features = ["serde"] }
 router = "0.6"
 error-chain = "0.11.0"
+regex = "*"
 
 [lib]
 name = "potboiler_common"

@@ -166,6 +166,7 @@ mod test {
         conn.add_test_query("select url from notifications", vec!());
         conn.add_test_query("select url from nodes", vec!());
         conn.add_test_query("select id from log where next is null and owner = 'feedface-dead-feed-face-deadfacedead' limit 1", vec!());
+        conn.add_test_execute(r"insert into log \(id, owner, data, prev, hlc_tstamp\) VALUES \('[a-z0-9-]+', 'feedface-dead-feed-face-deadfacedead', '\{\}', NULL, decode\('[0-9A-Z]+', 'hex'\)\)", 1);
         let pool = super::db::Pool::TestPool(conn);
         let mut router = app_router(pool).unwrap();
         router.link_before(PRead::<server_id::ServerId>::one(server_id::test()));

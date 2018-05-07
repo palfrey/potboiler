@@ -8,6 +8,7 @@ use postgres;
 use std::convert::From;
 use std::collections::HashMap;
 use std::fmt;
+use regex;
 
 error_chain! {
     errors {
@@ -251,33 +252,41 @@ impl<'a> iter::IntoIterator for &'a Rows {
 
 #[derive(Debug, Clone)]
 pub struct TestConnection {
-    query_results: HashMap<String, Vec<TestRow>>,
-    execute_results: HashMap<String, u64>
+    query_results: Vec<(regex::Regex, Vec<TestRow>)>,
+    execute_results: Vec<(regex::Regex, u64)>
 }
 
 impl TestConnection {
     pub fn new() -> TestConnection {
         TestConnection {
-            query_results: HashMap::new(),
-            execute_results: HashMap::new()
+            query_results: Vec::new(),
+            execute_results: Vec::new()
         }
     }
 
-    pub fn add_test_query<C>(&mut self, cmd: C, results: Vec<TestRow>)
-        where C: Into<String> {
-        self.query_results.insert(cmd.into(), results);
+    pub fn add_test_query(&mut self, cmd: &str, results: Vec<TestRow>) {
+        self.query_results.push((regex::Regex::new(cmd).unwrap(), results));
     }
 
-    pub fn add_test_execute<C>(&mut self, cmd: C, results: u64)
-        where C: Into<String> {
-        self.execute_results.insert(cmd.into(), results);
+    pub fn add_test_execute(&mut self, cmd: &str, results: u64) {
+        self.execute_results.push((regex::Regex::new(cmd).unwrap(), results));
     }
 
-    fn get_rows(&self, cmd: &str) -> Vec<TestRow> {
-        self.query_results.get(cmd).ok_or_else(|| ErrorKind::NoTestQuery(String::from(cmd))).unwrap().clone()
+    fn get_rows(&self, cmd: &str) -> Result<Vec<TestRow>> {
+        for &(ref patt, ref res) in self.query_results.iter() {
+            if patt.is_match(cmd) {
+                return Ok(res.clone());
+            }
+        }
+        Err(Error::from(ErrorKind::NoTestQuery(String::from(cmd))))
     }
     fn execute(&self, cmd: &str) -> Result<u64> {
-        self.execute_results.get(cmd).map(|i| *i ).ok_or_else(|| Error::from(ErrorKind::NoTestExecute(String::from(cmd))))
+        for &(ref patt, res) in self.execute_results.iter() {
+            if patt.is_match(cmd) {
+                return Ok(res);
+            }
+        }
+        Err(Error::from(ErrorKind::NoTestExecute(String::from(cmd))))
     }
 }
 
@@ -293,7 +302,7 @@ impl<'conn> Connection {
                 Ok(Rows::Postgres(conn.query(query, &[]).map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(query.to_string())))?))
             }
             &Connection::Test(ref conn) => {
-                Ok(Rows::Test(conn.get_rows(query)))
+                Ok(Rows::Test(conn.get_rows(query)?))
             }
         }
     }
