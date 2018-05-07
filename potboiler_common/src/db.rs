@@ -8,7 +8,8 @@ use r2d2_postgres;
 use postgres;
 use std::convert::From;
 use std::collections::HashMap;
-use std::fmt;
+use std::{any,fmt};
+use uuid;
 
 error_chain! {
     errors {
@@ -88,26 +89,24 @@ impl TestRow {
     }
 }
 
-impl GetRow<u32> for TestRow {
-    fn get<R>(&self, id: R) -> u32 where R: RowIndex + fmt::Display {
+macro_rules! get_row {
+    ($type: ty, $kind: path) => (impl<'a> GetRow<$type> for TestRow {
+    fn get<R>(&self, id: R) -> $type where R: RowIndex + fmt::Display {
         if !self.data.contains_key(&id.val()) {
             panic!(format!("Can't find key {} in row", id));
         }
         match self.data[&id.val()] {
-            SqlValue::U32(val) => val,
+            $kind(ref val) => val.clone(),
             _ => panic!()
         }
     }
-}
+})}
 
-impl GetRow<Uuid> for TestRow {
-    fn get<R>(&self, id: R) -> Uuid where R: RowIndex {
-        match self.data[&id.val()] {
-            SqlValue::UUID(val) => val,
-            _ => panic!()
-        }
-    }
-}
+get_row!(u32, SqlValue::U32);
+get_row!(Uuid, SqlValue::UUID);
+get_row!(String, SqlValue::String);
+get_row!(serde_json::Value, SqlValue::JSON);
+get_row!(Vec<u8>, SqlValue::U8Bytes);
 
 pub enum Row<'a> {
     Postgres(postgres::rows::Row<'a>),
@@ -261,8 +260,26 @@ impl TestConnection {
         self.query_results.get(cmd).ok_or_else(|| ErrorKind::NoTestQuery(String::from(cmd))).unwrap().clone()
     }
     fn execute(&self, cmd: &str) -> Result<u64> {
-        self.execute_results.get(cmd).map(|i| *i ) .ok_or_else(|| Error::from(ErrorKind::NoTestExecute(String::from(cmd))))
+        self.execute_results.get(cmd).map(|i| *i ).ok_or_else(|| Error::from(ErrorKind::NoTestExecute(String::from(cmd))))
     }
+}
+
+fn dquery_to_sql(squery: &deuterium::QueryToSql) -> String {
+    let mut context = deuterium::SqlContext::new(Box::new(deuterium::sql::PostgreSqlAdapter));
+    let mut sql = squery.to_final_sql(&mut context);
+    for i in 0..context.get_impl_placeholders_count() as usize {
+        let data = &context.data()[i];
+        let value_any = data as &any::Any;
+        let str_data = if let Some(uid) = value_any.downcast_ref::<uuid::Uuid>() {
+            String::from(uid.hyphenated().to_string())
+        }
+        else {
+            panic!("Don't know to cope with {:?}", &data);
+        };
+        sql = sql.replace(&format!("${}", i+1), &str_data);
+    }
+    println!("{:?}", context);
+    sql
 }
 
 #[derive(Debug)]
@@ -282,7 +299,7 @@ impl<'conn> Connection {
         }
     }
     pub fn dquery(&'conn self, squery: &deuterium::QueryToSql) -> Result<Rows> {
-        self.query(&squery.to_final_sql(&mut deuterium::SqlContext::new(Box::new(deuterium::sql::PostgreSqlAdapter))))
+        self.query(&dquery_to_sql(squery))
     }
     pub fn execute(&self, equery: &str) -> Result<u64> {
         match self {
@@ -295,7 +312,7 @@ impl<'conn> Connection {
         }
     }
     pub fn dexecute(&self, equery: &deuterium::QueryToSql) -> Result<u64> {
-        self.execute(&equery.to_final_sql(&mut deuterium::SqlContext::new(Box::new(deuterium::sql::PostgreSqlAdapter))))
+        self.execute(&dquery_to_sql(equery))
     }
 }
 

@@ -322,7 +322,7 @@ fn check_new_nodes(host_url: &String,
     let remote_node_array = remote_nodes.as_array()
         .ok_or_else(|| ErrorKind::NonArrayRemoteNodes(serde_json::to_string(&remote_nodes).unwrap()))?;
     let remote_node_set: HashSet<String> = try!(hashset_from_json_array(remote_node_array));
-    let existing_nodes = conn.query("SELECT url from nodes")?;
+    let existing_nodes = conn.dquery(&NodeTable::table().select(&[&NodeTable::url()]))?;
     let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter()
         .map(|x| x.get("url")));
     let extra_nodes = remote_node_set.difference(&existing_nodes_set)
@@ -392,7 +392,7 @@ pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList>
     let conn = pool.get()?;
     let locked_nodes = Arc::new(RwLock::new(HashMap::new()));
     let mut nodes = locked_nodes.write().unwrap();
-    for row in &conn.query("select url from nodes").expect("nodes select works") {
+    for row in &conn.dquery(&NodeTable::table().select(&[&NodeTable::url()])).expect("nodes select works") {
         let url: String = row.get("url");
         let (send, recv) = channel();
         nodes.insert(url.clone(), NodeInfo { sender: Mutex::new(send) });
@@ -564,7 +564,7 @@ fn add_node_from_req(req: &mut Request,
 pub fn node_list(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     let mut nodes = Vec::new();
-    for row in conn.query("select url from nodes").expect("last select works").iter() {
+    for row in conn.dquery(&NodeTable::table().select(&[&NodeTable::url()])).expect("last select works").iter() {
         let url: String = row.get("url");
         nodes.push(url);
     }

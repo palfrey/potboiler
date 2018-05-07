@@ -15,7 +15,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 use url::Url;
 use uuid::Uuid;
-use deuterium::{NamedField, ToIsPredicate, TableDef, Selectable, ToIsNullPredicate, Queryable};
+use deuterium::{NamedField, ToIsPredicate, TableDef, Selectable, ToIsNullPredicate, Queryable, QueryToSql};
 
 error_chain! {
     foreign_links {
@@ -57,10 +57,10 @@ impl LogTable {
     }
 }
 
-fn log_status<T: Into<String>>(req: &mut Request, stmt: T) -> IronResult<Response> {
+fn log_status (req: &mut Request, stmt: &QueryToSql) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     let mut logs = Map::new();
-    for row in conn.query(&stmt.into()).expect("last select works").iter() {
+    for row in conn.dquery(stmt).expect("last select works").iter() {
         let id: Uuid = row.get("id");
         let owner: Uuid = row.get("owner");
         logs.insert(owner.to_string(),
@@ -71,11 +71,15 @@ fn log_status<T: Into<String>>(req: &mut Request, stmt: T) -> IronResult<Respons
 }
 
 pub fn log_lasts(req: &mut Request) -> IronResult<Response> {
-    log_status(req, "SELECT id, owner from log WHERE next is null")
+    log_status(req, &LogTable::table()
+        .select(&[&LogTable::id(), &LogTable::owner()])
+        .where_(LogTable::next().is_null()))
 }
 
 pub fn log_firsts(req: &mut Request) -> IronResult<Response> {
-    log_status(req, "SELECT id, owner from log WHERE prev is null")
+    log_status(req, &LogTable::table()
+        .select(&[&LogTable::id(), &LogTable::owner()])
+        .where_(LogTable::prev().is_null()))
 }
 
 fn json_from_body(req: &mut Request) -> Result<serde_json::Value> {

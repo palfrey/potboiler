@@ -12,7 +12,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::thread;
 use url::Url;
-use deuterium::{Deletable, Insertable, Queryable, NamedField, ToIsPredicate, TableDef, ToExpression};
+use deuterium::{Deletable, Insertable, Selectable, Queryable, NamedField, ToIsPredicate, TableDef, ToExpression};
 
 #[derive(Copy, Clone)]
 pub struct Notifications;
@@ -35,7 +35,7 @@ impl NotificationsTable {
 
 pub fn init_notifiers(conn: &db::Connection) -> Vec<String> {
     let mut notifiers = Vec::new();
-    for row in &conn.query("select url from notifications").expect("notifications select works") {
+    for row in &conn.dquery(&NotificationsTable::table().select(&[&NotificationsTable::url()])).expect("notifications select works") {
         let url: String = row.get("url");
         notifiers.push(url);
     }

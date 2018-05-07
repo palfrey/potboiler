@@ -132,7 +132,12 @@ mod test {
     use super::{app_router};
 
     fn test_route(path: &str, expected: &str) {
-        let pool = super::db::Pool::TestPool(super::db::TestConnection);
+        let mut conn = super::db::TestConnection::new();
+        conn.add_test_query("SELECT url FROM notifications;", vec!());
+        conn.add_test_query("SELECT url FROM nodes;", vec!());
+        conn.add_test_query("SELECT id, owner FROM log WHERE next IS NULL;", vec!());
+        conn.add_test_query("SELECT id, owner FROM log WHERE prev IS NULL;", vec!());
+        let pool = super::db::Pool::TestPool(conn);
         let response = request::get(&format!("http://localhost:8000/{}", path),
                                     Headers::new(),
                                     &app_router(pool).unwrap()).unwrap();
@@ -158,7 +163,10 @@ mod test {
 
     #[test]
     fn test_new_log() {
-        let pool = super::db::Pool::TestPool(super::db::TestConnection);
+        let mut conn = super::db::TestConnection::new();
+        conn.add_test_query("SELECT url FROM notifications;", vec!());
+        conn.add_test_query("SELECT url FROM nodes;", vec!());
+        let pool = super::db::Pool::TestPool(conn);
         let response = request::post("http://localhost:8000/log",
                                     Headers::new(),
                                     "{}",
