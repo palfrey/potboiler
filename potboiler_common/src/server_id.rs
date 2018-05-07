@@ -38,3 +38,7 @@ pub fn setup() -> Uuid {
         Uuid::parse_str(&s).expect(&format!("Can parse '{}' as UUID", s))
     }
 }
+
+pub fn test() -> Uuid {
+    Uuid::parse_str("FEEDFACEDEADFEEDFACEDEADFACEDEAD").unwrap()
+}

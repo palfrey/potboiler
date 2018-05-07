@@ -81,7 +81,6 @@ fn app_router(pool: db::Pool) -> Result<Chain> {
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);
-    chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     let conn = pool.get()?;
     chain.link_before(State::<notifications::Notifications>::one(notifications::init_notifiers(&conn)));
     let clock_state = clock::init_clock();
@@ -108,7 +107,8 @@ fn db_setup() -> Result<db::Pool> {
 quick_main!(|| -> Result<()> {
     log4rs::init_file("log.yaml", Default::default())?;
     let pool = db_setup()?;
-    let chain = app_router(pool)?;
+    let mut chain = app_router(pool)?;
+    chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     info!("Potboiler booted");
     Iron::new(chain).http("0.0.0.0:8000")?;
     Ok(())
@@ -167,10 +167,12 @@ mod test {
         conn.add_test_query("select url from nodes", vec!());
         conn.add_test_query("select id from log where next is null and owner == feedface-dead-feed-face-deadfacedead limit 1", vec!());
         let pool = super::db::Pool::TestPool(conn);
+        let mut router = app_router(pool).unwrap();
+        router.link_before(PRead::<server_id::ServerId>::one(server_id::test()));
         let response = request::post("http://localhost:8000/log",
                                     Headers::new(),
                                     "{}",
-                                    &app_router(pool).unwrap()).unwrap();
+                                    &router).unwrap();
         assert_eq!(response.status.unwrap(), Status::Created);
         let uuid = {
             let re = Regex::new(r"http://localhost:8000/log/([a-z0-9-]+)").unwrap();
