@@ -18,7 +18,7 @@ macro_rules! get_server_id {
     ($req:expr) => (match $req.extensions.get::<persistent::Read<server_id::ServerId>>() {
         Some(id) => id,
         None => {
-            println!("Couldn't get the pg pool from the request!");
+            println!("Couldn't get the server id from the request!");
             return Ok(Response::with(status::InternalServerError));
         }
     })

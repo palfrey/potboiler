@@ -29,7 +29,6 @@ extern crate potboiler_common;
 extern crate urlencoded;
 extern crate plugin;
 extern crate resolve;
-extern crate deuterium;
 #[macro_use]
 extern crate error_chain;
 
@@ -129,14 +128,14 @@ mod test {
     extern crate regex;
     use self::regex::Regex;
 
-    use super::{app_router};
+    use super::{app_router, server_id, PRead};
 
     fn test_route(path: &str, expected: &str) {
         let mut conn = super::db::TestConnection::new();
-        conn.add_test_query("SELECT url FROM notifications;", vec!());
-        conn.add_test_query("SELECT url FROM nodes;", vec!());
-        conn.add_test_query("SELECT id, owner FROM log WHERE next IS NULL;", vec!());
-        conn.add_test_query("SELECT id, owner FROM log WHERE prev IS NULL;", vec!());
+        conn.add_test_query("select url from notifications", vec!());
+        conn.add_test_query("select url from nodes", vec!());
+        conn.add_test_query("select id, owner from log where next is null", vec!());
+        conn.add_test_query("select id, owner from log where prev is null", vec!());
         let pool = super::db::Pool::TestPool(conn);
         let response = request::get(&format!("http://localhost:8000/{}", path),
                                     Headers::new(),
@@ -164,8 +163,9 @@ mod test {
     #[test]
     fn test_new_log() {
         let mut conn = super::db::TestConnection::new();
-        conn.add_test_query("SELECT url FROM notifications;", vec!());
-        conn.add_test_query("SELECT url FROM nodes;", vec!());
+        conn.add_test_query("select url from notifications", vec!());
+        conn.add_test_query("select url from nodes", vec!());
+        conn.add_test_query("select id from log where next is null and owner == feedface-dead-feed-face-deadfacedead limit 1", vec!());
         let pool = super::db::Pool::TestPool(conn);
         let response = request::post("http://localhost:8000/log",
                                     Headers::new(),

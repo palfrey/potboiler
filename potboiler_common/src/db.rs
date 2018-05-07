@@ -2,14 +2,12 @@ use iron::typemap::Key;
 use uuid::Uuid;
 use serde_json;
 use std::iter;
-use deuterium;
 use r2d2;
 use r2d2_postgres;
 use postgres;
 use std::convert::From;
 use std::collections::HashMap;
-use std::{any,fmt};
-use uuid;
+use std::fmt;
 
 error_chain! {
     errors {
@@ -20,6 +18,25 @@ error_chain! {
     foreign_links {
         R2D2Error(r2d2::Error);
         PostgresError(postgres::Error);
+    }
+}
+
+pub struct HexSlice<'a>(&'a [u8]);
+
+impl<'a> HexSlice<'a> {
+    pub fn new<T>(data: &'a T) -> HexSlice<'a>
+        where T: ?Sized + AsRef<[u8]> + 'a
+    {
+        HexSlice(data.as_ref())
+    }
+}
+
+impl<'a> fmt::Display for HexSlice<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for byte in self.0 {
+            write!(f, "{:02X}", byte)?;
+        }
+        Ok(())
     }
 }
 
@@ -264,24 +281,6 @@ impl TestConnection {
     }
 }
 
-fn dquery_to_sql(squery: &deuterium::QueryToSql) -> String {
-    let mut context = deuterium::SqlContext::new(Box::new(deuterium::sql::PostgreSqlAdapter));
-    let mut sql = squery.to_final_sql(&mut context);
-    for i in 0..context.get_impl_placeholders_count() as usize {
-        let data = &context.data()[i];
-        let value_any = data as &any::Any;
-        let str_data = if let Some(uid) = value_any.downcast_ref::<uuid::Uuid>() {
-            String::from(uid.hyphenated().to_string())
-        }
-        else {
-            panic!("Don't know to cope with {:?}", &data);
-        };
-        sql = sql.replace(&format!("${}", i+1), &str_data);
-    }
-    println!("{:?}", context);
-    sql
-}
-
 #[derive(Debug)]
 pub enum Connection {
     Postgres(r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>),
@@ -298,9 +297,6 @@ impl<'conn> Connection {
             }
         }
     }
-    pub fn dquery(&'conn self, squery: &deuterium::QueryToSql) -> Result<Rows> {
-        self.query(&dquery_to_sql(squery))
-    }
     pub fn execute(&self, equery: &str) -> Result<u64> {
         match self {
             &Connection::Postgres(ref conn) => {
@@ -310,9 +306,6 @@ impl<'conn> Connection {
                 conn.execute(equery)
             }
         }
-    }
-    pub fn dexecute(&self, equery: &deuterium::QueryToSql) -> Result<u64> {
-        self.execute(&dquery_to_sql(equery))
     }
 }
 

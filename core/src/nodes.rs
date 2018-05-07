@@ -24,8 +24,6 @@ use std::time::Duration;
 use url::Url;
 use urlencoded::{UrlDecodingError, UrlEncodedQuery};
 use uuid::Uuid;
-use deuterium::{Selectable, Updatable, Deletable, Insertable, NamedField, Queryable, TableDef, ToIsPredicate, ToIsNullPredicate, ToExpression, ToFieldUpdate};
-use logs::LogTable;
 
 pub type LockedNode = Arc<RwLock<HashMap<String, NodeInfo>>>;
 pub type SyncClock = Arc<RwLock<Clock<Wall>>>;
@@ -46,18 +44,6 @@ pub struct NodeList {
 
 impl Key for Nodes {
     type Value = NodeList;
-}
-
-struct NodeTable;
-
-impl NodeTable {
-    fn table() -> TableDef {
-        TableDef::new("nodes")
-    }
-
-    fn url() -> NamedField<String> {
-        return NamedField::<String>::field_of("url", &NodeTable::table());
-    }
 }
 
 error_chain! {
@@ -158,19 +144,13 @@ fn check_host_once(host_url: &String,
                 continue;
             }
         };
-        let single_item = conn.dquery(&LogTable::table()
-            .select(&[])
-            .where_(LogTable::id().is(value_uuid)))?;
+        let single_item = conn.query(&format!("select 1 from log where id == {}", &value_uuid))?;
         if !single_item.is_empty() {
             debug!("Already have {} locally", value_uuid);
             continue;
         }
 
-        let first_item = conn.dquery(&LogTable::table()
-            .select(&[&LogTable::id()])
-            .where_(LogTable::prev().is_null())
-            .and(LogTable::owner().is(key_uuid))
-            .limit(1))?;
+        let first_item = conn.query(&format!("select id from log where prev is null and owner = {} limit 1", &key_uuid))?;
         let start_uuid = if first_item.is_empty() {
             let first_url = format!("{}/log/first", &host_url);
             debug!("Get first from {:?}", host_url);
@@ -186,11 +166,7 @@ fn check_host_once(host_url: &String,
         } else {
             info!("Already have an entry from the list with server id {:?}",
                   key);
-            let last_items = conn.dquery(&LogTable::table()
-                .select(&[&LogTable::id()])
-                .where_(LogTable::next().is_null())
-                .and(LogTable::owner().is(key_uuid))
-                .limit(1))?;
+            let last_items = conn.query(&format!("select id from log where next is null and owner = {} limit 1", &key_uuid))?;
             if last_items.is_empty() {
                 bail!(ErrorKind::NoLastEntry(key.clone()));
             }
@@ -268,24 +244,11 @@ fn get_uuid_from_map(map: &serde_json::value::Map<String, serde_json::Value>, ke
 pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
     debug!("Inserting {:?}", log);
     if let Some(prev) = log.prev {
-        conn.dexecute(&LogTable::table()
-            .update()
-            .field(LogTable::next().set(&log.id))
-            .where_(LogTable::owner().is(log.owner))
-            .and(LogTable::id().is(prev)))
-            .expect("update worked");
+        conn.execute(&format!("update log set next = {} where owner = {} and id = {}", &log.id, &log.owner, &prev))?;
     }
     let raw_timestamp = get_raw_timestamp(&log.when);
-    let mut command = LogTable::table().insert_fields(&[&LogTable::id()]);
-    command.push_untyped(&[log.id.as_expr(), log.owner.as_expr(), log.data.as_expr()]);
-    if let Some(prev) = log.prev {
-        command.push_untyped(&[prev.as_expr()]);
-    }
-    command.push_untyped(&[raw_timestamp.as_expr()]);
-    conn.dexecute(&command)?;
-    // conn.execute( "INSERT INTO log (id, owner, data, prev, hlc_tstamp) VALUES ($1, $2, $3, $4, $5)",
-    //              )
-    //     .expect("insert worked");
+    conn.execute(&format!("INSERT INTO log (id, owner, data, prev, hlc_tstamp) VALUES ({}, {}, {}, {}, decode('{}', 'hex'))",
+        &log.id, &log.owner, &log.data, log.prev.map(|u| u.to_string()).unwrap_or(String::from("NULL")), &db::HexSlice::new(&raw_timestamp)))?;
     Ok(())
 }
 
@@ -322,7 +285,7 @@ fn check_new_nodes(host_url: &String,
     let remote_node_array = remote_nodes.as_array()
         .ok_or_else(|| ErrorKind::NonArrayRemoteNodes(serde_json::to_string(&remote_nodes).unwrap()))?;
     let remote_node_set: HashSet<String> = try!(hashset_from_json_array(remote_node_array));
-    let existing_nodes = conn.dquery(&NodeTable::table().select(&[&NodeTable::url()]))?;
+    let existing_nodes = conn.query("select url from nodes")?;
     let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter()
         .map(|x| x.get("url")));
     let extra_nodes = remote_node_set.difference(&existing_nodes_set)
@@ -392,7 +355,7 @@ pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList>
     let conn = pool.get()?;
     let locked_nodes = Arc::new(RwLock::new(HashMap::new()));
     let mut nodes = locked_nodes.write().unwrap();
-    for row in &conn.dquery(&NodeTable::table().select(&[&NodeTable::url()])).expect("nodes select works") {
+    for row in &conn.query("select url from nodes").expect("nodes select works") {
         let url: String = row.get("url");
         let (send, recv) = channel();
         nodes.insert(url.clone(), NodeInfo { sender: Mutex::new(send) });
@@ -473,9 +436,7 @@ enum InsertResult {
 }
 
 fn node_insert(conn: &db::Connection, url: &String) -> InsertResult {
-    let mut query = NodeTable::table().insert_fields(&[&NodeTable::url()]);
-    query.push_untyped(&[url.as_expr()]);
-    return match conn.dexecute(&query) {
+    return match conn.execute(&format!("insert into nodes (url) values({})", &url)) {
         Ok(_) => InsertResult::Inserted,
         Err(db::Error(db::ErrorKind::UniqueViolation, _)) => {
             InsertResult::Existing
@@ -518,7 +479,7 @@ pub fn node_add(req: &mut Request) -> IronResult<Response> {
 pub fn node_remove(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     let notifier = url_from_body(req).unwrap().unwrap();
-    conn.dexecute(&NodeTable::table().delete().where_(NodeTable::url().is(notifier.clone())))
+    conn.execute(&format!("delete from nodes where url == {}", &notifier))
         .expect("delete worked");
     let mut nodelist = req.extensions
         .get_mut::<State<Nodes>>()
@@ -564,7 +525,7 @@ fn add_node_from_req(req: &mut Request,
 pub fn node_list(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     let mut nodes = Vec::new();
-    for row in conn.dquery(&NodeTable::table().select(&[&NodeTable::url()])).expect("last select works").iter() {
+    for row in conn.query("select url from nodes").expect("last select works").iter() {
         let url: String = row.get("url");
         nodes.push(url);
     }

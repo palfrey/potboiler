@@ -12,7 +12,6 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::thread;
 use url::Url;
-use deuterium::{Deletable, Insertable, Selectable, Queryable, NamedField, ToIsPredicate, TableDef, ToExpression};
 
 #[derive(Copy, Clone)]
 pub struct Notifications;
@@ -21,21 +20,9 @@ impl Key for Notifications {
     type Value = Vec<String>;
 }
 
-struct NotificationsTable;
-
-impl NotificationsTable {
-    fn table() -> TableDef {
-        TableDef::new("notifications")
-    }
-
-    fn url() -> NamedField<String> {
-        return NamedField::<String>::field_of("url", &NotificationsTable::table());
-    }
-}
-
 pub fn init_notifiers(conn: &db::Connection) -> Vec<String> {
     let mut notifiers = Vec::new();
-    for row in &conn.dquery(&NotificationsTable::table().select(&[&NotificationsTable::url()])).expect("notifications select works") {
+    for row in &conn.query("select url from notifications").expect("notifications select works") {
         let url: String = row.get("url");
         notifiers.push(url);
     }
@@ -87,9 +74,7 @@ pub fn log_register(req: &mut Request) -> IronResult<Response> {
     match Url::parse(&url) {
         Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
         Ok(_) => {
-            let mut insert = NotificationsTable::table().insert_fields(&[&NotificationsTable::url()]);
-            insert.push_untyped(&[url.as_expr()]);
-            match conn.dexecute(&insert) {
+            match conn.execute(&format!("insert into notifications (url) values({})", &url)) {
                 Ok(_) => {
                     insert_notifier(req, &url);
                     Ok(Response::with(status::NoContent))
@@ -107,7 +92,7 @@ pub fn log_register(req: &mut Request) -> IronResult<Response> {
 
 pub fn log_deregister(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
-    conn.dexecute(&NotificationsTable::table().delete().where_(NotificationsTable::url().is(url_from_body(req)?.unwrap())))
+    conn.execute(&format!("delete from notifications where url == {}", &url_from_body(req)?.unwrap()))
         .expect("delete worked");
     Ok(Response::with(status::NoContent))
 }

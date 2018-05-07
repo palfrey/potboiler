@@ -16,7 +16,6 @@ extern crate router;
 extern crate serde_derive;
 #[macro_use]
 extern crate error_chain;
-extern crate deuterium;
 
 pub mod db;
 pub mod server_id;

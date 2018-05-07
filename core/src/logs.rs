@@ -15,7 +15,6 @@ use std::ops::Deref;
 use std::sync::Arc;
 use url::Url;
 use uuid::Uuid;
-use deuterium::{NamedField, ToIsPredicate, TableDef, Selectable, ToIsNullPredicate, Queryable, QueryToSql};
 
 error_chain! {
     foreign_links {
@@ -25,42 +24,10 @@ error_chain! {
 
 iron_error_from!();
 
-pub struct LogTable;
-
-impl LogTable {
-    pub fn table() -> TableDef {
-        TableDef::new("log")
-    }
-
-    pub fn id() -> NamedField<Uuid> {
-        return NamedField::<Uuid>::field_of("id", &LogTable::table());
-    }
-
-    pub fn owner() -> NamedField<Uuid> {
-        return NamedField::<Uuid>::field_of("owner", &LogTable::table());
-    }
-
-    pub fn next() -> NamedField<Option<Uuid>> {
-        return NamedField::<Option<Uuid>>::field_of("next", &LogTable::table());
-    }
-
-    pub fn prev() -> NamedField<Option<Uuid>> {
-        return NamedField::<Option<Uuid>>::field_of("prev", &LogTable::table());
-    }
-
-    pub fn data() -> NamedField<Uuid> {
-        return NamedField::<Uuid>::field_of("data", &LogTable::table());
-    }
-
-    pub fn hlc_tstamp() -> NamedField<Uuid> {
-        return NamedField::<Uuid>::field_of("hlc_tstamp", &LogTable::table());
-    }
-}
-
-fn log_status (req: &mut Request, stmt: &QueryToSql) -> IronResult<Response> {
+fn log_status<S: Into<String>> (req: &mut Request, stmt: S) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     let mut logs = Map::new();
-    for row in conn.dquery(stmt).expect("last select works").iter() {
+    for row in conn.query(&stmt.into()).expect("last select works").iter() {
         let id: Uuid = row.get("id");
         let owner: Uuid = row.get("owner");
         logs.insert(owner.to_string(),
@@ -71,15 +38,11 @@ fn log_status (req: &mut Request, stmt: &QueryToSql) -> IronResult<Response> {
 }
 
 pub fn log_lasts(req: &mut Request) -> IronResult<Response> {
-    log_status(req, &LogTable::table()
-        .select(&[&LogTable::id(), &LogTable::owner()])
-        .where_(LogTable::next().is_null()))
+    log_status(req, "select id, owner from log where next is null")
 }
 
 pub fn log_firsts(req: &mut Request) -> IronResult<Response> {
-    log_status(req, &LogTable::table()
-        .select(&[&LogTable::id(), &LogTable::owner()])
-        .where_(LogTable::prev().is_null()))
+    log_status(req, "select id, owner from log where prev is null")
 }
 
 fn json_from_body(req: &mut Request) -> Result<serde_json::Value> {
@@ -104,11 +67,9 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
     };
     let id = Uuid::new_v4();
     let hyphenated = id.hyphenated().to_string();
-    let server_id = get_server_id!(&req).deref().clone();
-    let results = conn.dquery(&LogTable::table()
-        .select(&[&LogTable::id()])
-        .where_(LogTable::next().is_null()).and(LogTable::owner().is(server_id))
-        .limit(1))
+    let when = clock::get_timestamp(&mut req);
+    let server_id = get_server_id!(&req).deref();
+    let results = conn.query(&format!("select id from log where next is null and owner == {} limit 1", &server_id))
         .expect("last select works");
     let previous = if results.is_empty() {
         None
@@ -117,7 +78,6 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
         let id: Uuid = row.get("id");
         Some(id)
     };
-    let when = clock::get_timestamp(&mut req);
     let log = Log {
         id: id,
         owner: server_id.clone(),
@@ -144,10 +104,7 @@ pub fn other_log(req: &mut Request) -> IronResult<Response> {
     let json = json_from_body(req).unwrap();
     let log: Log = serde_json::from_value(json).unwrap();
     let conn = get_db_connection!(&req);
-    let existing = conn.dquery(&LogTable::table()
-        .select(&[&LogTable::id()])
-        .where_(LogTable::id().is(log.id))
-        .limit(1))
+    let existing = conn.query(&format!("select id from log where id == {} limit 1", &log.id))
         .expect("bad existing query");
     if existing.is_empty() {
         nodes::insert_log(&conn, &log)?;
@@ -189,9 +146,7 @@ pub fn get_log(req: &mut Request) -> IronResult<Response> {
     };
     let conn = get_db_connection!(&req);
 
-    let results = conn.dquery(&LogTable::table()
-        .select(&[&LogTable::owner(), &LogTable::next(), &LogTable::prev(), &LogTable::data(), &LogTable::hlc_tstamp()])
-        .where_(LogTable::id().is(query_id))).expect("log query issue");
+    let results = conn.query(&format!("select owner, next, prev, data from log where id == {}", query_id)).expect("log query issue");
 
     if results.is_empty() {
         Ok(Response::with((status::NotFound, format!("No log {}", query))))

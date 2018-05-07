@@ -26,7 +26,6 @@ url = "*"
 
 potboiler_common = { path = "../potboiler_common" }
 
-deuterium = { git = "https://github.com/palfrey/deuterium", branch = "latest-rust", default-features = false }
 postgres = { features=["with-uuid", "with-serde_json"], version="0.15"}
 schemamama = "0.2"
 schemamama_postgres = "=0.2.2"
