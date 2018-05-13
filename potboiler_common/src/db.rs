@@ -215,7 +215,7 @@ impl<'a> fmt::Debug for RowIterator<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &RowIterator::Postgres(_) => write!(f, "RowIterator(PostgresRows)"),
-            &RowIterator::Test(ref rows) => write!(f, "RowIterator({:?})", rows)
+            &RowIterator::Test(ref rows) => write!(f, "RowIterator({:?})", rows),
         }
     }
 }
