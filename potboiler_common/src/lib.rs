@@ -50,20 +50,29 @@ pub fn get_req_key<T: Into<String>>(req: &Request, key: T) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-pub fn get_raw_timestamp(timestamp: &Timestamp<WallT>) -> Vec<u8> {
+pub fn get_raw_timestamp(timestamp: &Timestamp<WallT>) -> Result<db::HexSlice, ::std::io::Error> {
     let mut raw_timestamp: Vec<u8> = Vec::new();
-    timestamp.write_bytes(&mut raw_timestamp).unwrap();
-    return raw_timestamp;
+    timestamp.write_bytes(&mut raw_timestamp)?;
+    return Ok(db::HexSlice::new(raw_timestamp));
 }
 
 #[macro_export]
 macro_rules! iron_error_from {
-    () => (impl From<Error> for IronError {
-        fn from(error: Error) -> Self {
-            let desc = format!("{:?}", error);
-            return IronError::new(error, (status::BadRequest, desc));
+    () => (
+        impl From<ErrorKind> for IronError {
+            fn from(errkind: ErrorKind) -> IronError {
+                let desc = format!("{:?}", errkind);
+                return IronError::new(Error::from_kind(errkind), (status::BadRequest, desc));
+            }
         }
-    })
+
+        impl From<Error> for IronError {
+            fn from(error: Error) -> IronError {
+                let desc = format!("{:?}", error);
+                return IronError::new(error, (status::BadRequest, desc));
+            }
+        }
+    )
 }
 
 #[cfg(test)]
@@ -83,7 +92,7 @@ mod test {
     #[test]
     fn test_insert() {
         let mut conn = super::db::TestConnection::new();
-        conn.add_test_execute("insert into test (id) values(1)", 1);
+        conn.add_test_execute(r"insert into test \(id\) values\(1\)", 1);
         let pool = super::db::Pool::TestPool(conn);
         let res = pool.get().unwrap().execute("insert into test (id) values(1)").unwrap();
         assert_eq!(res, 1);

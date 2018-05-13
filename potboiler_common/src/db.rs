@@ -22,19 +22,22 @@ error_chain! {
     }
 }
 
-pub struct HexSlice<'a>(&'a [u8]);
+pub struct HexSlice(Vec<u8>);
 
-impl<'a> HexSlice<'a> {
-    pub fn new<T>(data: &'a T) -> HexSlice<'a>
-        where T: ?Sized + AsRef<[u8]> + 'a
+impl HexSlice {
+    pub fn new(data: Vec<u8>) -> HexSlice
     {
-        HexSlice(data.as_ref())
+        HexSlice(data)
+    }
+
+    pub fn sql(&self) -> String {
+        format!("decode('{}', 'hex')", self)
     }
 }
 
-impl<'a> fmt::Display for HexSlice<'a> {
+impl fmt::Display for HexSlice {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for byte in self.0 {
+        for byte in self.0.iter() {
             write!(f, "{:02X}", byte)?;
         }
         Ok(())
@@ -42,6 +45,7 @@ impl<'a> fmt::Display for HexSlice<'a> {
 }
 
 pub trait FromSql {}
+impl<T: FromSql> FromSql for Option<T>{}
 impl FromSql for u32 {}
 impl FromSql for Uuid {}
 impl FromSql for String {}
@@ -51,6 +55,7 @@ impl FromSql for serde_json::Value {}
 
 #[derive(Debug, Clone)]
 pub enum SqlValue {
+    Null,
     U32(u32),
     UUID(Uuid),
     String(String),
@@ -108,17 +113,32 @@ impl TestRow {
 }
 
 macro_rules! get_row {
-    ($type: ty, $kind: path) => (impl<'a> GetRow<$type> for TestRow {
-    fn get<R>(&self, id: R) -> $type where R: RowIndex + fmt::Display {
-        if !self.data.contains_key(&id.val()) {
-            panic!(format!("Can't find key {} in row", id));
-        }
-        match self.data[&id.val()] {
-            $kind(ref val) => val.clone(),
-            _ => panic!()
+    ($type: ty, $kind: path) => (
+    impl GetRow<$type> for TestRow {
+        fn get<R>(&self, id: R) -> $type where R: RowIndex + fmt::Display {
+            if !self.data.contains_key(&id.val()) {
+                panic!(format!("Can't find key {} in row", id));
+            }
+            match self.data[&id.val()] {
+                $kind(ref val) => val.clone(),
+                _ => panic!()
+            }
         }
     }
-})}
+
+    impl GetRow<Option<$type>> for TestRow {
+        fn get<R>(&self, id: R) -> Option<$type> where R: RowIndex + fmt::Display {
+            if !self.data.contains_key(&id.val()) {
+                panic!(format!("Can't find key {} in row", id));
+            }
+            match self.data[&id.val()] {
+                $kind(ref val) => Some(val.clone()),
+                SqlValue::Null => None,
+                _ => panic!()
+            }
+        }
+    }
+)}
 
 get_row!(u32, SqlValue::U32);
 get_row!(Uuid, SqlValue::UUID);

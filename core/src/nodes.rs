@@ -88,7 +88,7 @@ fn parse_json_from_request(raw_result: StdResult<hyper::client::Response, hyper:
     };
     let body_string = {
         let mut body = String::new();
-        try!(res.read_to_string(&mut body));
+        res.read_to_string(&mut body)?;
         body
     };
     return match serde_json::de::from_str(&body_string) {
@@ -189,7 +189,7 @@ fn check_host_once(host_url: &String,
         loop {
             let real_uuid = {
                 let str_uuid = current_uuid.as_str();
-                String::from(try!(str_uuid.ok_or_else(|| format!("Current id ({}) is not a UUID", current_uuid))))
+                String::from(str_uuid.ok_or_else(|| format!("Current id ({}) is not a UUID", current_uuid))?)
             };
             let current_url = format!("{}/log/{}", &host_url, real_uuid);
             debug!("Get {} from {}", real_uuid, host_url);
@@ -210,7 +210,7 @@ fn check_host_once(host_url: &String,
                 owner: key_uuid,
                 next: get_uuid_from_map(&current_entry, "next"),
                 prev: get_uuid_from_map(&current_entry, "prev"),
-                data: try!(current_entry.get("data").ok_or(ErrorKind::NoDataKey)).clone(),
+                data: current_entry.get("data").ok_or(ErrorKind::NoDataKey)?.clone(),
                 when: clock::get_timestamp_from_state(&clock_state),
             };
             insert_log(conn, &log)?;
@@ -246,9 +246,9 @@ pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
     if let Some(prev) = log.prev {
         conn.execute(&format!("update log set next = {} where owner = '{}' and id = '{}'", &log.id, &log.owner, &prev))?;
     }
-    let raw_timestamp = get_raw_timestamp(&log.when);
-    conn.execute(&format!("insert into log (id, owner, data, prev, hlc_tstamp) VALUES ('{}', '{}', '{}', {}, decode('{}', 'hex'))",
-        &log.id, &log.owner, &log.data, log.prev.map(|u| format!("'{}'", u.to_string())).unwrap_or(String::from("NULL")), &db::HexSlice::new(&raw_timestamp)))?;
+    let raw_timestamp = get_raw_timestamp(&log.when)?;
+    conn.execute(&format!("insert into log (id, owner, data, prev, hlc_tstamp) VALUES ('{}', '{}', '{}', {}, {})",
+        &log.id, &log.owner, &log.data, log.prev.map(|u| format!("'{}'", u.to_string())).unwrap_or(String::from("NULL")), &raw_timestamp.sql()))?;
     Ok(())
 }
 
@@ -284,7 +284,7 @@ fn check_new_nodes(host_url: &String,
     };
     let remote_node_array = remote_nodes.as_array()
         .ok_or_else(|| ErrorKind::NonArrayRemoteNodes(serde_json::to_string(&remote_nodes).unwrap()))?;
-    let remote_node_set: HashSet<String> = try!(hashset_from_json_array(remote_node_array));
+    let remote_node_set: HashSet<String> = hashset_from_json_array(remote_node_array)?;
     let existing_nodes = conn.query("select url from nodes")?;
     let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter()
         .map(|x| x.get("url")));
@@ -507,7 +507,7 @@ fn add_node_from_req(req: &mut Request,
                      nodes: &Vec<String>,
                      conn: &db::Connection)
                      -> Result<()> {
-    let host = try!(resolve::resolver::resolve_addr(&req.remote_addr.ip()));
+    let host = resolve::resolver::resolve_addr(&req.remote_addr.ip())?;
     let port = {
         let query = req.get_ref::<UrlEncodedQuery>()?;
         let ports = query.get("query_port").ok_or(ErrorKind::NoQueryPort)?;

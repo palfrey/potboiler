@@ -2,14 +2,11 @@ use iron::Request;
 use iron::typemap::Key;
 use persistent::State;
 use potboiler_common::types::CRDT;
-use r2d2::PooledConnection;
-use r2d2_postgres::PostgresConnectionManager;
 use serde_json;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
-
-pub type PostgresConnection = PooledConnection<PostgresConnectionManager>;
+use potboiler_common::db;
 
 #[derive(Copy, Clone)]
 pub struct Tables;
@@ -24,11 +21,10 @@ pub fn get_tables(req: &Request) -> HashMap<String, CRDT> {
 
 pub static CONFIG_TABLE: &'static str = "_config";
 
-pub fn init_tables(conn: &PostgresConnection) -> HashMap<String, CRDT> {
+pub fn init_tables(conn: &db::Connection) -> HashMap<String, CRDT> {
     let mut tables: HashMap<String, CRDT> = HashMap::new();
     tables.insert(CONFIG_TABLE.to_string(), CRDT::LWW);
-    let stmt = conn.prepare(&format!("select key, value from {}", CONFIG_TABLE)).expect("prepare failure");
-    for row in &stmt.query(&[]).expect("last select works") {
+    for row in &conn.query(&format!("select key, value from {}", CONFIG_TABLE)).expect("last select works") {
         let key: String = row.get("key");
         let value: Value = row.get("value");
         tables.insert(key.to_string(),

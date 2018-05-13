@@ -33,3 +33,4 @@ hyper = "0.10"
 
 lazy_static = "0.2"
 time = "0.1"
+error-chain = "*"

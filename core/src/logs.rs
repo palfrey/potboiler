@@ -63,7 +63,7 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     let json: Value = match json_from_body(req) {
         Ok(val) => val,
-        Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
+        Err(err) => bail!(err),
     };
     let id = Uuid::new_v4();
     let hyphenated = id.hyphenated().to_string();
