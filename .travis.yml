@@ -4,7 +4,10 @@ services:
 
 language: rust
 rust:
-  - 1.24.0
+  - stable
+  - beta
+  - nightly
+
 cache: cargo
 env:
   - PROJECT=potboiler_common
@@ -13,3 +16,8 @@ env:
   - PROJECT=pigtail
   - PROJECT=docker
 script: ./build.sh
+
+matrix:
+  allow_failures:
+    - rust: nightly
+  fast_finish: true
