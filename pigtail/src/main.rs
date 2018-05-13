@@ -1,11 +1,14 @@
+#![deny(missing_debug_implementations, missing_copy_implementations,
+        warnings,
+        trivial_numeric_casts,
+        unstable_features,
+        unused, future_incompatible)]
+
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
 extern crate log4rs;
-extern crate r2d2;
-extern crate r2d2_postgres;
-extern crate postgres;
 extern crate iron;
 extern crate persistent;
 #[macro_use]

@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::Path;
 use uuid::Uuid;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct ServerId;
 
 impl Key for ServerId {

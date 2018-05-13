@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 pub type SyncClock = Arc<RwLock<HClock<Wall>>>;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Clock;
 
 impl Key for Clock {

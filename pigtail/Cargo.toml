@@ -18,12 +18,9 @@ hybrid-clocks = { version = "^0.3.4", features = ["serde"] }
 uuid = {version = "0.5", features=["use_std","v4","serde"]}
 
 url = "*"
-postgres = {features=["with-uuid","with-serde_json"], version="0.15"}
 
 potboiler_common = { path = "../potboiler_common" }
 
-r2d2 = "0.8"
-r2d2_postgres = "0.14"
 persistent = "0.4"
 
 log = "*"

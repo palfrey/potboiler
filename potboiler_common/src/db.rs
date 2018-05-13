@@ -22,6 +22,7 @@ error_chain! {
     }
 }
 
+#[derive(Debug)]
 pub struct HexSlice(Vec<u8>);
 
 impl HexSlice {
@@ -157,6 +158,7 @@ get_row!(String, SqlValue::String);
 get_row!(serde_json::Value, SqlValue::JSON);
 get_row!(Vec<u8>, SqlValue::U8Bytes);
 
+#[derive(Debug)]
 pub enum Row<'a> {
     Postgres(postgres::rows::Row<'a>),
     Test(&'a TestRow),
@@ -172,7 +174,7 @@ impl<'a> Row<'a> {
             &Row::Test(ref rows) => rows.get(id),
         }
     }
-    pub fn get_opt<T, R>(&self, id: R) -> Option<Result<T>>
+    pub fn get_opt<T, R>(&self, _id: R) -> Option<Result<T>>
         where T: FromSql,
               R: RowIndex
     {
@@ -180,6 +182,7 @@ impl<'a> Row<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct TestRowIterator<'a> {
     rows: &'a Vec<TestRow>,
     location: usize,
@@ -208,6 +211,15 @@ pub enum RowIterator<'a> {
     Test(TestRowIterator<'a>),
 }
 
+impl<'a> fmt::Debug for RowIterator<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &RowIterator::Postgres(_) => write!(f, "RowIterator(PostgresRows)"),
+            &RowIterator::Test(ref rows) => write!(f, "RowIterator({:?})", rows)
+        }
+    }
+}
+
 impl<'a> Iterator for RowIterator<'a> {
     type Item = Row<'a>;
 
@@ -219,6 +231,7 @@ impl<'a> Iterator for RowIterator<'a> {
     }
 }
 
+#[derive(Debug)]
 pub enum Rows {
     Postgres(postgres::rows::Rows),
     Test(Vec<TestRow>),
@@ -345,6 +358,7 @@ impl Pool {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct PoolKey;
 
 impl Key for PoolKey {

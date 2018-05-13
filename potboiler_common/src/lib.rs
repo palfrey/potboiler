@@ -1,8 +1,8 @@
-// #![deny(missing_debug_implementations, missing_copy_implementations,
-//         warnings,
-//         trivial_numeric_casts,
-//         unstable_features,
-//         unused, future_incompatible)]
+#![deny(missing_debug_implementations, missing_copy_implementations,
+        warnings,
+        trivial_numeric_casts,
+        unstable_features,
+        unused, future_incompatible)]
 
 extern crate iron;
 extern crate r2d2;
