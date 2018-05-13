@@ -9,9 +9,12 @@ migration!(CreateLog, 201605221254, "create log table");
 
 impl PostgresMigration for CreateLog {
     fn up(&self, transaction: &Transaction) -> Result<(), postgres::error::Error> {
-        transaction.execute(
-            "CREATE TABLE log (id UUID PRIMARY KEY, owner UUID NOT NULL, \
-            next UUID, prev UUID, data JSONB NOT NULL);", &[])
+        transaction
+            .execute(
+                "CREATE TABLE log (id UUID PRIMARY KEY, owner UUID NOT NULL, \
+            next UUID, prev UUID, data JSONB NOT NULL);",
+                &[],
+            )
             .unwrap();
         return Ok(());
     }
@@ -27,14 +30,17 @@ migration!(Notifications, 201609181322, "add apps to notify");
 
 impl PostgresMigration for Notifications {
     fn up(&self, transaction: &Transaction) -> Result<(), postgres::error::Error> {
-        transaction.execute("CREATE TABLE notifications (url VARCHAR(2083) PRIMARY KEY);",
+        transaction
+            .execute("CREATE TABLE notifications (url VARCHAR(2083) PRIMARY KEY);",
                      &[])
             .unwrap();
         return Ok(());
     }
 
     fn down(&self, transaction: &Transaction) -> Result<(), postgres::error::Error> {
-        let _ = transaction.execute("DROP TABLE notifications;", &[]).unwrap();
+        let _ = transaction
+            .execute("DROP TABLE notifications;", &[])
+            .unwrap();
         return Ok(());
     }
 }
@@ -44,13 +50,16 @@ migration!(Timestamp, 201610022024, "add hlc timestamp to log");
 
 impl PostgresMigration for Timestamp {
     fn up(&self, transaction: &Transaction) -> Result<(), postgres::error::Error> {
-        transaction.execute("ALTER TABLE log ADD COLUMN hlc_tstamp BYTEA", &[])
+        transaction
+            .execute("ALTER TABLE log ADD COLUMN hlc_tstamp BYTEA", &[])
             .unwrap();
         return Ok(());
     }
 
     fn down(&self, transaction: &Transaction) -> Result<(), postgres::error::Error> {
-        let _ = transaction.execute("ALTER TABLE log DROP COLUMN hlc_tstamp", &[]).unwrap();
+        let _ = transaction
+            .execute("ALTER TABLE log DROP COLUMN hlc_tstamp", &[])
+            .unwrap();
         return Ok(());
     }
 }
@@ -60,7 +69,8 @@ migration!(Nodes, 201610221748, "add other node listing");
 
 impl PostgresMigration for Nodes {
     fn up(&self, transaction: &Transaction) -> Result<(), postgres::error::Error> {
-        transaction.execute("CREATE TABLE nodes (url VARCHAR(2083) PRIMARY KEY);", &[])
+        transaction
+            .execute("CREATE TABLE nodes (url VARCHAR(2083) PRIMARY KEY);", &[])
             .unwrap();
         return Ok(());
     }

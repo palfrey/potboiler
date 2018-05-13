@@ -31,8 +31,7 @@ pub struct LWW {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ORCreateOp {
-}
+pub struct ORCreateOp {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ORSetOp {

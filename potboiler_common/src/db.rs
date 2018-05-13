@@ -1,14 +1,14 @@
 use iron::typemap::Key;
-use uuid::Uuid;
-use serde_json;
-use std::iter;
+use postgres;
 use r2d2;
 use r2d2_postgres;
-use postgres;
-use std::convert::From;
-use std::collections::HashMap;
-use std::fmt;
 use regex;
+use serde_json;
+use std::collections::HashMap;
+use std::convert::From;
+use std::fmt;
+use std::iter;
+use uuid::Uuid;
 
 error_chain! {
     errors {
@@ -25,8 +25,7 @@ error_chain! {
 pub struct HexSlice(Vec<u8>);
 
 impl HexSlice {
-    pub fn new(data: Vec<u8>) -> HexSlice
-    {
+    pub fn new(data: Vec<u8>) -> HexSlice {
         HexSlice(data)
     }
 
@@ -45,11 +44,11 @@ impl fmt::Display for HexSlice {
 }
 
 pub trait FromSql {}
-impl<T: FromSql> FromSql for Option<T>{}
+impl<T: FromSql> FromSql for Option<T> {}
 impl FromSql for u32 {}
 impl FromSql for Uuid {}
 impl FromSql for String {}
-impl <'a> FromSql for &'a str {}
+impl<'a> FromSql for &'a str {}
 impl FromSql for Vec<u8> {}
 impl FromSql for serde_json::Value {}
 
@@ -64,50 +63,62 @@ pub enum SqlValue {
 }
 
 impl From<u32> for SqlValue {
-    fn from(i: u32) -> SqlValue { SqlValue::U32(i) }
+    fn from(i: u32) -> SqlValue {
+        SqlValue::U32(i)
+    }
 }
 
 #[derive(Hash, Eq, PartialEq, Clone, Debug)]
-pub enum ValueIndex
-{
+pub enum ValueIndex {
     U32(u32),
     String(String),
 }
 
 impl<'a> From<&'a str> for ValueIndex {
-    fn from(s: &str) -> ValueIndex { ValueIndex::String(String::from(s))}
+    fn from(s: &str) -> ValueIndex {
+        ValueIndex::String(String::from(s))
+    }
 }
 
 pub trait RowIndex {
     fn val(&self) -> ValueIndex;
 }
 impl RowIndex for u32 {
-    fn val(&self) -> ValueIndex { ValueIndex::U32(*self)}
+    fn val(&self) -> ValueIndex {
+        ValueIndex::U32(*self)
+    }
 }
 impl RowIndex for String {
-    fn val(&self) -> ValueIndex { ValueIndex::String(self.clone())}
+    fn val(&self) -> ValueIndex {
+        ValueIndex::String(self.clone())
+    }
 }
-impl <'a> RowIndex for &'a str {
-    fn val(&self) -> ValueIndex { ValueIndex::String(String::from(*self))}
+impl<'a> RowIndex for &'a str {
+    fn val(&self) -> ValueIndex {
+        ValueIndex::String(String::from(*self))
+    }
 }
 
 #[derive(Debug, Clone)]
-pub struct TestRow
-{
-    data: HashMap<ValueIndex, SqlValue>
+pub struct TestRow {
+    data: HashMap<ValueIndex, SqlValue>,
 }
 
 pub trait GetRow<T> {
-    fn get<R>(&self, id: R) -> T where T: FromSql, R: RowIndex + fmt::Display;
+    fn get<R>(&self, id: R) -> T
+        where T: FromSql,
+              R: RowIndex + fmt::Display;
 }
 
 impl TestRow {
     pub fn new() -> TestRow {
-        TestRow{data: HashMap::new()}
+        TestRow { data: HashMap::new() }
     }
 
     pub fn insert<K, V>(&mut self, k: K, v: V) -> Option<SqlValue>
-        where K: Into<ValueIndex>, V: Into<SqlValue> {
+        where K: Into<ValueIndex>,
+              V: Into<SqlValue>
+    {
         self.data.insert(k.into(), v.into())
     }
 }
@@ -148,47 +159,45 @@ get_row!(Vec<u8>, SqlValue::U8Bytes);
 
 pub enum Row<'a> {
     Postgres(postgres::rows::Row<'a>),
-    Test(&'a TestRow)
+    Test(&'a TestRow),
 }
 impl<'a> Row<'a> {
-    pub fn get<T, R>(&self, id: R) -> T 
-    where
-        T: FromSql + postgres::types::FromSql, 
-        R: RowIndex + postgres::rows::RowIndex + fmt::Display + fmt::Debug,
-        TestRow: GetRow<T> {
+    pub fn get<T, R>(&self, id: R) -> T
+        where T: FromSql + postgres::types::FromSql,
+              R: RowIndex + postgres::rows::RowIndex + fmt::Display + fmt::Debug,
+              TestRow: GetRow<T>
+    {
         match self {
-            &Row::Postgres(ref rows) => {
-                rows.get(id)
-            }
-            &Row::Test(ref rows) => {
-                rows.get(id)
-            }
+            &Row::Postgres(ref rows) => rows.get(id),
+            &Row::Test(ref rows) => rows.get(id),
         }
     }
-    pub fn get_opt<T, R>(&self, id: R) -> Option<Result<T>> where T: FromSql, R: RowIndex {
+    pub fn get_opt<T, R>(&self, id: R) -> Option<Result<T>>
+        where T: FromSql,
+              R: RowIndex
+    {
         unimplemented!();
     }
 }
 
 pub struct TestRowIterator<'a> {
     rows: &'a Vec<TestRow>,
-    location: usize
+    location: usize,
 }
 
 impl<'a> TestRowIterator<'a> {
     fn new(r: &'a Vec<TestRow>) -> TestRowIterator<'a> {
         TestRowIterator {
             rows: r,
-            location: 0
+            location: 0,
         }
     }
 
     fn next(&mut self) -> Option<&'a TestRow> {
-        self.location +=1;
+        self.location += 1;
         if self.location < self.rows.len() {
             Some(&self.rows[self.location])
-        }
-        else {
+        } else {
             None
         }
     }
@@ -196,7 +205,7 @@ impl<'a> TestRowIterator<'a> {
 
 pub enum RowIterator<'a> {
     Postgres(postgres::rows::Iter<'a>),
-    Test(TestRowIterator<'a>)
+    Test(TestRowIterator<'a>),
 }
 
 impl<'a> Iterator for RowIterator<'a> {
@@ -204,60 +213,40 @@ impl<'a> Iterator for RowIterator<'a> {
 
     fn next(&mut self) -> Option<Row<'a>> {
         match self {
-            &mut RowIterator::Postgres(ref mut rows) => {
-                rows.next().map(|r| Row::Postgres(r))
-            }
-            &mut RowIterator::Test(ref mut rows) => {
-                rows.next().map(|r| Row::Test(r))
-            }
+            &mut RowIterator::Postgres(ref mut rows) => rows.next().map(|r| Row::Postgres(r)),
+            &mut RowIterator::Test(ref mut rows) => rows.next().map(|r| Row::Test(r)),
         }
     }
 }
 
 pub enum Rows {
     Postgres(postgres::rows::Rows),
-    Test(Vec<TestRow>)
+    Test(Vec<TestRow>),
 }
 
 impl<'stmt> Rows {
     pub fn get<'a>(&'a self, id: usize) -> Row<'a> {
         match self {
-            &Rows::Postgres(ref rows) => {
-                Row::Postgres(rows.get(id))
-            }
-            &Rows::Test(ref rows) => {
-                Row::Test(rows.get(id).unwrap())
-            }
+            &Rows::Postgres(ref rows) => Row::Postgres(rows.get(id)),
+            &Rows::Test(ref rows) => Row::Test(rows.get(id).unwrap()),
         }
     }
     pub fn is_empty(&self) -> bool {
         match self {
-            &Rows::Postgres(ref rows) => {
-                rows.is_empty()
-            }
-            &Rows::Test(ref rows) => {
-                rows.is_empty()
-            }
+            &Rows::Postgres(ref rows) => rows.is_empty(),
+            &Rows::Test(ref rows) => rows.is_empty(),
         }
     }
     pub fn len(&self) -> usize {
         match self {
-            &Rows::Postgres(ref rows) => {
-                rows.len()
-            }
-            &Rows::Test(ref rows) => {
-                rows.len()
-            }
+            &Rows::Postgres(ref rows) => rows.len(),
+            &Rows::Test(ref rows) => rows.len(),
         }
     }
     pub fn iter<'a>(&'a self) -> RowIterator<'a> {
         match self {
-            &Rows::Postgres(ref rows) => {
-                RowIterator::Postgres(rows.iter())
-            }
-            &Rows::Test(ref rows) => {
-                RowIterator::Test(TestRowIterator::new(rows))
-            }
+            &Rows::Postgres(ref rows) => RowIterator::Postgres(rows.iter()),
+            &Rows::Test(ref rows) => RowIterator::Test(TestRowIterator::new(rows)),
         }
     }
 }
@@ -273,23 +262,25 @@ impl<'a> iter::IntoIterator for &'a Rows {
 #[derive(Debug, Clone)]
 pub struct TestConnection {
     query_results: Vec<(regex::Regex, Vec<TestRow>)>,
-    execute_results: Vec<(regex::Regex, u64)>
+    execute_results: Vec<(regex::Regex, u64)>,
 }
 
 impl TestConnection {
     pub fn new() -> TestConnection {
         TestConnection {
             query_results: Vec::new(),
-            execute_results: Vec::new()
+            execute_results: Vec::new(),
         }
     }
 
     pub fn add_test_query(&mut self, cmd: &str, results: Vec<TestRow>) {
-        self.query_results.push((regex::Regex::new(cmd).unwrap(), results));
+        self.query_results
+            .push((regex::Regex::new(cmd).unwrap(), results));
     }
 
     pub fn add_test_execute(&mut self, cmd: &str, results: u64) {
-        self.execute_results.push((regex::Regex::new(cmd).unwrap(), results));
+        self.execute_results
+            .push((regex::Regex::new(cmd).unwrap(), results));
     }
 
     fn get_rows(&self, cmd: &str) -> Result<Vec<TestRow>> {
@@ -313,27 +304,25 @@ impl TestConnection {
 #[derive(Debug)]
 pub enum Connection {
     Postgres(r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>),
-    Test(TestConnection)
+    Test(TestConnection),
 }
 impl<'conn> Connection {
     pub fn query(&'conn self, query: &str) -> Result<Rows> {
         match self {
             &Connection::Postgres(ref conn) => {
-                Ok(Rows::Postgres(conn.query(query, &[]).map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(query.to_string())))?))
+                Ok(Rows::Postgres(conn.query(query, &[])
+                                      .map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(query.to_string())))?))
             }
-            &Connection::Test(ref conn) => {
-                Ok(Rows::Test(conn.get_rows(query)?))
-            }
+            &Connection::Test(ref conn) => Ok(Rows::Test(conn.get_rows(query)?)),
         }
     }
     pub fn execute(&self, equery: &str) -> Result<u64> {
         match self {
             &Connection::Postgres(ref conn) => {
-                conn.execute(equery, &[]).map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(equery.to_string())))
+                conn.execute(equery, &[])
+                    .map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(equery.to_string())))
             }
-            &Connection::Test(ref conn) => {
-                conn.execute(equery)
-            }
+            &Connection::Test(ref conn) => conn.execute(equery),
         }
     }
 }
@@ -341,7 +330,7 @@ impl<'conn> Connection {
 #[derive(Clone, Debug)]
 pub enum Pool {
     Postgres(r2d2::Pool<r2d2_postgres::PostgresConnectionManager>),
-    TestPool(TestConnection)
+    TestPool(TestConnection),
 }
 
 impl Pool {
@@ -351,9 +340,7 @@ impl Pool {
                 let conn = pool.get()?;
                 Ok(Connection::Postgres(conn))
             }
-            &Pool::TestPool(ref conn) => {
-                Ok(Connection::Test(conn.clone()))
-            }
+            &Pool::TestPool(ref conn) => Ok(Connection::Test(conn.clone())),
         }
     }
 }

@@ -22,7 +22,8 @@ impl Key for Notifications {
 
 pub fn init_notifiers(conn: &db::Connection) -> Vec<String> {
     let mut notifiers = Vec::new();
-    for row in &conn.query("select url from notifications").expect("notifications select works") {
+    for row in &conn.query("select url from notifications")
+            .expect("notifications select works") {
         let url: String = row.get("url");
         notifiers.push(url);
     }
@@ -30,7 +31,13 @@ pub fn init_notifiers(conn: &db::Connection) -> Vec<String> {
 }
 
 fn get_notifications_list(req: &Request) -> Vec<String> {
-    req.extensions.get::<State<Notifications>>().unwrap().read().unwrap().deref().clone()
+    req.extensions
+        .get::<State<Notifications>>()
+        .unwrap()
+        .read()
+        .unwrap()
+        .deref()
+        .clone()
 }
 
 fn insert_notifier(req: &mut Request, to_notify: &String) {
@@ -50,7 +57,8 @@ pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
         thread::spawn(move || {
             let client = hyper::client::Client::new();
             debug!("Notifying {:?}", notifier);
-            let res = client.post(&notifier)
+            let res = client
+                .post(&notifier)
                 .body(&serde_json::to_string(&local_log.deref()).unwrap())
                 .send();
             match res {
@@ -79,12 +87,8 @@ pub fn log_register(req: &mut Request) -> IronResult<Response> {
                     insert_notifier(req, &url);
                     Ok(Response::with(status::NoContent))
                 }
-                Err(db::Error(db::ErrorKind::UniqueViolation, _)) => {
-                    Ok(Response::with(status::NoContent))
-                }
-                Err(err) => {
-                    Err(IronError::new(err, (status::BadRequest, "Some other error")))
-                }
+                Err(db::Error(db::ErrorKind::UniqueViolation, _)) => Ok(Response::with(status::NoContent)),
+                Err(err) => Err(IronError::new(err, (status::BadRequest, "Some other error"))),
             }
         }
     }
@@ -92,7 +96,8 @@ pub fn log_register(req: &mut Request) -> IronResult<Response> {
 
 pub fn log_deregister(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
-    conn.execute(&format!("delete from notifications where url = '{}'", &url_from_body(req)?.unwrap()))
+    conn.execute(&format!("delete from notifications where url = '{}'",
+                          &url_from_body(req)?.unwrap()))
         .expect("delete worked");
     Ok(Response::with(status::NoContent))
 }

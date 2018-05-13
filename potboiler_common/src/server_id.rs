@@ -29,12 +29,14 @@ pub fn setup() -> Uuid {
     if !Path::new(id_path).exists() {
         let mut f = File::create(id_path).expect(&format!("Can create {}", id_path));
         let id = Uuid::new_v4();
-        f.write_fmt(format_args!("{}", id.hyphenated())).expect(&format!("Can write {}", id_path));
+        f.write_fmt(format_args!("{}", id.hyphenated()))
+            .expect(&format!("Can write {}", id_path));
         id
     } else {
         let mut f = File::open(id_path).expect(&format!("Can open {}", id_path));
         let mut s = String::new();
-        f.read_to_string(&mut s).expect(&format!("Can read {}", id_path));
+        f.read_to_string(&mut s)
+            .expect(&format!("Can read {}", id_path));
         Uuid::parse_str(&s).expect(&format!("Can parse '{}' as UUID", s))
     }
 }

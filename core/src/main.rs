@@ -84,8 +84,7 @@ fn app_router(pool: db::Pool) -> Result<Chain> {
     let conn = pool.get()?;
     chain.link_before(State::<notifications::Notifications>::one(notifications::init_notifiers(&conn)));
     let clock_state = clock::init_clock();
-    chain.link_before(State::<nodes::Nodes>::one(nodes::initial_nodes(pool.clone(),
-                                                                      clock_state.clock_state.clone())?));
+    chain.link_before(State::<nodes::Nodes>::one(nodes::initial_nodes(pool.clone(), clock_state.clock_state.clone())?));
     chain.link_before(clock_state);
     chain.link(PRead::<db::PoolKey>::both(pool));
     return Ok(chain);
@@ -98,8 +97,7 @@ fn db_setup() -> Result<db::Pool> {
         let conn = pg_pool.get()?;
         schema::up(&conn)?;
         return Ok(db::Pool::Postgres(pg_pool));
-    }
-    else {
+    } else {
         bail!(ErrorKind::MigrationsOnNonPostgres(pool));
     }
 }
@@ -117,8 +115,8 @@ quick_main!(|| -> Result<()> {
 #[cfg(test)]
 mod test {
     extern crate iron_test;
-    use self::iron_test::response::extract_body_to_string;
     use self::iron_test::request;
+    use self::iron_test::response::extract_body_to_string;
 
     use iron::Headers;
     use iron::headers;
@@ -128,18 +126,19 @@ mod test {
     extern crate regex;
     use self::regex::Regex;
 
-    use super::{app_router, server_id, PRead};
+    use super::{PRead, app_router, server_id};
 
     fn test_route(path: &str, expected: &str) {
         let mut conn = super::db::TestConnection::new();
-        conn.add_test_query("select url from notifications", vec!());
-        conn.add_test_query("select url from nodes", vec!());
-        conn.add_test_query("select id, owner from log where next is null", vec!());
-        conn.add_test_query("select id, owner from log where prev is null", vec!());
+        conn.add_test_query("select url from notifications", vec![]);
+        conn.add_test_query("select url from nodes", vec![]);
+        conn.add_test_query("select id, owner from log where next is null", vec![]);
+        conn.add_test_query("select id, owner from log where prev is null", vec![]);
         let pool = super::db::Pool::TestPool(conn);
         let response = request::get(&format!("http://localhost:8000/{}", path),
                                     Headers::new(),
-                                    &app_router(pool).unwrap()).unwrap();
+                                    &app_router(pool).unwrap())
+            .unwrap();
         assert_eq!(response.status.unwrap(), Status::Ok);
         let result = extract_body_to_string(response);
         assert_eq!(result, expected);
@@ -163,21 +162,27 @@ mod test {
     #[test]
     fn test_new_log() {
         let mut conn = super::db::TestConnection::new();
-        conn.add_test_query("select url from notifications", vec!());
-        conn.add_test_query("select url from nodes", vec!());
-        conn.add_test_query("select id from log where next is null and owner = 'feedface-dead-feed-face-deadfacedead' limit 1", vec!());
-        conn.add_test_execute(r"insert into log \(id, owner, data, prev, hlc_tstamp\) VALUES \('[a-z0-9-]+', 'feedface-dead-feed-face-deadfacedead', '\{\}', NULL, decode\('[0-9A-Z]+', 'hex'\)\)", 1);
+        conn.add_test_query("select url from notifications", vec![]);
+        conn.add_test_query("select url from nodes", vec![]);
+        conn.add_test_query(concat!("select id from log where next is null ",
+                                    "and owner = 'feedface-dead-feed-face-deadfacedead' limit 1"),
+                            vec![]);
+        conn.add_test_execute(concat!(r"insert into log \(id, owner, data, prev, hlc_tstamp\) ",
+                                      r"VALUES \('[a-z0-9-]+', 'feedface-dead-feed-face-deadfacedead', ",
+                                      r"'\{\}', NULL, decode\('[0-9A-Z]+', 'hex'\)\)"),
+                              1);
         let pool = super::db::Pool::TestPool(conn);
         let mut router = app_router(pool).unwrap();
         router.link_before(PRead::<server_id::ServerId>::one(server_id::test()));
-        let response = request::post("http://localhost:8000/log",
-                                    Headers::new(),
-                                    "{}",
-                                    &router).unwrap();
+        let response = request::post("http://localhost:8000/log", Headers::new(), "{}", &router).unwrap();
         assert_eq!(response.status.unwrap(), Status::Created);
         let uuid = {
             let re = Regex::new(r"http://localhost:8000/log/([a-z0-9-]+)").unwrap();
-            let url = String::from(response.headers.get::<headers::Location>().unwrap().as_str());
+            let url = String::from(response
+                                       .headers
+                                       .get::<headers::Location>()
+                                       .unwrap()
+                                       .as_str());
             assert!(url.starts_with("http://localhost:8000/log/"));
             String::from(re.captures(&url).unwrap().at(1).unwrap())
         };
@@ -193,17 +198,12 @@ mod test {
         pool.get().unwrap().execute("delete from log").unwrap();
         let mut router = app_router(pool).unwrap();
         router.link_before(PRead::<server_id::ServerId>::one(server_id::test()));
-        let mut response = request::get("http://localhost:8000/log",
-                                    Headers::new(),
-                                    &router).unwrap();
+        let mut response = request::get("http://localhost:8000/log", Headers::new(), &router).unwrap();
         assert_eq!(response.status.unwrap(), Status::Ok);
         let result = extract_body_to_string(response);
         assert_eq!(result, "{}");
 
-        response = request::post("http://localhost:8000/log",
-                                    Headers::new(),
-                                    "{}",
-                                    &router).unwrap();
+        response = request::post("http://localhost:8000/log", Headers::new(), "{}", &router).unwrap();
         assert_eq!(response.status.unwrap(), Status::Created);
     }
 }

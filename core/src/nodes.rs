@@ -10,12 +10,12 @@ use potboiler_common::{clock, db, get_raw_timestamp, url_from_body};
 use potboiler_common::types::Log;
 use resolve;
 use serde_json;
-use std::result::Result as StdResult;
-use std::convert;
 use std::collections::{HashMap, HashSet};
+use std::convert;
 use std::io::Read;
 use std::iter::FromIterator;
 use std::ops::{Deref, DerefMut};
+use std::result::Result as StdResult;
 use std::sync::{Mutex, RwLock};
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -96,7 +96,7 @@ fn parse_json_from_request(raw_result: StdResult<hyper::client::Response, hyper:
             debug!("Good data back {:?}", val);
             Ok(val)
         }
-        Err(_) => bail!(ErrorKind::CrappyData(body_string))
+        Err(_) => bail!(ErrorKind::CrappyData(body_string)),
     };
 }
 
@@ -108,14 +108,11 @@ fn parse_object_from_request(raw_result: StdResult<hyper::client::Response, hype
     };
     return match json.as_object() {
         Some(val) => Ok(val.clone()),
-        None => bail!(ErrorKind::NotAMap(serde_json::to_string(&json).unwrap()))
+        None => bail!(ErrorKind::NotAMap(serde_json::to_string(&json).unwrap())),
     };
 }
 
-fn check_host_once(host_url: &String,
-                   conn: &db::Connection,
-                   clock_state: SyncClock)
-                   -> Result<()> {
+fn check_host_once(host_url: &String, conn: &db::Connection, clock_state: SyncClock) -> Result<()> {
     let mut client = hyper::client::Client::new();
     client.set_read_timeout(Some(Duration::from_secs(10)));
     client.set_write_timeout(Some(Duration::from_secs(10)));
@@ -129,8 +126,9 @@ fn check_host_once(host_url: &String,
         }
     };
     for (key, value) in kv.iter() {
-        let value_uuid = match Uuid::parse_str(value.as_str()
-            .ok_or(ErrorKind::BadUuid(serde_json::to_string(value)?))?) {
+        let value_uuid = match Uuid::parse_str(value
+                                                   .as_str()
+                                                   .ok_or(ErrorKind::BadUuid(serde_json::to_string(value)?))?) {
             Ok(val) => val,
             Err(_) => {
                 warn!("Value {} isn't a UUID!", value);
@@ -150,7 +148,8 @@ fn check_host_once(host_url: &String,
             continue;
         }
 
-        let first_item = conn.query(&format!("select id from log where prev is null and owner = '{}' limit 1", &key_uuid))?;
+        let first_item = conn.query(&format!("select id from log where prev is null and owner = '{}' limit 1",
+                                             &key_uuid))?;
         let start_uuid = if first_item.is_empty() {
             let first_url = format!("{}/log/first", &host_url);
             debug!("Get first from {:?}", host_url);
@@ -162,11 +161,15 @@ fn check_host_once(host_url: &String,
                 }
             };
             info!("First entry: {:?}", &first_entry);
-            first_entry.get(key).ok_or_else(|| ErrorKind::KeyMissing(key.clone()))?.clone()
+            first_entry
+                .get(key)
+                .ok_or_else(|| ErrorKind::KeyMissing(key.clone()))?
+                .clone()
         } else {
             info!("Already have an entry from the list with server id {:?}",
                   key);
-            let last_items = conn.query(&format!("select id from log where next is null and owner = '{}' limit 1", &key_uuid))?;
+            let last_items = conn.query(&format!("select id from log where next is null and owner = '{}' limit 1",
+                                                 &key_uuid))?;
             if last_items.is_empty() {
                 bail!(ErrorKind::NoLastEntry(key.clone()));
             }
@@ -189,7 +192,8 @@ fn check_host_once(host_url: &String,
         loop {
             let real_uuid = {
                 let str_uuid = current_uuid.as_str();
-                String::from(str_uuid.ok_or_else(|| format!("Current id ({}) is not a UUID", current_uuid))?)
+                String::from(str_uuid
+                                 .ok_or_else(|| format!("Current id ({}) is not a UUID", current_uuid))?)
             };
             let current_url = format!("{}/log/{}", &host_url, real_uuid);
             debug!("Get {} from {}", real_uuid, host_url);
@@ -201,16 +205,21 @@ fn check_host_once(host_url: &String,
                 }
             };
             let next = current_entry.get("next").ok_or(ErrorKind::NoNextKey)?;
-            let timestamp: Timestamp<WallT> = serde_json::value::from_value(
-                    current_entry.get("when").ok_or(ErrorKind::NoWhenKey)?
-                    .clone())?;
+            let timestamp: Timestamp<WallT> = serde_json::value::from_value(current_entry
+                                                                                .get("when")
+                                                                                .ok_or(ErrorKind::NoWhenKey)?
+                                                                                .clone())?;
             clock::observe_timestamp(&clock_state, timestamp);
             let log = Log {
-                id: Uuid::parse_str(&real_uuid).map_err(|_| ErrorKind::BadLogUuid(real_uuid))?,
+                id: Uuid::parse_str(&real_uuid)
+                    .map_err(|_| ErrorKind::BadLogUuid(real_uuid))?,
                 owner: key_uuid,
                 next: get_uuid_from_map(&current_entry, "next"),
                 prev: get_uuid_from_map(&current_entry, "prev"),
-                data: current_entry.get("data").ok_or(ErrorKind::NoDataKey)?.clone(),
+                data: current_entry
+                    .get("data")
+                    .ok_or(ErrorKind::NoDataKey)?
+                    .clone(),
                 when: clock::get_timestamp_from_state(&clock_state),
             };
             insert_log(conn, &log)?;
@@ -244,11 +253,20 @@ fn get_uuid_from_map(map: &serde_json::value::Map<String, serde_json::Value>, ke
 pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
     debug!("Inserting {:?}", log);
     if let Some(prev) = log.prev {
-        conn.execute(&format!("update log set next = {} where owner = '{}' and id = '{}'", &log.id, &log.owner, &prev))?;
+        conn.execute(&format!("update log set next = {} where owner = '{}' and id = '{}'",
+                              &log.id,
+                              &log.owner,
+                              &prev))?;
     }
     let raw_timestamp = get_raw_timestamp(&log.when)?;
     conn.execute(&format!("insert into log (id, owner, data, prev, hlc_tstamp) VALUES ('{}', '{}', '{}', {}, {})",
-        &log.id, &log.owner, &log.data, log.prev.map(|u| format!("'{}'", u.to_string())).unwrap_or(String::from("NULL")), &raw_timestamp.sql()))?;
+                          &log.id,
+                          &log.owner,
+                          &log.data,
+                          log.prev
+                              .map(|u| format!("'{}'", u.to_string()))
+                              .unwrap_or(String::from("NULL")),
+                          &raw_timestamp.sql()))?;
     Ok(())
 }
 
@@ -267,10 +285,7 @@ fn hashset_from_json_array(nodes: &Vec<serde_json::Value>) -> Result<HashSet<Str
     return Ok(ret);
 }
 
-fn check_new_nodes(host_url: &String,
-                   conn: &db::Connection,
-                   nodelist: NodeList)
-                   -> Result<()> {
+fn check_new_nodes(host_url: &String, conn: &db::Connection, nodelist: NodeList) -> Result<()> {
     let client = hyper::client::Client::new();
     let check_url = format!("{}/nodes?query_port=8000", &host_url);
     info!("Checking {} ({})", host_url, check_url);
@@ -282,13 +297,15 @@ fn check_new_nodes(host_url: &String,
             return Err(err);
         }
     };
-    let remote_node_array = remote_nodes.as_array()
-        .ok_or_else(|| ErrorKind::NonArrayRemoteNodes(serde_json::to_string(&remote_nodes).unwrap()))?;
+    let remote_node_array =
+        remote_nodes
+            .as_array()
+            .ok_or_else(|| ErrorKind::NonArrayRemoteNodes(serde_json::to_string(&remote_nodes).unwrap()))?;
     let remote_node_set: HashSet<String> = hashset_from_json_array(remote_node_array)?;
     let existing_nodes = conn.query("select url from nodes")?;
-    let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter()
-        .map(|x| x.get("url")));
-    let extra_nodes = remote_node_set.difference(&existing_nodes_set)
+    let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter().map(|x| x.get("url")));
+    let extra_nodes = remote_node_set
+        .difference(&existing_nodes_set)
         .map(|x| x.clone())
         .collect::<Vec<String>>();
     debug!("From {} remote nodes: {:?}", check_url, remote_node_set);
@@ -355,7 +372,8 @@ pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList>
     let conn = pool.get()?;
     let locked_nodes = Arc::new(RwLock::new(HashMap::new()));
     let mut nodes = locked_nodes.write().unwrap();
-    for row in &conn.query("select url from nodes").expect("nodes select works") {
+    for row in &conn.query("select url from nodes")
+            .expect("nodes select works") {
         let url: String = row.get("url");
         let (send, recv) = channel();
         nodes.insert(url.clone(), NodeInfo { sender: Mutex::new(send) });
@@ -367,14 +385,18 @@ pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList>
         thread::spawn(move || check_host(url.clone(), nodeslist, recv));
     }
     return Ok(NodeList {
-        nodes: locked_nodes.clone(),
-        pool: pool,
-        clock: clock_state,
-    });
+                  nodes: locked_nodes.clone(),
+                  pool: pool,
+                  clock: clock_state,
+              });
 }
 
 fn get_nodes_list(req: &Request) -> Vec<String> {
-    let state_ref = req.extensions.get::<State<Nodes>>().unwrap().read().unwrap();
+    let state_ref = req.extensions
+        .get::<State<Nodes>>()
+        .unwrap()
+        .read()
+        .unwrap();
     let nodes = state_ref.deref().nodes.read().unwrap();
     let mut vec = Vec::with_capacity(nodes.len());
     for key in nodes.keys() {
@@ -392,7 +414,11 @@ fn insert_node(req: &mut Request, to_notify: &String) {
             .write()
             .unwrap();
         let nodelist_dm = nodelist.deref_mut();
-        nodelist_dm.nodes.write().unwrap().insert(to_notify.clone(), NodeInfo { sender: Mutex::new(send) });
+        nodelist_dm
+            .nodes
+            .write()
+            .unwrap()
+            .insert(to_notify.clone(), NodeInfo { sender: Mutex::new(send) });
         NodeList {
             nodes: nodelist_dm.nodes.clone(),
             pool: nodelist_dm.pool.clone(),
@@ -412,7 +438,8 @@ pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
             let client = hyper::client::Client::new();
             let notify_url = format!("{}/log/other", node);
             debug!("Notifying (node) {}", notify_url);
-            let res = client.post(&notify_url)
+            let res = client
+                .post(&notify_url)
                 .body(&serde_json::ser::to_string(&local_log.deref()).unwrap())
                 .send();
             match res {
@@ -438,19 +465,12 @@ enum InsertResult {
 fn node_insert(conn: &db::Connection, url: &String) -> InsertResult {
     return match conn.execute(&format!("insert into nodes (url) values({})", &url)) {
         Ok(_) => InsertResult::Inserted,
-        Err(db::Error(db::ErrorKind::UniqueViolation, _)) => {
-            InsertResult::Existing
-        },
-        Err(err) => {
-            InsertResult::Error(convert::From::from(err))
-        }
+        Err(db::Error(db::ErrorKind::UniqueViolation, _)) => InsertResult::Existing,
+        Err(err) => InsertResult::Error(convert::From::from(err)),
     };
 }
 
-fn node_add_core(conn: &db::Connection,
-                 url: &String,
-                 req: &mut Request)
-                 -> Result<()> {
+fn node_add_core(conn: &db::Connection, url: &String, req: &mut Request) -> Result<()> {
     match node_insert(&conn, &url) {
         InsertResult::Inserted => {
             insert_node(req, &url);
@@ -503,10 +523,7 @@ pub fn node_remove(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with(status::NoContent))
 }
 
-fn add_node_from_req(req: &mut Request,
-                     nodes: &Vec<String>,
-                     conn: &db::Connection)
-                     -> Result<()> {
+fn add_node_from_req(req: &mut Request, nodes: &Vec<String>, conn: &db::Connection) -> Result<()> {
     let host = resolve::resolver::resolve_addr(&req.remote_addr.ip())?;
     let port = {
         let query = req.get_ref::<UrlEncodedQuery>()?;
@@ -525,7 +542,9 @@ fn add_node_from_req(req: &mut Request,
 pub fn node_list(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     let mut nodes = Vec::new();
-    for row in conn.query("select url from nodes").expect("last select works").iter() {
+    for row in conn.query("select url from nodes")
+            .expect("last select works")
+            .iter() {
         let url: String = row.get("url");
         nodes.push(url);
     }

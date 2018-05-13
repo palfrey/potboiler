@@ -17,14 +17,18 @@ use url::Url;
 use uuid::Uuid;
 
 error_chain! {
+    links {
+        DbError(db::Error, db::ErrorKind);
+    }
     foreign_links {
         SerdeError(serde_json::Error);
+        IoError(::std::io::Error);
     }
 }
 
 iron_error_from!();
 
-fn log_status<S: Into<String>> (req: &mut Request, stmt: S) -> IronResult<Response> {
+fn log_status<S: Into<String>>(req: &mut Request, stmt: S) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     let mut logs = Map::new();
     for row in conn.query(&stmt.into()).expect("last select works").iter() {
@@ -48,7 +52,9 @@ pub fn log_firsts(req: &mut Request) -> IronResult<Response> {
 fn json_from_body(req: &mut Request) -> Result<serde_json::Value> {
     let body_string = {
         let mut body = String::new();
-        req.body.read_to_string(&mut body).expect("could read from body");
+        req.body
+            .read_to_string(&mut body)
+            .expect("could read from body");
         body
     };
     return serde_json::de::from_str(&body_string).map_err(|e| e.into());
@@ -56,7 +62,7 @@ fn json_from_body(req: &mut Request) -> Result<serde_json::Value> {
 
 #[derive(Serialize)]
 struct NewLogResponse {
-    id: Uuid
+    id: Uuid,
 }
 
 pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
@@ -69,7 +75,8 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
     let hyphenated = id.hyphenated().to_string();
     let when = clock::get_timestamp(&mut req);
     let server_id = get_server_id!(&req).deref();
-    let results = conn.query(&format!("select id from log where next is null and owner = '{}' limit 1", &server_id))
+    let results = conn.query(&format!("select id from log where next is null and owner = '{}' limit 1",
+                                      &server_id))
         .expect("last select works");
     let previous = if results.is_empty() {
         None
@@ -93,10 +100,13 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
     let new_url = {
         let req_url = req.url.clone();
         let base_url: Url = req_url.into();
-        base_url.join(&format!("/log/{}", &hyphenated)).expect("join url works")
+        base_url
+            .join(&format!("/log/{}", &hyphenated))
+            .expect("join url works")
     };
     Ok(Response::with((status::Created,
-                       serde_json::to_string(&NewLogResponse{id:id}).map_err(|e| Error::from_kind(ErrorKind::SerdeError(e)))?,
+                       serde_json::to_string(&NewLogResponse { id: id })
+                           .map_err(|e| Error::from_kind(ErrorKind::SerdeError(e)))?,
                        Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")))))
 }
 
@@ -145,15 +155,17 @@ pub fn get_log(req: &mut Request) -> IronResult<Response> {
         }
     };
     let conn = get_db_connection!(&req);
-
-    let results = conn.query(&format!("select owner, next, prev, data from log where id = '{}'", query_id)).expect("log query issue");
+    let results = conn.query(&format!("select owner, next, prev, data from log where id = '{}'",
+                                      query_id))
+        .map_err(|e| Error::from(e))?;
 
     if results.is_empty() {
         Ok(Response::with((status::NotFound, format!("No log {}", query))))
     } else {
         let row = results.get(0);
         let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
-        let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).unwrap();
+        let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp))
+            .map_err(|e| Error::from(e))?;
         let log = Log {
             id: query_id,
             owner: row.get("owner"),
@@ -162,6 +174,6 @@ pub fn get_log(req: &mut Request) -> IronResult<Response> {
             data: row.get("data"),
             when: when,
         };
-        Ok(Response::with((status::Ok, serde_json::to_string(&log).unwrap())))
+        Ok(Response::with((status::Ok, serde_json::to_string(&log).map_err(|e| Error::from(e))?)))
     }
 }

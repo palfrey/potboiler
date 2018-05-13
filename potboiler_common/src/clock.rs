@@ -44,7 +44,8 @@ pub fn get_timestamp_from_state(clock: &Arc<RwLock<HClock<Wall>>>) -> Timestamp<
 }
 
 pub fn observe_timestamp(clock_state: &Arc<RwLock<HClock<Wall>>>, timestamp: Timestamp<WallT>) {
-    clock_state.write()
+    clock_state
+        .write()
         .unwrap()
         .deref_mut()
         .observe(&timestamp)

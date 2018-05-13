@@ -32,7 +32,9 @@ use std::io::Read;
 pub fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
     let body_string = {
         let mut body = String::new();
-        req.body.read_to_string(&mut body).expect("could read from body");
+        req.body
+            .read_to_string(&mut body)
+            .expect("could read from body");
         body
     };
     let json: serde_json::Value = match serde_json::de::from_str(&body_string) {
@@ -82,9 +84,12 @@ mod test {
         let mut conn = super::db::TestConnection::new();
         let mut row = super::db::TestRow::new();
         row.insert("id", 1);
-        conn.add_test_query("select 1 as id from test", vec!(row));
+        conn.add_test_query("select 1 as id from test", vec![row]);
         let pool = super::db::Pool::TestPool(conn);
-        let rows = pool.get().unwrap().query("select 1 as id from test").unwrap();
+        let rows = pool.get()
+            .unwrap()
+            .query("select 1 as id from test")
+            .unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows.get(0).get::<u32, &str>("id"), 1);
     }
@@ -94,7 +99,10 @@ mod test {
         let mut conn = super::db::TestConnection::new();
         conn.add_test_execute(r"insert into test \(id\) values\(1\)", 1);
         let pool = super::db::Pool::TestPool(conn);
-        let res = pool.get().unwrap().execute("insert into test (id) values(1)").unwrap();
+        let res = pool.get()
+            .unwrap()
+            .execute("insert into test (id) values(1)")
+            .unwrap();
         assert_eq!(res, 1);
     }
 }
