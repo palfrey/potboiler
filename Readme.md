@@ -73,3 +73,8 @@ Update operations:
 ### Pigtail
 
 Pigtail is a task queue implementation. Best docs for it at the moment are the example worker and provider in pigtail/example
+
+### Testing
+
+* `cargo test` does most of it
+* `cargo test -- --ignored` will also run the tests that need `DATABASE_URL` set
