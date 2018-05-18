@@ -16,11 +16,24 @@ error_chain! {
         NoTestQuery(cmd: String)
         NoTestExecute(cmd: String)
         PostgresError(cmd: String)
+        NoSuchTable
     }
     foreign_links {
         R2D2Error(r2d2::Error);
     }
 }
+
+impl Clone for Error {
+    fn clone(&self) -> Error {
+        match self {
+            Error(ErrorKind::PostgresError(cmd), _) => Error::from(ErrorKind::PostgresError(cmd.clone())),
+            Error(ErrorKind::NoSuchTable, _) => Error::from(ErrorKind::NoSuchTable),
+            _ => unimplemented!(),
+        }
+    }
+}
+
+unsafe impl Sync for Error {}
 
 #[derive(Debug)]
 pub struct HexSlice(Vec<u8>);
@@ -274,8 +287,8 @@ impl<'a> iter::IntoIterator for &'a Rows {
 
 #[derive(Debug, Clone)]
 pub struct TestConnection {
-    query_results: Vec<(regex::Regex, Vec<TestRow>)>,
-    execute_results: Vec<(regex::Regex, u64)>,
+    query_results: Vec<(regex::Regex, Result<Vec<TestRow>>)>,
+    execute_results: Vec<(regex::Regex, Result<u64>)>,
 }
 
 impl TestConnection {
@@ -288,26 +301,31 @@ impl TestConnection {
 
     pub fn add_test_query(&mut self, cmd: &str, results: Vec<TestRow>) {
         self.query_results
-            .push((regex::Regex::new(cmd).unwrap(), results));
+            .push((regex::Regex::new(cmd).unwrap(), Ok(results)));
+    }
+
+    pub fn add_failed_query(&mut self, cmd: &str, err: ErrorKind) {
+        self.query_results
+            .push((regex::Regex::new(cmd).unwrap(), Err(Error::from(err))));
     }
 
     pub fn add_test_execute(&mut self, cmd: &str, results: u64) {
         self.execute_results
-            .push((regex::Regex::new(cmd).unwrap(), results));
+            .push((regex::Regex::new(cmd).unwrap(), Ok(results)));
     }
 
     fn get_rows(&self, cmd: &str) -> Result<Vec<TestRow>> {
         for &(ref patt, ref res) in self.query_results.iter() {
             if patt.is_match(cmd) {
-                return Ok(res.clone());
+                return res.clone();
             }
         }
         Err(Error::from(ErrorKind::NoTestQuery(String::from(cmd))))
     }
     fn execute(&self, cmd: &str) -> Result<u64> {
-        for &(ref patt, res) in self.execute_results.iter() {
+        for &(ref patt, ref res) in self.execute_results.iter() {
             if patt.is_match(cmd) {
-                return Ok(res);
+                return res.clone();
             }
         }
         Err(Error::from(ErrorKind::NoTestExecute(String::from(cmd))))

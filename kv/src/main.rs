@@ -2,7 +2,8 @@
         warnings,
         trivial_numeric_casts,
         unstable_features,
-        unused, future_incompatible)]
+        unused,
+        future_incompatible)]
 
 #[macro_use]
 extern crate log;
@@ -52,6 +53,7 @@ error_chain! {
         UnsupportedORSETOp(name: Operation)
         UnsupportedLWWOp(name: Operation)
         NoTable(name: String)
+        ConfigTableCreation
     }
     links {
         DbError(db::Error, db::ErrorKind);
@@ -67,24 +69,76 @@ lazy_static! {
     static ref SERVER_URL: String = env::var("SERVER_URL").expect("Needed SERVER_URL");
 }
 
+fn get_table_kind(table: &str) -> CRDT {
+    if table == tables::CONFIG_TABLE {
+        return CRDT::LWW;
+    } else {
+        //let tables = tables::get_tables(req);
+        unimplemented!()
+    }
+}
+
 fn get_key(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
-    let mut items = Vec::new();
-    for row in conn.query(&format!("SELECT key, item, metadata FROM {}_items where collection={}",
-                                   &potboiler_common::get_req_key(req, "table").unwrap(),
-                                   &potboiler_common::get_req_key(req, "key").unwrap()))
-            .unwrap()
-            .iter() {
-        let key: String = row.get("key");
-        let item: String = row.get("item");
-        let metadata: serde_json::Value = row.get("metadata");
-        items.push(ORSetOp {
-                       item: item,
-                       key: key,
-                       metadata: metadata,
-                   });
+    let table = &potboiler_common::get_req_key(req, "table").unwrap();
+    let key = &potboiler_common::get_req_key(req, "key").unwrap();
+    let kind = get_table_kind(table);
+    match kind {
+        CRDT::ORSET => {
+            match conn.query(&format!("SELECT key, item, metadata FROM {}_items where collection={}",
+                                      table,
+                                      key)) {
+                Ok(rows) => {
+                    let mut items = Vec::new();
+                    for row in rows.iter() {
+                        let key: String = row.get("key");
+                        let item: String = row.get("item");
+                        let metadata: serde_json::Value = row.get("metadata");
+                        items.push(ORSetOp {
+                                       item: item,
+                                       key: key,
+                                       metadata: metadata,
+                                   });
+                    }
+                    return Ok(Response::with((status::Ok, serde_json::ser::to_string(&items).unwrap())));
+                }
+                Err(db::Error(db::ErrorKind::NoSuchTable, _)) => {
+                    return Ok(Response::with((status::NotFound, format!("No such table {}", table))));
+                }
+                Err(err) => {
+                    error!("Error while getting key {} from table {}: {:?}",
+                           key,
+                           table,
+                           err);
+                    return Ok(Response::with(status::InternalServerError));
+                }
+            }
+        }
+        CRDT::LWW => {
+            match conn.query(&format!("SELECT item FROM {} where key={}", table, key)) {
+                Ok(rows) => {
+                    for row in rows.iter() {
+                        let item: String = row.get("item");
+                        return Ok(Response::with((status::Ok, item)));
+                    }
+                    return Ok(Response::with(status::NotFound));
+                }
+                Err(db::Error(db::ErrorKind::NoSuchTable, _)) => {
+                    return Ok(Response::with((status::NotFound, format!("No such table {}", table))));
+                }
+                Err(err) => {
+                    error!("Error while getting key {} from table {}: {:?}",
+                           key,
+                           table,
+                           err);
+                    return Ok(Response::with(status::InternalServerError));
+                }
+            }
+        }
+        _ => {
+            return Ok(Response::with((status::InternalServerError, format!("No key getter for {:?}", kind))));
+        }
     }
-    Ok(Response::with((status::Ok, serde_json::ser::to_string(&items).unwrap())))
 }
 
 fn update_key(req: &mut Request) -> IronResult<Response> {
@@ -136,7 +190,7 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "update_key")))
 }
 
-fn make_table(conn: &db::Connection, table_name: &str, kind: &CRDT) -> IronResult<()> {
+fn make_table(conn: &db::Connection, table_name: &str, kind: &CRDT) -> Result<()> {
     match kind {
         &CRDT::LWW => {
             conn.execute(&format!("CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, value \
@@ -382,6 +436,31 @@ fn list_keys(req: &mut Request) -> IronResult<Response> {
                            .map_err(|e| ErrorKind::SerdeError(e))?)))
 }
 
+fn app_router(pool: db::Pool) -> Result<iron::Chain> {
+    let conn = pool.get().unwrap();
+    match make_table(&conn, tables::CONFIG_TABLE, &CRDT::LWW) {
+        Ok(_) => {}
+        Err(err) => {
+            bail!(Error::with_chain(err, ErrorKind::ConfigTableCreation));
+        }
+    }
+    let (logger_before, logger_after) = Logger::new(None);
+    let mut router = Router::new();
+    router.get("/kv", list_tables, "list tables");
+    router.get("/kv/:table", list_keys, "list keys for a table");
+    router.get("/kv/:table/:key", get_key, "get a key");
+    router.post("/kv/:table/:key", update_key, "update a key");
+    router.post("/kv/event", new_event, "process new event");
+    let mut chain = Chain::new(router);
+    chain.link_before(logger_before);
+    chain.link_after(logger_after);
+    chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
+    chain.link(PRead::<db::PoolKey>::both(pool));
+    let tables = tables::init_tables(&conn);
+    chain.link(State::<tables::Tables>::both(tables));
+    Ok(chain)
+}
+
 fn main() {
     log4rs::init_file("log.yaml", Default::default()).expect("log config ok");
     let client = hyper::client::Client::new();
@@ -399,28 +478,55 @@ fn main() {
 
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = pg::get_pool(db_url).unwrap();
-    let conn = pool.get().unwrap();
-    match make_table(&conn, tables::CONFIG_TABLE, &CRDT::LWW) {
-        Ok(_) => {}
-        Err(err) => {
-            error!("Error while making config table: {}", err);
-            return;
-        }
-    }
-    let (logger_before, logger_after) = Logger::new(None);
-    let mut router = Router::new();
-    router.get("/kv", list_tables, "list tables");
-    router.get("/kv/:table", list_keys, "list keys for a table");
-    router.get("/kv/:table/:key", get_key, "get a key");
-    router.post("/kv/:table/:key", update_key, "update a key");
-    router.post("/kv/event", new_event, "process new event");
-    let mut chain = Chain::new(router);
-    chain.link_before(logger_before);
-    chain.link_after(logger_after);
-    chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
-    chain.link(PRead::<db::PoolKey>::both(pool));
-    let tables = tables::init_tables(&conn);
-    chain.link(State::<tables::Tables>::both(tables));
+    let chain = app_router(pool).unwrap();
     info!("Potboiler-kv booted");
     Iron::new(chain).http("0.0.0.0:8001").unwrap();
+}
+
+#[cfg(test)]
+mod test {
+    extern crate iron_test;
+
+    use self::iron_test::request;
+    use self::iron_test::response::extract_body_to_string;
+
+    use app_router;
+    use db;
+
+    use iron::Headers;
+    use iron::status::Status;
+    use log;
+    use log4rs;
+
+    fn test_route(path: &str, expected_body: &str, expected_status: Status) {
+        let stdout = log4rs::append::console::ConsoleAppender::builder().build();
+        let config = log4rs::config::Config::builder()
+            .appender(log4rs::config::Appender::builder().build("stdout", Box::new(stdout)))
+            .build(log4rs::config::Root::builder()
+                       .appender("stdout")
+                       .build(log::LogLevelFilter::Warn))
+            .unwrap();
+        log4rs::init_config(config).unwrap();
+
+        let mut conn = super::db::TestConnection::new();
+        conn.add_test_execute(concat!(r"CREATE TABLE IF NOT EXISTS _config \(key VARCHAR\(1024\) PRIMARY KEY, ",
+                                      r"value JSONB NOT NULL, crdt JSONB NOT NULL\)"),
+                              0);
+        conn.add_test_query("SELECT item FROM _config where key=test",
+                            vec![db::TestRow::new()]);
+        conn.add_test_query("select key, value from _config", vec![]);
+        let pool = super::db::Pool::TestPool(conn);
+        let response = request::get(&format!("http://localhost:8001/{}", path),
+                                    Headers::new(),
+                                    &app_router(pool).unwrap())
+            .unwrap();
+        assert_eq!(response.status.unwrap(), expected_status);
+        let result = extract_body_to_string(response);
+        assert_eq!(result, expected_body);
+    }
+
+    #[test]
+    fn no_key_table() {
+        test_route("kv/_config/test", "", Status::NotFound);
+    }
 }

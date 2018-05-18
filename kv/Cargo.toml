@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 iron = "0.6"
+iron-test = "0.6"
 router = "0.6"
 logger = "0.4"
 serde = "1.0"
@@ -23,7 +24,7 @@ url = "*"
 potboiler_common = { path = "../potboiler_common" }
 persistent = "0.4"
 
-log = "*"
+log = "0.3"
 log4rs = {version = ">= 0.4, <0.7", features=["yaml_format"]}
 
 hyper = "0.10"
