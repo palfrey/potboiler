@@ -8,13 +8,20 @@ rust:
   - beta
   - nightly
 
-cache: cargo
+cache:
+  cargo: true
+  directories:
+    - target/rustfmt
+
 env:
-  - PROJECT=potboiler_common
-  - PROJECT=core
-  - PROJECT=kv
-  - PROJECT=pigtail
-  - PROJECT=docker
+  global:
+    - CARGO_TARGET_DIR=./target/rustfmt
+  matrix:
+    - PROJECT=potboiler_common
+    - PROJECT=core
+    - PROJECT=kv
+    - PROJECT=pigtail
+    - PROJECT=docker
 script: ./build.sh
 
 matrix:
