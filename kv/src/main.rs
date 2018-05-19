@@ -21,6 +21,7 @@ extern crate hyper;
 extern crate hybrid_clocks;
 #[macro_use]
 extern crate mime;
+extern crate r2d2;
 mod tables;
 
 #[macro_use]
@@ -59,7 +60,10 @@ error_chain! {
         DbError(db::Error, db::ErrorKind);
     }
     foreign_links {
-        SerdeError(serde_json::Error);
+        Serde(serde_json::Error);
+        Hyper(hyper::Error);
+        Log(log4rs::Error);
+        R2D2(r2d2::Error);
     }
 }
 
@@ -151,7 +155,10 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
     };
     let mut json: serde_json::Value = match serde_json::de::from_str(&body_string) {
         Ok(val) => val,
-        Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
+        Err(err) => {
+            info!("Failed to parse '{}'", &body_string);
+            return Err(IronError::new(err, (status::BadRequest, "Bad JSON")));
+        }
     };
     {
         let map = json.as_object_mut().unwrap();
@@ -382,7 +389,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                     .execute(&format!("UPDATE {} set crdt='{}' where key='{}'",
                                       &change.table,
                                       &serde_json::to_value(&crdt)
-                                          .map_err(|e| ErrorKind::SerdeError(e))?,
+                                          .map_err(|e| ErrorKind::Serde(e))?,
                                       &change.key))
                     .map_err(|e| Error::from(e))?;
             } else {
@@ -390,7 +397,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                     .execute(&format!("INSERT INTO {} (key, crdt) VALUES ('{}', '{}')",
                                       &change.table,
                                       &serde_json::to_value(&crdt)
-                                          .map_err(|e| ErrorKind::SerdeError(e))?,
+                                          .map_err(|e| ErrorKind::Serde(e))?,
                                       &change.key))
                     .map_err(|e| Error::from(e))?;
             }
@@ -433,7 +440,7 @@ fn list_keys(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok,
                        mime!(Application / Json),
                        serde_json::to_string(&key_names)
-                           .map_err(|e| ErrorKind::SerdeError(e))?)))
+                           .map_err(|e| ErrorKind::Serde(e))?)))
 }
 
 fn app_router(pool: db::Pool) -> Result<iron::Chain> {
@@ -461,72 +468,114 @@ fn app_router(pool: db::Pool) -> Result<iron::Chain> {
     Ok(chain)
 }
 
-fn main() {
-    log4rs::init_file("log.yaml", Default::default()).expect("log config ok");
+fn register() -> Result<()> {
     let client = hyper::client::Client::new();
-
     let mut map = serde_json::Map::new();
     let host: &str = &env::var("HOST").unwrap_or("localhost".to_string());
     map.insert("url".to_string(),
                serde_json::Value::String(format!("http://{}:8001/kv/event", host)));
     let res = client
         .post(&format!("{}/register", SERVER_URL.deref()))
-        .body(&serde_json::ser::to_string(&map).unwrap())
-        .send()
-        .expect("Register ok");
+        .body(&serde_json::ser::to_string(&map)?)
+        .send()?;
     assert_eq!(res.status, hyper::status::StatusCode::NoContent);
-
-    let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
-    let pool = pg::get_pool(db_url).unwrap();
-    let chain = app_router(pool).unwrap();
-    info!("Potboiler-kv booted");
-    Iron::new(chain).http("0.0.0.0:8001").unwrap();
+    Ok(())
 }
+
+quick_main!(|| -> Result<()> {
+    log4rs::init_file("log.yaml", Default::default())?;
+    let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
+    let pool = pg::get_pool(db_url)?;
+    let chain = app_router(pool)?;
+    register()?;
+    info!("Potboiler-kv booted");
+    Iron::new(chain).http("0.0.0.0:8001")?;
+    Ok(())
+});
 
 #[cfg(test)]
 mod test {
     extern crate iron_test;
-
     use self::iron_test::request;
     use self::iron_test::response::extract_body_to_string;
 
     use app_router;
     use db;
-
+    use iron;
     use iron::Headers;
     use iron::status::Status;
     use log;
     use log4rs;
+    use register;
 
-    fn test_route(path: &str, expected_body: &str, expected_status: Status) {
+    fn setup_logging() {
         let stdout = log4rs::append::console::ConsoleAppender::builder().build();
         let config = log4rs::config::Config::builder()
             .appender(log4rs::config::Appender::builder().build("stdout", Box::new(stdout)))
             .build(log4rs::config::Root::builder()
                        .appender("stdout")
-                       .build(log::LogLevelFilter::Warn))
+                       .build(log::LogLevelFilter::Debug))
             .unwrap();
         log4rs::init_config(config).unwrap();
+    }
 
-        let mut conn = super::db::TestConnection::new();
-        conn.add_test_execute(concat!(r"CREATE TABLE IF NOT EXISTS _config \(key VARCHAR\(1024\) PRIMARY KEY, ",
-                                      r"value JSONB NOT NULL, crdt JSONB NOT NULL\)"),
-                              0);
-        conn.add_test_query("SELECT item FROM _config where key=test",
-                            vec![db::TestRow::new()]);
-        conn.add_test_query("select key, value from _config", vec![]);
-        let pool = super::db::Pool::TestPool(conn);
+    fn test_get_route(router: &iron::Chain, path: &str, expected_body: &str, expected_status: Status) {
         let response = request::get(&format!("http://localhost:8001/{}", path),
                                     Headers::new(),
-                                    &app_router(pool).unwrap())
+                                    router)
             .unwrap();
         assert_eq!(response.status.unwrap(), expected_status);
         let result = extract_body_to_string(response);
         assert_eq!(result, expected_body);
     }
 
+    fn test_post_route(router: &iron::Chain, path: &str, body: &str, expected_body: &str, expected_status: Status) {
+        let resp = request::post(&format!("http://localhost:8001/{}", path),
+                                 Headers::new(),
+                                 body,
+                                 router);
+        let response = match resp {
+            Ok(response) => response,
+            Err(err) => err.response,
+        };
+        assert_eq!(response.status.unwrap(), expected_status);
+        let result = extract_body_to_string(response);
+        assert_eq!(result, expected_body);
+    }
+
+    fn setup_db(tables: Vec<db::TestRow>) -> db::TestConnection {
+        let mut conn = super::db::TestConnection::new();
+        conn.add_test_execute(concat!(r"CREATE TABLE IF NOT EXISTS _config \(key VARCHAR\(1024\) PRIMARY KEY, ",
+                                      r"value JSONB NOT NULL, crdt JSONB NOT NULL\)"),
+                              0);
+        conn.add_test_query("select key, value from _config", tables);
+        return conn;
+    }
+
+    fn setup_router(conn: db::TestConnection) -> iron::Chain {
+        super::env::set_var("SERVER_URL", "http://core");
+        let pool = super::db::Pool::TestPool(conn);
+        app_router(pool).unwrap()
+    }
+
     #[test]
     fn no_key_table() {
-        test_route("kv/_config/test", "", Status::NotFound);
+        let mut conn = setup_db(vec![]);
+        conn.add_test_query("SELECT item FROM _config where key=test", vec![]);
+        let router = setup_router(conn);
+        test_get_route(&router, "kv/_config/test", "", Status::NotFound);
+    }
+
+    #[test]
+    fn key_table() {
+        setup_logging();
+        let conn = setup_db(vec![]);
+        let router = setup_router(conn);
+        register().unwrap();
+        test_post_route(&router,
+                        "kv/_config/test",
+                        r#"{"op":"set","change":{"crdt": "LWW"}}"#,
+                        "",
+                        Status::BadRequest);
     }
 }

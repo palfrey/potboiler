@@ -19,6 +19,7 @@ hybrid-clocks = { version = "^0.3.4", features = ["serde"] }
 uuid = {version = "^0.5", features=["use_std","v4","serde"]}
 mime = "0.2"
 error-chain = "*"
+r2d2 = "0.8"
 
 url = "*"
 potboiler_common = { path = "../potboiler_common" }
