@@ -17,12 +17,15 @@ extern crate serde_derive;
 #[macro_use]
 extern crate error_chain;
 extern crate regex;
+extern crate hyper;
+extern crate persistent;
 
 pub mod db;
 pub mod server_id;
 pub mod types;
 pub mod clock;
 pub mod pg;
+pub mod http_client;
 
 use hybrid_clocks::{Timestamp, WallT};
 use iron::prelude::{IronError, Request};

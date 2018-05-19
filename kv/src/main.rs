@@ -32,12 +32,16 @@ extern crate serde;
 extern crate serde_derive;
 mod serde_types;
 
+#[cfg(test)]
+#[macro_use]
+extern crate yup_hyper_mock as hyper_mock;
+
 use iron::prelude::*;
 use iron::status;
 use logger::Logger;
 use persistent::Read as PRead;
 use persistent::State;
-use potboiler_common::{db, pg, server_id};
+use potboiler_common::{db, http_client, pg, server_id};
 use potboiler_common::types::{CRDT, Log};
 use router::Router;
 use serde_types::*;
@@ -187,14 +191,14 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
             }
         }
     }
-    let client = hyper::client::Client::new();
+    let client = get_http_client!(req);
     let res = client
         .post(SERVER_URL.deref())
         .body(&string_change)
         .send()
         .expect("sender ok");
     assert_eq!(res.status, hyper::status::StatusCode::Created);
-    Ok(Response::with((status::Ok, "update_key")))
+    Ok(Response::with(status::Ok))
 }
 
 fn make_table(conn: &db::Connection, table_name: &str, kind: &CRDT) -> Result<()> {
@@ -468,8 +472,7 @@ fn app_router(pool: db::Pool) -> Result<iron::Chain> {
     Ok(chain)
 }
 
-fn register() -> Result<()> {
-    let client = hyper::client::Client::new();
+fn register(client: &hyper::Client) -> Result<()> {
     let mut map = serde_json::Map::new();
     let host: &str = &env::var("HOST").unwrap_or("localhost".to_string());
     map.insert("url".to_string(),
@@ -486,10 +489,12 @@ quick_main!(|| -> Result<()> {
     log4rs::init_file("log.yaml", Default::default())?;
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = pg::get_pool(db_url)?;
-    let chain = app_router(pool)?;
-    register()?;
+    let mut router = app_router(pool)?;
+    let client = hyper::client::Client::new();
+    register(&client)?;
+    http_client::set_client(&mut router, client);
     info!("Potboiler-kv booted");
-    Iron::new(chain).http("0.0.0.0:8001")?;
+    Iron::new(router).http("0.0.0.0:8001")?;
     Ok(())
 });
 
@@ -501,6 +506,8 @@ mod test {
 
     use app_router;
     use db;
+    use http_client;
+    use hyper;
     use iron;
     use iron::Headers;
     use iron::status::Status;
@@ -570,12 +577,18 @@ mod test {
     fn key_table() {
         setup_logging();
         let conn = setup_db(vec![]);
-        let router = setup_router(conn);
-        register().unwrap();
+        let mut router = setup_router(conn);
+        mock_connector_in_order!(MockCore {
+            "HTTP/1.1 204 NoContent\r\n\r\n" // register
+            "HTTP/1.1 201 Created\r\n\r\n" // add key
+        });
+        let client = hyper::Client::with_connector(MockCore::default());
+        register(&client).unwrap();
+        http_client::set_client(&mut router, client);
         test_post_route(&router,
                         "kv/_config/test",
                         r#"{"op":"set","change":{"crdt": "LWW"}}"#,
                         "",
-                        Status::BadRequest);
+                        Status::Ok);
     }
 }
