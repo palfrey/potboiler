@@ -28,3 +28,8 @@ matrix:
   allow_failures:
     - rust: nightly
   fast_finish: true
+  exclude:
+  - rust: beta
+    env: PROJECT=docker
+  - rust: nightly
+    env: PROJECT=docker
