@@ -465,7 +465,6 @@ fn app_router(pool: db::Pool) -> Result<iron::Chain> {
     let mut chain = Chain::new(router);
     chain.link_before(logger_before);
     chain.link_after(logger_after);
-    chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     chain.link(PRead::<db::PoolKey>::both(pool));
     let tables = tables::init_tables(&conn);
     chain.link(State::<tables::Tables>::both(tables));
@@ -490,6 +489,7 @@ quick_main!(|| -> Result<()> {
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = pg::get_pool(db_url)?;
     let mut router = app_router(pool)?;
+    router.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     let client = hyper::client::Client::new();
     register(&client)?;
     http_client::set_client(&mut router, client);
