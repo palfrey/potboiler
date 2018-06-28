@@ -24,10 +24,10 @@ potboiler_common = { path = "../potboiler_common" }
 persistent = "0.4"
 
 log = "*"
-log4rs = {version = ">= 0.4, <0.7", features=["yaml_format"]}
+log4rs = {version = "0.8", features=["yaml_format"]}
 
 hyper = "0.10"
 
 lazy_static = "0.2"
 time = "0.1"
-error-chain = "*"
+error-chain = "0.12"
