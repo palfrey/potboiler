@@ -521,7 +521,7 @@ mod test {
             .appender(log4rs::config::Appender::builder().build("stdout", Box::new(stdout)))
             .build(log4rs::config::Root::builder()
                        .appender("stdout")
-                       .build(log::LogLevelFilter::Debug))
+                       .build(log::LevelFilter::Debug))
             .unwrap();
         log4rs::init_config(config).unwrap();
     }
