@@ -27,7 +27,7 @@ url = "*"
 potboiler_common = { path = "../potboiler_common" }
 
 postgres = { features=["with-uuid", "with-serde_json"], version="0.15"}
-schemamama = "0.2"
+schemamama = "0.3"
 schemamama_postgres = "=0.2.2"
 
 r2d2 = "0.8"
