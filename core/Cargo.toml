@@ -35,7 +35,7 @@ r2d2_postgres = "0.14"
 persistent = "0.4"
 
 hyper = "0.10"
-resolve = "0.1.2"
+resolve = "0.2"
 error-chain = "0.12"
 
 [dev-dependencies]
