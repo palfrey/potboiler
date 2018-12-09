@@ -34,7 +34,7 @@ class LocallyBuilt:
             "dockerfile": "%s/Dockerfile" % kind
         }
         ret["image"] = "potboiler/%s:latest" % kind
-        ret["volumes"] = [".:/code"]
+        ret["volumes"] = [".:/code:cached"]
         return ret
 
 class Core(LocallyBuilt):
@@ -96,7 +96,7 @@ class KVBrowser:
         ret = OrderedDict()
         ret["build"] = "kv-browser"
         ret["image"] = "potboiler/kv-browser:latest"
-        ret["volumes"] = ["./kv-browser/:/code"]
+        ret["volumes"] = ["./kv-browser/:/code:cached"]
         ret["environment"] = {"DATABASE_URL": self.postgres.db_url()}
         ret["ports"] = ["%d:5000"%self.base_port]
         ret["links"] = ["%s:postgres"%self.postgres.name]
@@ -111,7 +111,7 @@ class Correspondence:
         ret = OrderedDict()
         ret["build"] = "../correspondence"
         ret["image"] = "potboiler/correspondence:latest"
-        ret["volumes"] = ["../correspondence/:/code"]
+        ret["volumes"] = ["../correspondence/:/code:cached"]
         ret["environment"] = {"SERVER_URL": self.kv.base_url()}
         ret["ports"] = ["%d:5000"%self.base_port]
         ret["links"] = ["%s:kv"%self.kv.name]
