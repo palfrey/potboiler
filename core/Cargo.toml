@@ -40,4 +40,4 @@ resolve = "0.2"
 error-chain = "0.12"
 
 [dev-dependencies]
-regex = "*"
+regex = "1.0"

@@ -173,7 +173,7 @@ mod test {
                                        .unwrap()
                                        .as_str());
             assert!(url.starts_with("http://localhost:8000/log/"));
-            String::from(re.captures(&url).unwrap().at(1).unwrap())
+            String::from(re.captures(&url).unwrap().get(1).unwrap().as_str())
         };
         let result = extract_body_to_string(response);
         let v: serde_json::Value = serde_json::from_str(&result).unwrap();
