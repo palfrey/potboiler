@@ -104,17 +104,15 @@ pub fn db_setup() -> Result<db::Pool> {
 
 #[cfg(test)]
 mod test {
-    extern crate iron_test;
-    use self::iron_test::request;
-    use self::iron_test::response::extract_body_to_string;
+    use iron_test::request;
+    use iron_test::response::extract_body_to_string;
 
     use iron::Headers;
     use iron::headers;
     use iron::status::Status;
     use serde_json;
 
-    extern crate regex;
-    use self::regex::Regex;
+    use regex::Regex;
 
     use super::{PRead, app_router};
     use potboiler_common::server_id;

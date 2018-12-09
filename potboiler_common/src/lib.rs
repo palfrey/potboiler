@@ -4,21 +4,21 @@
         unstable_features,
         unused, future_incompatible)]
 
-extern crate iron;
-extern crate r2d2;
-extern crate r2d2_postgres;
-extern crate uuid;
-extern crate postgres;
-extern crate serde_json;
-extern crate hybrid_clocks;
-extern crate router;
+use iron;
+use r2d2;
+use r2d2_postgres;
+use uuid;
+use postgres;
+use serde_json;
+use hybrid_clocks;
+use router;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate error_chain;
-extern crate regex;
-extern crate hyper;
-extern crate persistent;
+use regex;
+use hyper;
+use persistent;
 
 pub mod db;
 pub mod server_id;

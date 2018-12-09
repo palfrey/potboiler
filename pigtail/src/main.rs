@@ -8,19 +8,17 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-extern crate log4rs;
-extern crate iron;
-extern crate persistent;
+use log4rs;
+use iron;
+use persistent;
 #[macro_use]
 extern crate potboiler_common;
-extern crate logger;
-extern crate serde_json;
-extern crate serde;
-extern crate hyper;
-extern crate router;
-extern crate uuid;
-extern crate hybrid_clocks;
-extern crate time;
+use logger;
+use serde_json;
+use hyper;
+use router;
+use uuid;
+use hybrid_clocks;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]

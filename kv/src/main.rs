@@ -7,27 +7,26 @@
 
 #[macro_use]
 extern crate log;
-extern crate log4rs;
-extern crate iron;
-extern crate logger;
-extern crate router;
-extern crate persistent;
+use log4rs;
+use iron;
+use logger;
+use router;
+use persistent;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate potboiler_common;
-extern crate serde_json;
-extern crate hyper;
-extern crate hybrid_clocks;
+use serde_json;
+use hyper;
+use hybrid_clocks;
 #[macro_use]
 extern crate mime;
-extern crate r2d2;
+use r2d2;
 mod tables;
 
 #[macro_use]
 extern crate error_chain;
 
-extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 mod serde_types;
@@ -500,9 +499,8 @@ quick_main!(|| -> Result<()> {
 
 #[cfg(test)]
 mod test {
-    extern crate iron_test;
-    use self::iron_test::request;
-    use self::iron_test::response::extract_body_to_string;
+    use iron_test::request;
+    use iron_test::response::extract_body_to_string;
 
     use crate::app_router;
     use crate::db;
@@ -511,7 +509,6 @@ mod test {
     use iron;
     use iron::Headers;
     use iron::status::Status;
-    use log;
     use log4rs;
     use crate::register;
 
