@@ -82,7 +82,7 @@ pub fn log_register(req: &mut Request) -> IronResult<Response> {
     match Url::parse(&url) {
         Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
         Ok(_) => {
-            match conn.execute(&format!("insert into notifications (url) values({})", &url)) {
+            match conn.execute(&format!("insert into notifications (url) values('{}')", &url)) {
                 Ok(_) => {
                     insert_notifier(req, &url);
                     Ok(Response::with(status::NoContent))
