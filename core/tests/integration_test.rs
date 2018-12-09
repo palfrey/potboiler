@@ -1,11 +1,11 @@
-extern crate potboiler;
-extern crate iron_test;
 extern crate iron;
-extern crate potboiler_common;
+extern crate iron_test;
 extern crate persistent;
+extern crate potboiler;
+extern crate potboiler_common;
 
-use iron::Headers;
 use iron::status::Status;
+use iron::Headers;
 use iron_test::request;
 use iron_test::response::extract_body_to_string;
 use persistent::Read as PRead;

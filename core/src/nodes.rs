@@ -6,8 +6,8 @@ use iron::typemap::Key;
 use persistent;
 use persistent::State;
 use plugin::Pluggable;
-use potboiler_common::{clock, db, get_raw_timestamp, url_from_body};
 use potboiler_common::types::Log;
+use potboiler_common::{clock, db, get_raw_timestamp, url_from_body};
 use resolve;
 use serde_json;
 use std::collections::{HashMap, HashSet};
@@ -16,9 +16,9 @@ use std::io::Read;
 use std::iter::FromIterator;
 use std::ops::{Deref, DerefMut};
 use std::result::Result as StdResult;
-use std::sync::{Mutex, RwLock};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::{Mutex, RwLock};
 use std::thread;
 use std::time::Duration;
 use url::Url;
@@ -78,8 +78,9 @@ error_chain! {
 
 iron_error_from!();
 
-fn parse_json_from_request(raw_result: StdResult<hyper::client::Response, hyper::Error>)
-                           -> Result<serde_json::value::Value> {
+fn parse_json_from_request(
+    raw_result: StdResult<hyper::client::Response, hyper::Error>,
+) -> Result<serde_json::value::Value> {
     let mut res = match raw_result {
         Ok(val) => val,
         Err(val) => {
@@ -100,8 +101,9 @@ fn parse_json_from_request(raw_result: StdResult<hyper::client::Response, hyper:
     };
 }
 
-fn parse_object_from_request(raw_result: StdResult<hyper::client::Response, hyper::Error>)
-                             -> Result<serde_json::value::Map<String, serde_json::Value>> {
+fn parse_object_from_request(
+    raw_result: StdResult<hyper::client::Response, hyper::Error>,
+) -> Result<serde_json::value::Map<String, serde_json::Value>> {
     let json: serde_json::Value = match parse_json_from_request(raw_result) {
         Ok(val) => val,
         Err(err) => bail!(err),
@@ -126,9 +128,11 @@ fn check_host_once(host_url: &String, conn: &db::Connection, clock_state: SyncCl
         }
     };
     for (key, value) in kv.iter() {
-        let value_uuid = match Uuid::parse_str(value
-                                                   .as_str()
-                                                   .ok_or(ErrorKind::BadUuid(serde_json::to_string(value)?))?) {
+        let value_uuid = match Uuid::parse_str(
+            value
+                .as_str()
+                .ok_or(ErrorKind::BadUuid(serde_json::to_string(value)?))?,
+        ) {
             Ok(val) => val,
             Err(_) => {
                 warn!("Value {} isn't a UUID!", value);
@@ -148,8 +152,10 @@ fn check_host_once(host_url: &String, conn: &db::Connection, clock_state: SyncCl
             continue;
         }
 
-        let first_item = conn.query(&format!("select id from log where prev is null and owner = '{}' limit 1",
-                                             &key_uuid))?;
+        let first_item = conn.query(&format!(
+            "select id from log where prev is null and owner = '{}' limit 1",
+            &key_uuid
+        ))?;
         let start_uuid = if first_item.is_empty() {
             let first_url = format!("{}/log/first", &host_url);
             debug!("Get first from {:?}", host_url);
@@ -166,10 +172,11 @@ fn check_host_once(host_url: &String, conn: &db::Connection, clock_state: SyncCl
                 .ok_or_else(|| ErrorKind::KeyMissing(key.clone()))?
                 .clone()
         } else {
-            info!("Already have an entry from the list with server id {:?}",
-                  key);
-            let last_items = conn.query(&format!("select id from log where next is null and owner = '{}' limit 1",
-                                                 &key_uuid))?;
+            info!("Already have an entry from the list with server id {:?}", key);
+            let last_items = conn.query(&format!(
+                "select id from log where next is null and owner = '{}' limit 1",
+                &key_uuid
+            ))?;
             if last_items.is_empty() {
                 bail!(ErrorKind::NoLastEntry(key.clone()));
             }
@@ -192,8 +199,7 @@ fn check_host_once(host_url: &String, conn: &db::Connection, clock_state: SyncCl
         loop {
             let real_uuid = {
                 let str_uuid = current_uuid.as_str();
-                String::from(str_uuid
-                                 .ok_or_else(|| format!("Current id ({}) is not a UUID", current_uuid))?)
+                String::from(str_uuid.ok_or_else(|| format!("Current id ({}) is not a UUID", current_uuid))?)
             };
             let current_url = format!("{}/log/{}", &host_url, real_uuid);
             debug!("Get {} from {}", real_uuid, host_url);
@@ -205,21 +211,15 @@ fn check_host_once(host_url: &String, conn: &db::Connection, clock_state: SyncCl
                 }
             };
             let next = current_entry.get("next").ok_or(ErrorKind::NoNextKey)?;
-            let timestamp: Timestamp<WallT> = serde_json::value::from_value(current_entry
-                                                                                .get("when")
-                                                                                .ok_or(ErrorKind::NoWhenKey)?
-                                                                                .clone())?;
+            let timestamp: Timestamp<WallT> =
+                serde_json::value::from_value(current_entry.get("when").ok_or(ErrorKind::NoWhenKey)?.clone())?;
             clock::observe_timestamp(&clock_state, timestamp);
             let log = Log {
-                id: Uuid::parse_str(&real_uuid)
-                    .map_err(|_| ErrorKind::BadLogUuid(real_uuid))?,
+                id: Uuid::parse_str(&real_uuid).map_err(|_| ErrorKind::BadLogUuid(real_uuid))?,
                 owner: key_uuid,
                 next: get_uuid_from_map(&current_entry, "next"),
                 prev: get_uuid_from_map(&current_entry, "prev"),
-                data: current_entry
-                    .get("data")
-                    .ok_or(ErrorKind::NoDataKey)?
-                    .clone(),
+                data: current_entry.get("data").ok_or(ErrorKind::NoDataKey)?.clone(),
                 when: clock::get_timestamp_from_state(&clock_state),
             };
             insert_log(conn, &log)?;
@@ -253,20 +253,22 @@ fn get_uuid_from_map(map: &serde_json::value::Map<String, serde_json::Value>, ke
 pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
     debug!("Inserting {:?}", log);
     if let Some(prev) = log.prev {
-        conn.execute(&format!("update log set next = {} where owner = '{}' and id = '{}'",
-                              &log.id,
-                              &log.owner,
-                              &prev))?;
+        conn.execute(&format!(
+            "update log set next = {} where owner = '{}' and id = '{}'",
+            &log.id, &log.owner, &prev
+        ))?;
     }
     let raw_timestamp = get_raw_timestamp(&log.when)?;
-    conn.execute(&format!("insert into log (id, owner, data, prev, hlc_tstamp) VALUES ('{}', '{}', '{}', {}, {})",
-                          &log.id,
-                          &log.owner,
-                          &log.data,
-                          log.prev
-                              .map(|u| format!("'{}'", u.to_string()))
-                              .unwrap_or(String::from("NULL")),
-                          &raw_timestamp.sql()))?;
+    conn.execute(&format!(
+        "insert into log (id, owner, data, prev, hlc_tstamp) VALUES ('{}', '{}', '{}', {}, {})",
+        &log.id,
+        &log.owner,
+        &log.data,
+        log.prev
+            .map(|u| format!("'{}'", u.to_string()))
+            .unwrap_or(String::from("NULL")),
+        &raw_timestamp.sql()
+    ))?;
     Ok(())
 }
 
@@ -297,10 +299,9 @@ fn check_new_nodes(host_url: &String, conn: &db::Connection, nodelist: NodeList)
             return Err(err);
         }
     };
-    let remote_node_array =
-        remote_nodes
-            .as_array()
-            .ok_or_else(|| ErrorKind::NonArrayRemoteNodes(serde_json::to_string(&remote_nodes).unwrap()))?;
+    let remote_node_array = remote_nodes
+        .as_array()
+        .ok_or_else(|| ErrorKind::NonArrayRemoteNodes(serde_json::to_string(&remote_nodes).unwrap()))?;
     let remote_node_set: HashSet<String> = hashset_from_json_array(remote_node_array)?;
     let existing_nodes = conn.query("select url from nodes")?;
     let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter().map(|x| x.get("url")));
@@ -315,7 +316,12 @@ fn check_new_nodes(host_url: &String, conn: &db::Connection, nodelist: NodeList)
         match node_insert(&conn, &extra) {
             InsertResult::Inserted => {
                 let (send, recv) = channel();
-                nodes.insert(extra.clone(), NodeInfo { sender: Mutex::new(send) });
+                nodes.insert(
+                    extra.clone(),
+                    NodeInfo {
+                        sender: Mutex::new(send),
+                    },
+                );
                 let nodeslist = nodelist.clone();
                 thread::spawn(move || check_host(extra.clone(), nodeslist, recv));
             }
@@ -349,18 +355,14 @@ fn check_host(host_url: String, nodelist: NodeList, recv: Receiver<()>) {
         match check_host_once(&host_url, &conn, nodelist.clock.clone()) {
             Ok(_) => {}
             Err(msg) => {
-                warn!("Got an error while checking for new log items on {}: {}",
-                      host_url,
-                      msg);
+                warn!("Got an error while checking for new log items on {}: {}", host_url, msg);
             }
         };
         check_should_exit!(recv, host_url);
         match check_new_nodes(&host_url, &conn, nodelist.clone()) {
             Ok(_) => {}
             Err(msg) => {
-                warn!("Got an error while checking for new nodes on {}: {}",
-                      host_url,
-                      msg);
+                warn!("Got an error while checking for new nodes on {}: {}", host_url, msg);
             }
         }
         check_should_exit!(recv, host_url);
@@ -372,11 +374,15 @@ pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList>
     let conn = pool.get()?;
     let locked_nodes = Arc::new(RwLock::new(HashMap::new()));
     let mut nodes = locked_nodes.write().unwrap();
-    for row in &conn.query("select url from nodes")
-            .expect("nodes select works") {
+    for row in &conn.query("select url from nodes").expect("nodes select works") {
         let url: String = row.get("url");
         let (send, recv) = channel();
-        nodes.insert(url.clone(), NodeInfo { sender: Mutex::new(send) });
+        nodes.insert(
+            url.clone(),
+            NodeInfo {
+                sender: Mutex::new(send),
+            },
+        );
         let nodeslist = NodeList {
             nodes: locked_nodes.clone(),
             pool: pool.clone(),
@@ -385,18 +391,14 @@ pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList>
         thread::spawn(move || check_host(url.clone(), nodeslist, recv));
     }
     return Ok(NodeList {
-                  nodes: locked_nodes.clone(),
-                  pool: pool,
-                  clock: clock_state,
-              });
+        nodes: locked_nodes.clone(),
+        pool: pool,
+        clock: clock_state,
+    });
 }
 
 fn get_nodes_list(req: &Request) -> Vec<String> {
-    let state_ref = req.extensions
-        .get::<State<Nodes>>()
-        .unwrap()
-        .read()
-        .unwrap();
+    let state_ref = req.extensions.get::<State<Nodes>>().unwrap().read().unwrap();
     let nodes = state_ref.deref().nodes.read().unwrap();
     let mut vec = Vec::with_capacity(nodes.len());
     for key in nodes.keys() {
@@ -408,17 +410,14 @@ fn get_nodes_list(req: &Request) -> Vec<String> {
 fn insert_node(req: &mut Request, to_notify: &String) {
     let (send, recv) = channel();
     let nodelist = {
-        let mut nodelist = req.extensions
-            .get_mut::<State<Nodes>>()
-            .unwrap()
-            .write()
-            .unwrap();
+        let mut nodelist = req.extensions.get_mut::<State<Nodes>>().unwrap().write().unwrap();
         let nodelist_dm = nodelist.deref_mut();
-        nodelist_dm
-            .nodes
-            .write()
-            .unwrap()
-            .insert(to_notify.clone(), NodeInfo { sender: Mutex::new(send) });
+        nodelist_dm.nodes.write().unwrap().insert(
+            to_notify.clone(),
+            NodeInfo {
+                sender: Mutex::new(send),
+            },
+        );
         NodeList {
             nodes: nodelist_dm.nodes.clone(),
             pool: nodelist_dm.pool.clone(),
@@ -487,12 +486,10 @@ pub fn node_add(req: &mut Request) -> IronResult<Response> {
     debug!("Registering node {}", url);
     match Url::parse(&url) {
         Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
-        Ok(_) => {
-            match node_add_core(&conn, &url, req) {
-                Ok(_) => Ok(Response::with(status::NoContent)),
-                Err(err) => Err(IronError::new(err, (status::BadRequest, "Some other error"))),
-            }
-        }
+        Ok(_) => match node_add_core(&conn, &url, req) {
+            Ok(_) => Ok(Response::with(status::NoContent)),
+            Err(err) => Err(IronError::new(err, (status::BadRequest, "Some other error"))),
+        },
     }
 }
 
@@ -501,11 +498,7 @@ pub fn node_remove(req: &mut Request) -> IronResult<Response> {
     let notifier = url_from_body(req).unwrap().unwrap();
     conn.execute(&format!("delete from nodes where url = '{}'", &notifier))
         .expect("delete worked");
-    let mut nodelist = req.extensions
-        .get_mut::<State<Nodes>>()
-        .unwrap()
-        .write()
-        .unwrap();
+    let mut nodelist = req.extensions.get_mut::<State<Nodes>>().unwrap().write().unwrap();
     let nodelist_dm = nodelist.deref_mut();
     let mut nodes = nodelist_dm.nodes.write().unwrap();
     {
@@ -513,8 +506,10 @@ pub fn node_remove(req: &mut Request) -> IronResult<Response> {
         let info = match nodes.get(&notifier) {
             Some(val) => val,
             None => {
-                return Err(IronError::new(Error::from_kind(ErrorKind::NoSuchNotifier(notifier)),
-                                          status::NotFound));
+                return Err(IronError::new(
+                    Error::from_kind(ErrorKind::NoSuchNotifier(notifier)),
+                    status::NotFound,
+                ));
             }
         };
         info.sender.lock().unwrap().deref().send(()).unwrap();
@@ -542,14 +537,15 @@ fn add_node_from_req(req: &mut Request, nodes: &Vec<String>, conn: &db::Connecti
 pub fn node_list(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     let mut nodes = Vec::new();
-    for row in conn.query("select url from nodes")
-            .expect("last select works")
-            .iter() {
+    for row in conn.query("select url from nodes").expect("last select works").iter() {
         let url: String = row.get("url");
         nodes.push(url);
     }
     if let Err(err) = add_node_from_req(req, &nodes, &conn) {
         warn!("Error from add_node_from_req: {}", err);
     }
-    Ok(Response::with((status::Ok, serde_json::ser::to_string(&nodes).unwrap())))
+    Ok(Response::with((
+        status::Ok,
+        serde_json::ser::to_string(&nodes).unwrap(),
+    )))
 }

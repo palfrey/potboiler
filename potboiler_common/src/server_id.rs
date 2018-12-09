@@ -15,13 +15,15 @@ impl Key for ServerId {
 
 #[macro_export]
 macro_rules! get_server_id {
-    ($req:expr) => (match $req.extensions.get::<persistent::Read<server_id::ServerId>>() {
-        Some(id) => id,
-        None => {
-            println!("Couldn't get the server id from the request!");
-            return Ok(Response::with(status::InternalServerError));
+    ($req:expr) => {
+        match $req.extensions.get::<persistent::Read<server_id::ServerId>>() {
+            Some(id) => id,
+            None => {
+                println!("Couldn't get the server id from the request!");
+                return Ok(Response::with(status::InternalServerError));
+            }
         }
-    })
+    };
 }
 
 pub fn setup() -> Uuid {
@@ -35,8 +37,7 @@ pub fn setup() -> Uuid {
     } else {
         let mut f = File::open(id_path).expect(&format!("Can open {}", id_path));
         let mut s = String::new();
-        f.read_to_string(&mut s)
-            .expect(&format!("Can read {}", id_path));
+        f.read_to_string(&mut s).expect(&format!("Can read {}", id_path));
         Uuid::parse_str(&s).expect(&format!("Can parse '{}' as UUID", s))
     }
 }

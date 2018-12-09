@@ -12,13 +12,15 @@ impl Key for HyperKey {
 
 #[macro_export]
 macro_rules! get_http_client {
-    ($req:expr) => (match $req.extensions.get::<persistent::Read<http_client::HyperKey>>() {
-        Some(client) => client,
-        None => {
-            println!("Couldn't get the http client from the request!");
-            return Ok(Response::with(status::InternalServerError));
+    ($req:expr) => {
+        match $req.extensions.get::<persistent::Read<http_client::HyperKey>>() {
+            Some(client) => client,
+            None => {
+                println!("Couldn't get the http client from the request!");
+                return Ok(Response::with(status::InternalServerError));
+            }
         }
-    })
+    };
 }
 
 pub fn set_client(router: &mut iron::Chain, client: hyper::Client) {

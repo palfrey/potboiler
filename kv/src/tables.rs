@@ -1,5 +1,5 @@
-use iron::Request;
 use iron::typemap::Key;
+use iron::Request;
 use persistent::State;
 use potboiler_common::db;
 use potboiler_common::types::CRDT;
@@ -30,12 +30,16 @@ pub static CONFIG_TABLE: &'static str = "_config";
 pub fn init_tables(conn: &db::Connection) -> HashMap<String, CRDT> {
     let mut tables: HashMap<String, CRDT> = HashMap::new();
     tables.insert(CONFIG_TABLE.to_string(), CRDT::LWW);
-    for row in &conn.query(&format!("select key, value from {}", CONFIG_TABLE))
-            .expect("last select works") {
+    for row in &conn
+        .query(&format!("select key, value from {}", CONFIG_TABLE))
+        .expect("last select works")
+    {
         let key: String = row.get("key");
         let value: Value = row.get("value");
-        tables.insert(key.to_string(),
-                      serde_json::from_value(value.get("crdt").unwrap().clone()).unwrap());
+        tables.insert(
+            key.to_string(),
+            serde_json::from_value(value.get("crdt").unwrap().clone()).unwrap(),
+        );
     }
     tables
 }

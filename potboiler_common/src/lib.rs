@@ -1,31 +1,35 @@
-#![deny(missing_debug_implementations, missing_copy_implementations,
-        warnings,
-        trivial_numeric_casts,
-        unstable_features,
-        unused, future_incompatible)]
+#![deny(
+    missing_debug_implementations,
+    missing_copy_implementations,
+    warnings,
+    trivial_numeric_casts,
+    unstable_features,
+    unused,
+    future_incompatible
+)]
 
+use hybrid_clocks;
 use iron;
+use postgres;
 use r2d2;
 use r2d2_postgres;
-use uuid;
-use postgres;
-use serde_json;
-use hybrid_clocks;
 use router;
+use serde_json;
+use uuid;
 #[macro_use]
 extern crate serde_derive;
 #[macro_use]
 extern crate error_chain;
-use regex;
 use hyper;
 use persistent;
+use regex;
 
+pub mod clock;
 pub mod db;
+pub mod http_client;
+pub mod pg;
 pub mod server_id;
 pub mod types;
-pub mod clock;
-pub mod pg;
-pub mod http_client;
 
 use hybrid_clocks::{Timestamp, WallT};
 use iron::prelude::{IronError, Request};
@@ -35,9 +39,7 @@ use std::io::Read;
 pub fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
     let body_string = {
         let mut body = String::new();
-        req.body
-            .read_to_string(&mut body)
-            .expect("could read from body");
+        req.body.read_to_string(&mut body).expect("could read from body");
         body
     };
     let json: serde_json::Value = match serde_json::de::from_str(&body_string) {
@@ -63,7 +65,7 @@ pub fn get_raw_timestamp(timestamp: &Timestamp<WallT>) -> Result<db::HexSlice, :
 
 #[macro_export]
 macro_rules! iron_error_from {
-    () => (
+    () => {
         impl From<ErrorKind> for IronError {
             fn from(errkind: ErrorKind) -> IronError {
                 let desc = format!("{:?}", errkind);
@@ -77,7 +79,7 @@ macro_rules! iron_error_from {
                 return IronError::new(error, (status::BadRequest, desc));
             }
         }
-    )
+    };
 }
 
 #[cfg(test)]
@@ -89,10 +91,7 @@ mod test {
         row.insert("id", 1);
         conn.add_test_query("select 1 as id from test", vec![row]);
         let pool = super::db::Pool::TestPool(conn);
-        let rows = pool.get()
-            .unwrap()
-            .query("select 1 as id from test")
-            .unwrap();
+        let rows = pool.get().unwrap().query("select 1 as id from test").unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows.get(0).get::<u32, &str>("id"), 1);
     }
@@ -102,10 +101,7 @@ mod test {
         let mut conn = super::db::TestConnection::new();
         conn.add_test_execute(r"insert into test \(id\) values\(1\)", 1);
         let pool = super::db::Pool::TestPool(conn);
-        let res = pool.get()
-            .unwrap()
-            .execute("insert into test (id) values(1)")
-            .unwrap();
+        let res = pool.get().unwrap().execute("insert into test (id) values(1)").unwrap();
         assert_eq!(res, 1);
     }
 }

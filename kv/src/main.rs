@@ -1,24 +1,27 @@
-#![deny(missing_debug_implementations, missing_copy_implementations,
-        warnings,
-        trivial_numeric_casts,
-        unstable_features,
-        unused,
-        future_incompatible)]
+#![deny(
+    missing_debug_implementations,
+    missing_copy_implementations,
+    warnings,
+    trivial_numeric_casts,
+    unstable_features,
+    unused,
+    future_incompatible
+)]
 
 #[macro_use]
 extern crate log;
-use log4rs;
 use iron;
+use log4rs;
 use logger;
-use router;
 use persistent;
+use router;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate potboiler_common;
-use serde_json;
-use hyper;
 use hybrid_clocks;
+use hyper;
+use serde_json;
 #[macro_use]
 extern crate mime;
 use r2d2;
@@ -35,15 +38,15 @@ mod serde_types;
 #[macro_use]
 extern crate yup_hyper_mock as hyper_mock;
 
+use crate::serde_types::*;
 use iron::prelude::*;
 use iron::status;
 use logger::Logger;
 use persistent::Read as PRead;
 use persistent::State;
+use potboiler_common::types::{Log, CRDT};
 use potboiler_common::{db, http_client, pg, server_id};
-use potboiler_common::types::{CRDT, Log};
 use router::Router;
-use crate::serde_types::*;
 use std::collections::HashMap;
 use std::env;
 use std::io::Read;
@@ -92,9 +95,10 @@ fn get_key(req: &mut Request) -> IronResult<Response> {
     let kind = get_table_kind(table);
     match kind {
         CRDT::ORSET => {
-            match conn.query(&format!("SELECT key, item, metadata FROM {}_items where collection={}",
-                                      table,
-                                      key)) {
+            match conn.query(&format!(
+                "SELECT key, item, metadata FROM {}_items where collection={}",
+                table, key
+            )) {
                 Ok(rows) => {
                     let mut items = Vec::new();
                     for row in rows.iter() {
@@ -102,48 +106,46 @@ fn get_key(req: &mut Request) -> IronResult<Response> {
                         let item: String = row.get("item");
                         let metadata: serde_json::Value = row.get("metadata");
                         items.push(ORSetOp {
-                                       item: item,
-                                       key: key,
-                                       metadata: metadata,
-                                   });
+                            item: item,
+                            key: key,
+                            metadata: metadata,
+                        });
                     }
-                    return Ok(Response::with((status::Ok, serde_json::ser::to_string(&items).unwrap())));
+                    return Ok(Response::with((
+                        status::Ok,
+                        serde_json::ser::to_string(&items).unwrap(),
+                    )));
                 }
                 Err(db::Error(db::ErrorKind::NoSuchTable, _)) => {
                     return Ok(Response::with((status::NotFound, format!("No such table {}", table))));
                 }
                 Err(err) => {
-                    error!("Error while getting key {} from table {}: {:?}",
-                           key,
-                           table,
-                           err);
+                    error!("Error while getting key {} from table {}: {:?}", key, table, err);
                     return Ok(Response::with(status::InternalServerError));
                 }
             }
         }
-        CRDT::LWW => {
-            match conn.query(&format!("SELECT item FROM {} where key={}", table, key)) {
-                Ok(rows) => {
-                    for row in rows.iter() {
-                        let item: String = row.get("item");
-                        return Ok(Response::with((status::Ok, item)));
-                    }
-                    return Ok(Response::with(status::NotFound));
+        CRDT::LWW => match conn.query(&format!("SELECT item FROM {} where key={}", table, key)) {
+            Ok(rows) => {
+                for row in rows.iter() {
+                    let item: String = row.get("item");
+                    return Ok(Response::with((status::Ok, item)));
                 }
-                Err(db::Error(db::ErrorKind::NoSuchTable, _)) => {
-                    return Ok(Response::with((status::NotFound, format!("No such table {}", table))));
-                }
-                Err(err) => {
-                    error!("Error while getting key {} from table {}: {:?}",
-                           key,
-                           table,
-                           err);
-                    return Ok(Response::with(status::InternalServerError));
-                }
+                return Ok(Response::with(status::NotFound));
             }
-        }
+            Err(db::Error(db::ErrorKind::NoSuchTable, _)) => {
+                return Ok(Response::with((status::NotFound, format!("No such table {}", table))));
+            }
+            Err(err) => {
+                error!("Error while getting key {} from table {}: {:?}", key, table, err);
+                return Ok(Response::with(status::InternalServerError));
+            }
+        },
         _ => {
-            return Ok(Response::with((status::InternalServerError, format!("No key getter for {:?}", kind))));
+            return Ok(Response::with((
+                status::InternalServerError,
+                format!("No key getter for {:?}", kind),
+            )));
         }
     }
 }
@@ -151,9 +153,7 @@ fn get_key(req: &mut Request) -> IronResult<Response> {
 fn update_key(req: &mut Request) -> IronResult<Response> {
     let body_string = {
         let mut body = String::new();
-        req.body
-            .read_to_string(&mut body)
-            .expect("could read from body");
+        req.body.read_to_string(&mut body).expect("could read from body");
         body
     };
     let mut json: serde_json::Value = match serde_json::de::from_str(&body_string) {
@@ -165,28 +165,28 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
     };
     {
         let map = json.as_object_mut().unwrap();
-        map.insert("table".to_string(),
-                   serde_json::to_value(&potboiler_common::get_req_key(req, "table").unwrap()).unwrap());
-        map.insert("key".to_string(),
-                   serde_json::to_value(&potboiler_common::get_req_key(req, "key").unwrap()).unwrap());
+        map.insert(
+            "table".to_string(),
+            serde_json::to_value(&potboiler_common::get_req_key(req, "table").unwrap()).unwrap(),
+        );
+        map.insert(
+            "key".to_string(),
+            serde_json::to_value(&potboiler_common::get_req_key(req, "key").unwrap()).unwrap(),
+        );
     }
 
     let change: Change = serde_json::from_value(json).map_err(|e| Error::from(e))?;
-    let string_change = serde_json::ser::to_string(&change)
-        .map_err(|e| Error::from(e))?;
+    let string_change = serde_json::ser::to_string(&change).map_err(|e| Error::from(e))?;
     match change.op {
         Operation::Add | Operation::Remove => {
-            serde_json::from_value::<ORSetOp>(change.change)
-                .map_err(|e| Error::from(e))?;
+            serde_json::from_value::<ORSetOp>(change.change).map_err(|e| Error::from(e))?;
         }
         Operation::Create => {
-            serde_json::from_value::<ORCreateOp>(change.change)
-                .map_err(|e| Error::from(e))?;
+            serde_json::from_value::<ORCreateOp>(change.change).map_err(|e| Error::from(e))?;
         }
         Operation::Set => {
             if &change.table == tables::CONFIG_TABLE {
-                serde_json::from_value::<LWWConfigOp>(change.change)
-                    .map_err(|e| Error::from(e))?;
+                serde_json::from_value::<LWWConfigOp>(change.change).map_err(|e| Error::from(e))?;
             }
         }
     }
@@ -203,24 +203,30 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
 fn make_table(conn: &db::Connection, table_name: &str, kind: &CRDT) -> Result<()> {
     match kind {
         &CRDT::LWW => {
-            conn.execute(&format!("CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, value \
-                                   JSONB NOT NULL, crdt JSONB NOT NULL)",
-                                  &table_name))
-                .map_err(|e| Error::from(e))?;
+            conn.execute(&format!(
+                "CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, value \
+                 JSONB NOT NULL, crdt JSONB NOT NULL)",
+                &table_name
+            ))
+            .map_err(|e| Error::from(e))?;
         }
         &CRDT::ORSET => {
-            conn.execute(&format!("CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, crdt \
-                                   JSONB NOT NULL)",
-                                  &table_name))
-                .map_err(|e| Error::from(e))?;
-            conn.execute(&format!("CREATE TABLE IF NOT EXISTS {}_items (\
+            conn.execute(&format!(
+                "CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, crdt \
+                 JSONB NOT NULL)",
+                &table_name
+            ))
+            .map_err(|e| Error::from(e))?;
+            conn.execute(&format!(
+                "CREATE TABLE IF NOT EXISTS {}_items (\
                                    collection VARCHAR(1024) NOT NULL,
                                    key VARCHAR(1024) NOT NULL, \
                                    item VARCHAR(1024) NOT NULL, \
                                    metadata JSONB NOT NULL, \
                                    PRIMARY KEY(collection, key, item))",
-                                  &table_name))
-                .map_err(|e| Error::from(e))?;
+                &table_name
+            ))
+            .map_err(|e| Error::from(e))?;
         }
         &CRDT::GSET => {
             error!("No G-Set make table yet");
@@ -230,7 +236,8 @@ fn make_table(conn: &db::Connection, table_name: &str, kind: &CRDT) -> Result<()
 }
 
 fn get_crdt(conn: &db::Connection, table: &String, key: &String) -> IronResult<Option<serde_json::Value>> {
-    let results = conn.query(&format!("select crdt from {} where key='{}'", table, &key))
+    let results = conn
+        .query(&format!("select crdt from {} where key='{}'", table, &key))
         .map_err(|e| Error::from(e))?;
     if results.is_empty() {
         Ok(None)
@@ -246,16 +253,12 @@ fn get_crdt(conn: &db::Connection, table: &String, key: &String) -> IronResult<O
 fn new_event(req: &mut Request) -> IronResult<Response> {
     let body_string = {
         let mut body = String::new();
-        req.body
-            .read_to_string(&mut body)
-            .expect("could read from body");
+        req.body.read_to_string(&mut body).expect("could read from body");
         body
     };
-    let json: serde_json::Value = serde_json::de::from_str(&body_string)
-        .map_err(|e| Error::from(e))?;
+    let json: serde_json::Value = serde_json::de::from_str(&body_string).map_err(|e| Error::from(e))?;
     info!("body: {:?}", json);
-    let log = serde_json::from_value::<Log>(json)
-        .map_err(|e| Error::from(e))?;
+    let log = serde_json::from_value::<Log>(json).map_err(|e| Error::from(e))?;
     info!("log: {:?}", log);
     let change: Change = serde_json::from_value(log.data).unwrap();
     info!("change: {:?}", change);
@@ -265,64 +268,64 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
         Some(&val) => val,
     };
     match table_type {
-        CRDT::LWW => {
-            match change.op {
-                Operation::Set => {
-                    let crdt_to_use: Option<CRDT> = if &change.table == tables::CONFIG_TABLE {
-                        let config_op: LWWConfigOp = serde_json::from_value(change.change.clone())
-                            .map_err(|e| Error::from(e))?;
-                        Some(config_op.crdt)
-                    } else {
-                        None
-                    };
-                    let conn = get_db_connection!(&req);
-                    let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
-                    match raw_crdt {
-                        None => {
-                            let lww = LWW {
-                                when: log.when,
-                                data: change.change.clone(),
-                            };
-                            conn.execute(&format!("INSERT INTO {} (key, value, crdt) VALUES ('{}','{}','{}')",
-                                                  &change.table,
-                                                  &change.key,
-                                                  &change.change,
-                                                  &serde_json::to_value(&lww).map_err(|e| Error::from(e))?))
-                                .map_err(|e| Error::from(e))?;
-                            if &change.table == tables::CONFIG_TABLE {
-                                let crdt = crdt_to_use.unwrap();
-                                make_table(&conn, &change.key, &crdt)?;
-                                tables::add_table(req, &change.key, &crdt);
-                            }
+        CRDT::LWW => match change.op {
+            Operation::Set => {
+                let crdt_to_use: Option<CRDT> = if &change.table == tables::CONFIG_TABLE {
+                    let config_op: LWWConfigOp =
+                        serde_json::from_value(change.change.clone()).map_err(|e| Error::from(e))?;
+                    Some(config_op.crdt)
+                } else {
+                    None
+                };
+                let conn = get_db_connection!(&req);
+                let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
+                match raw_crdt {
+                    None => {
+                        let lww = LWW {
+                            when: log.when,
+                            data: change.change.clone(),
+                        };
+                        conn.execute(&format!(
+                            "INSERT INTO {} (key, value, crdt) VALUES ('{}','{}','{}')",
+                            &change.table,
+                            &change.key,
+                            &change.change,
+                            &serde_json::to_value(&lww).map_err(|e| Error::from(e))?
+                        ))
+                        .map_err(|e| Error::from(e))?;
+                        if &change.table == tables::CONFIG_TABLE {
+                            let crdt = crdt_to_use.unwrap();
+                            make_table(&conn, &change.key, &crdt)?;
+                            tables::add_table(req, &change.key, &crdt);
                         }
-                        Some(raw_crdt) => {
-                            let mut lww: LWW = serde_json::from_value(raw_crdt)
-                                .map_err(|e| Error::from(e))?;
-                            if lww.when < log.when {
-                                lww.when = log.when;
-                                lww.data = change.change.clone();
-                                conn.execute(&format!("UPDATE {} set value='{}', crdt='{}' where key='{}'",
-                                                      &change.table,
-                                                      &change.change,
-                                                      &change.key,
-                                                      &serde_json::to_value(&lww).map_err(|e| Error::from(e))?))
-                                    .map_err(|e| Error::from(e))?;
-                            } else {
-                                info!("Earlier event, skipping");
-                            }
+                    }
+                    Some(raw_crdt) => {
+                        let mut lww: LWW = serde_json::from_value(raw_crdt).map_err(|e| Error::from(e))?;
+                        if lww.when < log.when {
+                            lww.when = log.when;
+                            lww.data = change.change.clone();
+                            conn.execute(&format!(
+                                "UPDATE {} set value='{}', crdt='{}' where key='{}'",
+                                &change.table,
+                                &change.change,
+                                &change.key,
+                                &serde_json::to_value(&lww).map_err(|e| Error::from(e))?
+                            ))
+                            .map_err(|e| Error::from(e))?;
+                        } else {
+                            info!("Earlier event, skipping");
                         }
                     }
                 }
-                _ => {
-                    return Err(ErrorKind::UnsupportedLWWOp(change.op).into());
-                }
             }
-        }
+            _ => {
+                return Err(ErrorKind::UnsupportedLWWOp(change.op).into());
+            }
+        },
         CRDT::ORSET => {
             let op: Option<ORSetOp> = match change.op {
                 Operation::Add | Operation::Remove => {
-                    Some(serde_json::from_value(change.change)
-                             .map_err(|e| Error::from(e))?)
+                    Some(serde_json::from_value(change.change).map_err(|e| Error::from(e))?)
                 }
                 Operation::Create | Operation::Set => None,
             };
@@ -330,13 +333,13 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
             let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
             let (mut crdt, existing) = match raw_crdt {
                 Some(val) => (serde_json::from_value(val).map_err(|e| Error::from(e))?, true),
-                None => {
-                    (ORSet {
-                         adds: HashMap::new(),
-                         removes: HashMap::new(),
-                     },
-                     false)
-                }
+                None => (
+                    ORSet {
+                        adds: HashMap::new(),
+                        removes: HashMap::new(),
+                    },
+                    false,
+                ),
             };
             //let trans = conn.transaction().unwrap();
             let trans = conn;
@@ -347,22 +350,19 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                         let metadata = unwrap_op.metadata;
                         if crdt.adds.contains_key(&unwrap_op.key) {
                             trans
-                                .execute(&format!("UPDATE {}_items set metadata='{}' where collection='{}' \
-                                                   and key='{}'",
-                                                  &change.table,
-                                                  &metadata,
-                                                  &change.key,
-                                                  &unwrap_op.key))
+                                .execute(&format!(
+                                    "UPDATE {}_items set metadata='{}' where collection='{}' \
+                                     and key='{}'",
+                                    &change.table, &metadata, &change.key, &unwrap_op.key
+                                ))
                                 .map_err(|e| Error::from(e))?;
                         } else {
                             trans
-                                .execute(&format!("INSERT INTO {}_items (collection, key, item, metadata) \
-                                                   VALUES ('{}', '{}', '{}', '{}')",
-                                                  &change.table,
-                                                  &change.key,
-                                                  &unwrap_op.key,
-                                                  &unwrap_op.item,
-                                                  &metadata))
+                                .execute(&format!(
+                                    "INSERT INTO {}_items (collection, key, item, metadata) \
+                                     VALUES ('{}', '{}', '{}', '{}')",
+                                    &change.table, &change.key, &unwrap_op.key, &unwrap_op.item, &metadata
+                                ))
                                 .map_err(|e| Error::from(e))?;
                             crdt.adds.insert(unwrap_op.key, unwrap_op.item);
                         }
@@ -371,10 +371,10 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                 Operation::Remove => {
                     let unwrap_op = op.unwrap();
                     trans
-                        .execute(&format!("DELETE FROM {}_items where collection='{}' and key='{}'",
-                                          &change.table,
-                                          &change.key,
-                                          &unwrap_op.key))
+                        .execute(&format!(
+                            "DELETE FROM {}_items where collection='{}' and key='{}'",
+                            &change.table, &change.key, &unwrap_op.key
+                        ))
                         .map_err(|e| Error::from(e))?;
                     crdt.adds.remove(&unwrap_op.key);
                     crdt.removes.insert(unwrap_op.key, unwrap_op.item);
@@ -389,19 +389,21 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
             debug!("OR-Set for {}: {:?}", &change.table, &crdt);
             if existing {
                 trans
-                    .execute(&format!("UPDATE {} set crdt='{}' where key='{}'",
-                                      &change.table,
-                                      &serde_json::to_value(&crdt)
-                                          .map_err(|e| ErrorKind::Serde(e))?,
-                                      &change.key))
+                    .execute(&format!(
+                        "UPDATE {} set crdt='{}' where key='{}'",
+                        &change.table,
+                        &serde_json::to_value(&crdt).map_err(|e| ErrorKind::Serde(e))?,
+                        &change.key
+                    ))
                     .map_err(|e| Error::from(e))?;
             } else {
                 trans
-                    .execute(&format!("INSERT INTO {} (key, crdt) VALUES ('{}', '{}')",
-                                      &change.table,
-                                      &serde_json::to_value(&crdt)
-                                          .map_err(|e| ErrorKind::Serde(e))?,
-                                      &change.key))
+                    .execute(&format!(
+                        "INSERT INTO {} (key, crdt) VALUES ('{}', '{}')",
+                        &change.table,
+                        &serde_json::to_value(&crdt).map_err(|e| ErrorKind::Serde(e))?,
+                        &change.key
+                    ))
                     .map_err(|e| Error::from(e))?;
             }
             let mut items: Vec<&str> = Vec::new();
@@ -427,23 +429,29 @@ fn list_tables(req: &mut Request) -> IronResult<Response> {
     for t in tables.keys() {
         table_names.push(t);
     }
-    Ok(Response::with((status::Ok, mime!(Application / Json), serde_json::to_string(&table_names).unwrap())))
+    Ok(Response::with((
+        status::Ok,
+        mime!(Application / Json),
+        serde_json::to_string(&table_names).unwrap(),
+    )))
 }
 
 fn list_keys(req: &mut Request) -> IronResult<Response> {
-    let table = potboiler_common::get_req_key(req, "table")
-        .ok_or(ErrorKind::NoTableKey)?;
+    let table = potboiler_common::get_req_key(req, "table").ok_or(ErrorKind::NoTableKey)?;
     let conn = get_db_connection!(&req);
     let mut key_names = vec![];
-    for row in &conn.query(&format!("select key from {}", table))
-            .map_err(|e| Error::from(e))? {
+    for row in &conn
+        .query(&format!("select key from {}", table))
+        .map_err(|e| Error::from(e))?
+    {
         let key: String = row.get("key");
         key_names.push(key);
     }
-    Ok(Response::with((status::Ok,
-                       mime!(Application / Json),
-                       serde_json::to_string(&key_names)
-                           .map_err(|e| ErrorKind::Serde(e))?)))
+    Ok(Response::with((
+        status::Ok,
+        mime!(Application / Json),
+        serde_json::to_string(&key_names).map_err(|e| ErrorKind::Serde(e))?,
+    )))
 }
 
 fn app_router(pool: db::Pool) -> Result<iron::Chain> {
@@ -473,8 +481,10 @@ fn app_router(pool: db::Pool) -> Result<iron::Chain> {
 fn register(client: &hyper::Client) -> Result<()> {
     let mut map = serde_json::Map::new();
     let host: &str = &env::var("HOST").unwrap_or("localhost".to_string());
-    map.insert("url".to_string(),
-               serde_json::Value::String(format!("http://{}:8001/kv/event", host)));
+    map.insert(
+        "url".to_string(),
+        serde_json::Value::String(format!("http://{}:8001/kv/event", host)),
+    );
     let res = client
         .post(&format!("{}/register", SERVER_URL.deref()))
         .body(&serde_json::ser::to_string(&map)?)
@@ -505,39 +515,35 @@ mod test {
     use crate::app_router;
     use crate::db;
     use crate::http_client;
+    use crate::register;
     use hyper;
     use iron;
-    use iron::Headers;
     use iron::status::Status;
+    use iron::Headers;
     use log4rs;
-    use crate::register;
 
     fn setup_logging() {
         let stdout = log4rs::append::console::ConsoleAppender::builder().build();
         let config = log4rs::config::Config::builder()
             .appender(log4rs::config::Appender::builder().build("stdout", Box::new(stdout)))
-            .build(log4rs::config::Root::builder()
-                       .appender("stdout")
-                       .build(log::LevelFilter::Debug))
+            .build(
+                log4rs::config::Root::builder()
+                    .appender("stdout")
+                    .build(log::LevelFilter::Debug),
+            )
             .unwrap();
         log4rs::init_config(config).unwrap();
     }
 
     fn test_get_route(router: &iron::Chain, path: &str, expected_body: &str, expected_status: Status) {
-        let response = request::get(&format!("http://localhost:8001/{}", path),
-                                    Headers::new(),
-                                    router)
-            .unwrap();
+        let response = request::get(&format!("http://localhost:8001/{}", path), Headers::new(), router).unwrap();
         assert_eq!(response.status.unwrap(), expected_status);
         let result = extract_body_to_string(response);
         assert_eq!(result, expected_body);
     }
 
     fn test_post_route(router: &iron::Chain, path: &str, body: &str, expected_body: &str, expected_status: Status) {
-        let resp = request::post(&format!("http://localhost:8001/{}", path),
-                                 Headers::new(),
-                                 body,
-                                 router);
+        let resp = request::post(&format!("http://localhost:8001/{}", path), Headers::new(), body, router);
         let response = match resp {
             Ok(response) => response,
             Err(err) => err.response,
@@ -549,9 +555,13 @@ mod test {
 
     fn setup_db(tables: Vec<db::TestRow>) -> db::TestConnection {
         let mut conn = super::db::TestConnection::new();
-        conn.add_test_execute(concat!(r"CREATE TABLE IF NOT EXISTS _config \(key VARCHAR\(1024\) PRIMARY KEY, ",
-                                      r"value JSONB NOT NULL, crdt JSONB NOT NULL\)"),
-                              0);
+        conn.add_test_execute(
+            concat!(
+                r"CREATE TABLE IF NOT EXISTS _config \(key VARCHAR\(1024\) PRIMARY KEY, ",
+                r"value JSONB NOT NULL, crdt JSONB NOT NULL\)"
+            ),
+            0,
+        );
         conn.add_test_query("select key, value from _config", tables);
         return conn;
     }
@@ -582,10 +592,12 @@ mod test {
         let client = hyper::Client::with_connector(MockCore::default());
         register(&client).unwrap();
         http_client::set_client(&mut router, client);
-        test_post_route(&router,
-                        "kv/_config/test",
-                        r#"{"op":"set","change":{"crdt": "LWW"}}"#,
-                        "",
-                        Status::Ok);
+        test_post_route(
+            &router,
+            "kv/_config/test",
+            r#"{"op":"set","change":{"crdt": "LWW"}}"#,
+            "",
+            Status::Ok,
+        );
     }
 }

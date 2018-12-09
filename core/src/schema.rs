@@ -12,7 +12,7 @@ impl PostgresMigration for CreateLog {
         transaction
             .execute(
                 "CREATE TABLE log (id UUID PRIMARY KEY, owner UUID NOT NULL, \
-            next UUID, prev UUID, data JSONB NOT NULL);",
+                 next UUID, prev UUID, data JSONB NOT NULL);",
                 &[],
             )
             .unwrap();
@@ -31,16 +31,13 @@ migration!(Notifications, 201609181322, "add apps to notify");
 impl PostgresMigration for Notifications {
     fn up(&self, transaction: &Transaction) -> Result<(), postgres::error::Error> {
         transaction
-            .execute("CREATE TABLE notifications (url VARCHAR(2083) PRIMARY KEY);",
-                     &[])
+            .execute("CREATE TABLE notifications (url VARCHAR(2083) PRIMARY KEY);", &[])
             .unwrap();
         return Ok(());
     }
 
     fn down(&self, transaction: &Transaction) -> Result<(), postgres::error::Error> {
-        let _ = transaction
-            .execute("DROP TABLE notifications;", &[])
-            .unwrap();
+        let _ = transaction.execute("DROP TABLE notifications;", &[]).unwrap();
         return Ok(());
     }
 }

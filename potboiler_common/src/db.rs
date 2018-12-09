@@ -120,8 +120,9 @@ pub struct TestRow {
 
 pub trait GetRow<T> {
     fn get<R>(&self, id: R) -> T
-        where T: FromSql,
-              R: RowIndex + fmt::Display;
+    where
+        T: FromSql,
+        R: RowIndex + fmt::Display;
 }
 
 impl TestRow {
@@ -130,40 +131,48 @@ impl TestRow {
     }
 
     pub fn insert<K, V>(&mut self, k: K, v: V) -> Option<SqlValue>
-        where K: Into<ValueIndex>,
-              V: Into<SqlValue>
+    where
+        K: Into<ValueIndex>,
+        V: Into<SqlValue>,
     {
         self.data.insert(k.into(), v.into())
     }
 }
 
 macro_rules! get_row {
-    ($type: ty, $kind: path) => (
-    impl GetRow<$type> for TestRow {
-        fn get<R>(&self, id: R) -> $type where R: RowIndex + fmt::Display {
-            if !self.data.contains_key(&id.val()) {
-                panic!(format!("Can't find key {} in row", id));
-            }
-            match self.data[&id.val()] {
-                $kind(ref val) => val.clone(),
-                _ => panic!()
+    ($type: ty, $kind: path) => {
+        impl GetRow<$type> for TestRow {
+            fn get<R>(&self, id: R) -> $type
+            where
+                R: RowIndex + fmt::Display,
+            {
+                if !self.data.contains_key(&id.val()) {
+                    panic!(format!("Can't find key {} in row", id));
+                }
+                match self.data[&id.val()] {
+                    $kind(ref val) => val.clone(),
+                    _ => panic!(),
+                }
             }
         }
-    }
 
-    impl GetRow<Option<$type>> for TestRow {
-        fn get<R>(&self, id: R) -> Option<$type> where R: RowIndex + fmt::Display {
-            if !self.data.contains_key(&id.val()) {
-                panic!(format!("Can't find key {} in row", id));
-            }
-            match self.data[&id.val()] {
-                $kind(ref val) => Some(val.clone()),
-                SqlValue::Null => None,
-                _ => panic!()
+        impl GetRow<Option<$type>> for TestRow {
+            fn get<R>(&self, id: R) -> Option<$type>
+            where
+                R: RowIndex + fmt::Display,
+            {
+                if !self.data.contains_key(&id.val()) {
+                    panic!(format!("Can't find key {} in row", id));
+                }
+                match self.data[&id.val()] {
+                    $kind(ref val) => Some(val.clone()),
+                    SqlValue::Null => None,
+                    _ => panic!(),
+                }
             }
         }
-    }
-)}
+    };
+}
 
 get_row!(u32, SqlValue::U32);
 get_row!(Uuid, SqlValue::UUID);
@@ -178,9 +187,10 @@ pub enum Row<'a> {
 }
 impl<'a> Row<'a> {
     pub fn get<T, R>(&self, id: R) -> T
-        where T: FromSql + postgres::types::FromSql,
-              R: RowIndex + postgres::rows::RowIndex + fmt::Display + fmt::Debug,
-              TestRow: GetRow<T>
+    where
+        T: FromSql + postgres::types::FromSql,
+        R: RowIndex + postgres::rows::RowIndex + fmt::Display + fmt::Debug,
+        TestRow: GetRow<T>,
     {
         match self {
             &Row::Postgres(ref rows) => rows.get(id),
@@ -188,8 +198,9 @@ impl<'a> Row<'a> {
         }
     }
     pub fn get_opt<T, R>(&self, _id: R) -> Option<Result<T>>
-        where T: FromSql,
-              R: RowIndex
+    where
+        T: FromSql,
+        R: RowIndex,
     {
         unimplemented!();
     }
@@ -203,10 +214,7 @@ pub struct TestRowIterator<'a> {
 
 impl<'a> TestRowIterator<'a> {
     fn new(r: &'a Vec<TestRow>) -> TestRowIterator<'a> {
-        TestRowIterator {
-            rows: r,
-            location: 0,
-        }
+        TestRowIterator { rows: r, location: 0 }
     }
 
     fn next(&mut self) -> Option<&'a TestRow> {
@@ -300,8 +308,7 @@ impl TestConnection {
     }
 
     pub fn add_test_query(&mut self, cmd: &str, results: Vec<TestRow>) {
-        self.query_results
-            .push((regex::Regex::new(cmd).unwrap(), Ok(results)));
+        self.query_results.push((regex::Regex::new(cmd).unwrap(), Ok(results)));
     }
 
     pub fn add_failed_query(&mut self, cmd: &str, err: ErrorKind) {
@@ -341,18 +348,18 @@ impl<'conn> Connection {
     pub fn query(&'conn self, query: &str) -> Result<Rows> {
         match self {
             &Connection::Postgres(ref conn) => {
-                Ok(Rows::Postgres(conn.query(query, &[])
-                                      .map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(query.to_string())))?))
+                Ok(Rows::Postgres(conn.query(query, &[]).map_err(|e| {
+                    Error::with_chain(e, ErrorKind::PostgresError(query.to_string()))
+                })?))
             }
             &Connection::Test(ref conn) => Ok(Rows::Test(conn.get_rows(query)?)),
         }
     }
     pub fn execute(&self, equery: &str) -> Result<u64> {
         match self {
-            &Connection::Postgres(ref conn) => {
-                conn.execute(equery, &[])
-                    .map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(equery.to_string())))
-            }
+            &Connection::Postgres(ref conn) => conn
+                .execute(equery, &[])
+                .map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(equery.to_string()))),
             &Connection::Test(ref conn) => conn.execute(equery),
         }
     }
@@ -386,19 +393,19 @@ impl Key for PoolKey {
 // Gets a connection from the pool from the given request or returns a 500
 #[macro_export]
 macro_rules! get_db_connection {
-    ($req:expr) => (match $req.extensions.get::<persistent::Read<db::PoolKey>>() {
-        Some(pool) => match pool.get() {
-            Ok(conn) => {
-                conn
-            }
-            Err(_) => {
-                println!("Couldn't get a connection to pg!");
+    ($req:expr) => {
+        match $req.extensions.get::<persistent::Read<db::PoolKey>>() {
+            Some(pool) => match pool.get() {
+                Ok(conn) => conn,
+                Err(_) => {
+                    println!("Couldn't get a connection to pg!");
+                    return Ok(Response::with(status::InternalServerError));
+                }
+            },
+            None => {
+                println!("Couldn't get the pg pool from the request!");
                 return Ok(Response::with(status::InternalServerError));
             }
-        },
-        None => {
-            println!("Couldn't get the pg pool from the request!");
-            return Ok(Response::with(status::InternalServerError));
         }
-    })
+    };
 }

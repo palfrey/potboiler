@@ -3,10 +3,10 @@ extern crate log;
 extern crate log4rs;
 #[macro_use]
 extern crate error_chain;
-extern crate potboiler_common;
-extern crate potboiler;
-extern crate persistent;
 extern crate iron;
+extern crate persistent;
+extern crate potboiler;
+extern crate potboiler_common;
 
 use iron::Iron;
 use persistent::Read as PRead;

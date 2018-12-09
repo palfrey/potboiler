@@ -1,4 +1,4 @@
-#![recursion_limit="128"]
+#![recursion_limit = "128"]
 // #![deny(missing_debug_implementations, missing_copy_implementations,
 //         warnings,
 //         trivial_numeric_casts,
@@ -7,28 +7,28 @@
 
 #[macro_use]
 extern crate schemamama;
-extern crate schemamama_postgres;
 extern crate postgres;
+extern crate schemamama_postgres;
 #[macro_use]
 extern crate log;
-extern crate log4rs;
-extern crate iron;
-extern crate router;
-extern crate logger;
 extern crate hyper;
+extern crate iron;
+extern crate log4rs;
+extern crate logger;
+extern crate router;
 extern crate url;
 extern crate uuid;
 #[macro_use]
 extern crate serde_derive;
-extern crate serde_json;
 extern crate hybrid_clocks;
-extern crate r2d2;
 extern crate persistent;
+extern crate r2d2;
+extern crate serde_json;
 #[macro_use]
 extern crate potboiler_common;
-extern crate urlencoded;
 extern crate plugin;
 extern crate resolve;
+extern crate urlencoded;
 #[macro_use]
 extern crate error_chain;
 
@@ -40,9 +40,9 @@ use potboiler_common::{clock, db, pg};
 use router::Router;
 use std::env;
 
-mod notifications;
-mod nodes;
 mod logs;
+mod nodes;
+mod notifications;
 mod schema;
 
 error_chain! {
@@ -69,12 +69,12 @@ pub fn app_router(pool: db::Pool) -> Result<Chain> {
     router.post("/log/other", logs::other_log, "add from other");
     router.get("/log/first", logs::log_firsts, "get first logs");
     router.get("/log/:entry_id", logs::get_log, "get specific log");
-    router.post("/log/register",
-                notifications::log_register,
-                "register log listener");
-    router.post("/log/deregister",
-                notifications::log_deregister,
-                "deregister log listener");
+    router.post("/log/register", notifications::log_register, "register log listener");
+    router.post(
+        "/log/deregister",
+        notifications::log_deregister,
+        "deregister log listener",
+    );
     router.get("/nodes", nodes::node_list, "list other nodes");
     router.post("/nodes", nodes::node_add, "add new node");
     router.delete("/nodes", nodes::node_remove, "remove node");
@@ -82,9 +82,14 @@ pub fn app_router(pool: db::Pool) -> Result<Chain> {
     chain.link_before(logger_before);
     chain.link_after(logger_after);
     let conn = pool.get()?;
-    chain.link_before(State::<notifications::Notifications>::one(notifications::init_notifiers(&conn)));
+    chain.link_before(State::<notifications::Notifications>::one(
+        notifications::init_notifiers(&conn),
+    ));
     let clock_state = clock::init_clock();
-    chain.link_before(State::<nodes::Nodes>::one(nodes::initial_nodes(pool.clone(), clock_state.clock_state.clone())?));
+    chain.link_before(State::<nodes::Nodes>::one(nodes::initial_nodes(
+        pool.clone(),
+        clock_state.clock_state.clone(),
+    )?));
     chain.link_before(clock_state);
     chain.link(PRead::<db::PoolKey>::both(pool));
     return Ok(chain);
@@ -107,14 +112,14 @@ mod test {
     use iron_test::request;
     use iron_test::response::extract_body_to_string;
 
-    use iron::Headers;
     use iron::headers;
     use iron::status::Status;
+    use iron::Headers;
     use serde_json;
 
     use regex::Regex;
 
-    use super::{PRead, app_router};
+    use super::{app_router, PRead};
     use potboiler_common::server_id;
 
     fn test_route(path: &str, expected: &str) {
@@ -124,10 +129,12 @@ mod test {
         conn.add_test_query("select id, owner from log where next is null", vec![]);
         conn.add_test_query("select id, owner from log where prev is null", vec![]);
         let pool = super::db::Pool::TestPool(conn);
-        let response = request::get(&format!("http://localhost:8000/{}", path),
-                                    Headers::new(),
-                                    &app_router(pool).unwrap())
-            .unwrap();
+        let response = request::get(
+            &format!("http://localhost:8000/{}", path),
+            Headers::new(),
+            &app_router(pool).unwrap(),
+        )
+        .unwrap();
         assert_eq!(response.status.unwrap(), Status::Ok);
         let result = extract_body_to_string(response);
         assert_eq!(result, expected);
@@ -153,13 +160,21 @@ mod test {
         let mut conn = super::db::TestConnection::new();
         conn.add_test_query("select url from notifications", vec![]);
         conn.add_test_query("select url from nodes", vec![]);
-        conn.add_test_query(concat!("select id from log where next is null ",
-                                    "and owner = 'feedface-dead-feed-face-deadfacedead' limit 1"),
-                            vec![]);
-        conn.add_test_execute(concat!(r"insert into log \(id, owner, data, prev, hlc_tstamp\) ",
-                                      r"VALUES \('[a-z0-9-]+', 'feedface-dead-feed-face-deadfacedead', ",
-                                      r"'\{\}', NULL, decode\('[0-9A-Z]+', 'hex'\)\)"),
-                              1);
+        conn.add_test_query(
+            concat!(
+                "select id from log where next is null ",
+                "and owner = 'feedface-dead-feed-face-deadfacedead' limit 1"
+            ),
+            vec![],
+        );
+        conn.add_test_execute(
+            concat!(
+                r"insert into log \(id, owner, data, prev, hlc_tstamp\) ",
+                r"VALUES \('[a-z0-9-]+', 'feedface-dead-feed-face-deadfacedead', ",
+                r"'\{\}', NULL, decode\('[0-9A-Z]+', 'hex'\)\)"
+            ),
+            1,
+        );
         let pool = super::db::Pool::TestPool(conn);
         let mut router = app_router(pool).unwrap();
         router.link_before(PRead::<server_id::ServerId>::one(server_id::test()));
@@ -167,11 +182,7 @@ mod test {
         assert_eq!(response.status.unwrap(), Status::Created);
         let uuid = {
             let re = Regex::new(r"http://localhost:8000/log/([a-z0-9-]+)").unwrap();
-            let url = String::from(response
-                                       .headers
-                                       .get::<headers::Location>()
-                                       .unwrap()
-                                       .as_str());
+            let url = String::from(response.headers.get::<headers::Location>().unwrap().as_str());
             assert!(url.starts_with("http://localhost:8000/log/"));
             String::from(re.captures(&url).unwrap().get(1).unwrap().as_str())
         };

@@ -22,6 +22,8 @@ env:
     - PROJECT=kv
     - PROJECT=pigtail
     - PROJECT=docker
+before_script:
+  - rustup component add rustfmt-preview
 script: ./build.sh
 
 matrix:
