@@ -6,7 +6,7 @@ if [ "$PROJECT" = "docker" ]; then
 	python generate-compose.py 1 > docker-compose.yml
 	docker-compose build
 	docker-compose up &
-	./wait-for-port.sh localhost 8001
+	./wait-for-it.sh localhost:8001
 	sleep 5 # to wait for fully booted	
 	curl -v http://localhost:8001/kv/_config
 	docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
