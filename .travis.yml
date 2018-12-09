@@ -10,21 +10,15 @@ rust:
 
 cache:
   cargo: true
-  directories:
-    - target/rustfmt
 
 env:
-  global:
-    - CARGO_TARGET_DIR=./target/rustfmt
   matrix:
     - PROJECT=potboiler_common
     - PROJECT=core
     - PROJECT=kv
     - PROJECT=pigtail
     - PROJECT=docker
-before_script:
-  - rustup component add rustfmt-preview
-  - rustup component add clippy-preview
+    - PROJECT=check
 script: ./build.sh
 
 matrix:

@@ -14,11 +14,14 @@ if [ "$PROJECT" = "docker" ]; then
 	docker push potboiler/kv
 	docker push potboiler/pigtail
 	exit 0
+elif [ "$PROJECT" = "check" ]; then
+	rustup component add rustfmt-preview
+	rustup component add clippy-preview
+	cargo fmt -- --check
+	cargo clippy
 fi
 
 export PATH=$PATH:~/.cargo/bin &&
-cd $PROJECT
-cargo fmt -- --check
-cargo clippy
+cd "$PROJECT"
 cargo build
 cargo test
