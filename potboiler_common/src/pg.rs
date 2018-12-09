@@ -1,4 +1,4 @@
-use db;
+use crate::db;
 use r2d2;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 

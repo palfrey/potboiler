@@ -39,7 +39,7 @@ use std::env;
 use std::io::{self, Cursor};
 use std::ops::Deref;
 use time::Duration;
-use types::QueueOperation;
+use crate::types::QueueOperation;
 use uuid::Uuid;
 
 mod types;

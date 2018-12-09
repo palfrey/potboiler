@@ -44,7 +44,7 @@ use persistent::State;
 use potboiler_common::{db, http_client, pg, server_id};
 use potboiler_common::types::{CRDT, Log};
 use router::Router;
-use serde_types::*;
+use crate::serde_types::*;
 use std::collections::HashMap;
 use std::env;
 use std::io::Read;
@@ -504,16 +504,16 @@ mod test {
     use self::iron_test::request;
     use self::iron_test::response::extract_body_to_string;
 
-    use app_router;
-    use db;
-    use http_client;
+    use crate::app_router;
+    use crate::db;
+    use crate::http_client;
     use hyper;
     use iron;
     use iron::Headers;
     use iron::status::Status;
     use log;
     use log4rs;
-    use register;
+    use crate::register;
 
     fn setup_logging() {
         let stdout = log4rs::append::console::ConsoleAppender::builder().build();
