@@ -92,7 +92,7 @@ pub fn app_router(pool: db::Pool) -> Result<Chain> {
     )?));
     chain.link_before(clock_state);
     chain.link(PRead::<db::PoolKey>::both(pool));
-    return Ok(chain);
+    Ok(chain)
 }
 
 pub fn db_setup() -> Result<db::Pool> {
@@ -101,7 +101,7 @@ pub fn db_setup() -> Result<db::Pool> {
     if let db::Pool::Postgres(pg_pool) = pool {
         let conn = pg_pool.get()?;
         schema::up(&conn)?;
-        return Ok(db::Pool::Postgres(pg_pool));
+        Ok(db::Pool::Postgres(pg_pool))
     } else {
         bail!(ErrorKind::MigrationsOnNonPostgres(pool));
     }

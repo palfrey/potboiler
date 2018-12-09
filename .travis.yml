@@ -24,6 +24,7 @@ env:
     - PROJECT=docker
 before_script:
   - rustup component add rustfmt-preview
+  - rustup component add clippy-preview
 script: ./build.sh
 
 matrix:

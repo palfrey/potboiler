@@ -57,7 +57,7 @@ fn json_from_body(req: &mut Request) -> Result<serde_json::Value> {
         req.body.read_to_string(&mut body).expect("could read from body");
         body
     };
-    return serde_json::de::from_str(&body_string).map_err(|e| e.into());
+    serde_json::de::from_str(&body_string).map_err(|e| e.into())
 }
 
 #[derive(Serialize)]
@@ -89,17 +89,17 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
         Some(id)
     };
     let log = Log {
-        id: id,
-        owner: server_id.clone(),
+        id,
+        owner: *server_id,
         prev: previous,
         next: None,
-        when: when,
+        when,
         data: json.clone(),
     };
     nodes::insert_log(&conn, &log)?;
     let log_arc = Arc::new(log);
-    notifications::notify_everyone(req, log_arc.clone());
-    nodes::notify_everyone(req, log_arc.clone());
+    notifications::notify_everyone(req, &log_arc);
+    nodes::notify_everyone(req, &log_arc);
     let new_url = {
         let req_url = req.url.clone();
         let base_url: Url = req_url.into();
@@ -107,7 +107,7 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
     };
     Ok(Response::with((
         status::Created,
-        serde_json::to_string(&NewLogResponse { id: id }).map_err(|e| Error::from_kind(ErrorKind::SerdeError(e)))?,
+        serde_json::to_string(&NewLogResponse { id }).map_err(|e| Error::from_kind(ErrorKind::SerdeError(e)))?,
         Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")),
     )))
 }
@@ -122,8 +122,8 @@ pub fn other_log(req: &mut Request) -> IronResult<Response> {
     if existing.is_empty() {
         nodes::insert_log(&conn, &log)?;
         let log_arc = Arc::new(log);
-        notifications::notify_everyone(req, log_arc.clone());
-        nodes::notify_everyone(req, log_arc.clone());
+        notifications::notify_everyone(req, &log_arc);
+        nodes::notify_everyone(req, &log_arc);
     } else {
         info!("Told about new log item ({}) I already have", log.id);
     }
@@ -163,25 +163,25 @@ pub fn get_log(req: &mut Request) -> IronResult<Response> {
             "select owner, next, prev, data from log where id = '{}'",
             query_id
         ))
-        .map_err(|e| Error::from(e))?;
+        .map_err(Error::from)?;
 
     if results.is_empty() {
         Ok(Response::with((status::NotFound, format!("No log {}", query))))
     } else {
         let row = results.get(0);
         let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
-        let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).map_err(|e| Error::from(e))?;
+        let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).map_err(Error::from)?;
         let log = Log {
             id: query_id,
             owner: row.get("owner"),
             prev: get_with_null(&row, "prev"),
             next: get_with_null(&row, "next"),
             data: row.get("data"),
-            when: when,
+            when,
         };
         Ok(Response::with((
             status::Ok,
-            serde_json::to_string(&log).map_err(|e| Error::from(e))?,
+            serde_json::to_string(&log).map_err(Error::from)?,
         )))
     }
 }

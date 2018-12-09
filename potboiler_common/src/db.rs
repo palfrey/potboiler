@@ -107,13 +107,13 @@ impl RowIndex for String {
         ValueIndex::String(self.clone())
     }
 }
-impl<'a> RowIndex for &'a str {
+impl<'a> RowIndex for &str {
     fn val(&self) -> ValueIndex {
         ValueIndex::String(String::from(*self))
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TestRow {
     data: HashMap<ValueIndex, SqlValue>,
 }
@@ -192,11 +192,12 @@ impl<'a> Row<'a> {
         R: RowIndex + postgres::rows::RowIndex + fmt::Display + fmt::Debug,
         TestRow: GetRow<T>,
     {
-        match self {
-            &Row::Postgres(ref rows) => rows.get(id),
-            &Row::Test(ref rows) => rows.get(id),
+        match *self {
+            Row::Postgres(ref rows) => rows.get(id),
+            Row::Test(ref rows) => rows.get(id),
         }
     }
+    #[allow(clippy::needless_pass_by_value)]
     pub fn get_opt<T, R>(&self, _id: R) -> Option<Result<T>>
     where
         T: FromSql,
@@ -208,12 +209,12 @@ impl<'a> Row<'a> {
 
 #[derive(Debug)]
 pub struct TestRowIterator<'a> {
-    rows: &'a Vec<TestRow>,
+    rows: &'a [TestRow],
     location: usize,
 }
 
 impl<'a> TestRowIterator<'a> {
-    fn new(r: &'a Vec<TestRow>) -> TestRowIterator<'a> {
+    fn new(r: &'a [TestRow]) -> TestRowIterator<'a> {
         TestRowIterator { rows: r, location: 0 }
     }
 
@@ -234,9 +235,9 @@ pub enum RowIterator<'a> {
 
 impl<'a> fmt::Debug for RowIterator<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &RowIterator::Postgres(_) => write!(f, "RowIterator(PostgresRows)"),
-            &RowIterator::Test(ref rows) => write!(f, "RowIterator({:?})", rows),
+        match *self {
+            RowIterator::Postgres(_) => write!(f, "RowIterator(PostgresRows)"),
+            RowIterator::Test(ref rows) => write!(f, "RowIterator({:?})", rows),
         }
     }
 }
@@ -245,9 +246,9 @@ impl<'a> Iterator for RowIterator<'a> {
     type Item = Row<'a>;
 
     fn next(&mut self) -> Option<Row<'a>> {
-        match self {
-            &mut RowIterator::Postgres(ref mut rows) => rows.next().map(|r| Row::Postgres(r)),
-            &mut RowIterator::Test(ref mut rows) => rows.next().map(|r| Row::Test(r)),
+        match *self {
+            RowIterator::Postgres(ref mut rows) => rows.next().map(Row::Postgres),
+            RowIterator::Test(ref mut rows) => rows.next().map(Row::Test),
         }
     }
 }
@@ -259,28 +260,28 @@ pub enum Rows {
 }
 
 impl<'stmt> Rows {
-    pub fn get<'a>(&'a self, id: usize) -> Row<'a> {
-        match self {
-            &Rows::Postgres(ref rows) => Row::Postgres(rows.get(id)),
-            &Rows::Test(ref rows) => Row::Test(rows.get(id).unwrap()),
+    pub fn get(&self, id: usize) -> Row {
+        match *self {
+            Rows::Postgres(ref rows) => Row::Postgres(rows.get(id)),
+            Rows::Test(ref rows) => Row::Test(&rows[id]),
         }
     }
     pub fn is_empty(&self) -> bool {
-        match self {
-            &Rows::Postgres(ref rows) => rows.is_empty(),
-            &Rows::Test(ref rows) => rows.is_empty(),
+        match *self {
+            Rows::Postgres(ref rows) => rows.is_empty(),
+            Rows::Test(ref rows) => rows.is_empty(),
         }
     }
     pub fn len(&self) -> usize {
-        match self {
-            &Rows::Postgres(ref rows) => rows.len(),
-            &Rows::Test(ref rows) => rows.len(),
+        match *self {
+            Rows::Postgres(ref rows) => rows.len(),
+            Rows::Test(ref rows) => rows.len(),
         }
     }
-    pub fn iter<'a>(&'a self) -> RowIterator<'a> {
-        match self {
-            &Rows::Postgres(ref rows) => RowIterator::Postgres(rows.iter()),
-            &Rows::Test(ref rows) => RowIterator::Test(TestRowIterator::new(rows)),
+    pub fn iter(&self) -> RowIterator {
+        match *self {
+            Rows::Postgres(ref rows) => RowIterator::Postgres(rows.iter()),
+            Rows::Test(ref rows) => RowIterator::Test(TestRowIterator::new(rows)),
         }
     }
 }
@@ -293,7 +294,7 @@ impl<'a> iter::IntoIterator for &'a Rows {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TestConnection {
     query_results: Vec<(regex::Regex, Result<Vec<TestRow>>)>,
     execute_results: Vec<(regex::Regex, Result<u64>)>,
@@ -339,28 +340,30 @@ impl TestConnection {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum Connection {
     Postgres(r2d2::PooledConnection<r2d2_postgres::PostgresConnectionManager>),
     Test(TestConnection),
 }
+
 impl<'conn> Connection {
     pub fn query(&'conn self, query: &str) -> Result<Rows> {
-        match self {
-            &Connection::Postgres(ref conn) => {
+        match *self {
+            Connection::Postgres(ref conn) => {
                 Ok(Rows::Postgres(conn.query(query, &[]).map_err(|e| {
                     Error::with_chain(e, ErrorKind::PostgresError(query.to_string()))
                 })?))
             }
-            &Connection::Test(ref conn) => Ok(Rows::Test(conn.get_rows(query)?)),
+            Connection::Test(ref conn) => Ok(Rows::Test(conn.get_rows(query)?)),
         }
     }
     pub fn execute(&self, equery: &str) -> Result<u64> {
-        match self {
-            &Connection::Postgres(ref conn) => conn
+        match *self {
+            Connection::Postgres(ref conn) => conn
                 .execute(equery, &[])
                 .map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(equery.to_string()))),
-            &Connection::Test(ref conn) => conn.execute(equery),
+            Connection::Test(ref conn) => conn.execute(equery),
         }
     }
 }
@@ -373,12 +376,12 @@ pub enum Pool {
 
 impl Pool {
     pub fn get(&self) -> Result<Connection> {
-        match self {
-            &Pool::Postgres(ref pool) => {
+        match *self {
+            Pool::Postgres(ref pool) => {
                 let conn = pool.get()?;
                 Ok(Connection::Postgres(conn))
             }
-            &Pool::TestPool(ref conn) => Ok(Connection::Test(conn.clone())),
+            Pool::TestPool(ref conn) => Ok(Connection::Test(conn.clone())),
         }
     }
 }

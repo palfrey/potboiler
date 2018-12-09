@@ -19,5 +19,6 @@ fi
 export PATH=$PATH:~/.cargo/bin &&
 cd $PROJECT
 cargo fmt -- --check
+cargo clippy
 cargo build
 cargo test

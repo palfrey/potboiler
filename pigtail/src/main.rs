@@ -69,7 +69,7 @@ lazy_static! {
 
 fn string_from_body<T: std::io::Read>(body: &mut T) -> IronResult<String> {
     let mut result = String::new();
-    body.read_to_string(&mut result).map_err(|e| Error::from(e))?;
+    body.read_to_string(&mut result).map_err(Error::from)?;
     Ok(result)
 }
 
@@ -79,14 +79,14 @@ fn json_from_body(req: &mut Request) -> IronResult<Value> {
         Ok(val) => val,
         Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
     };
-    return Ok(json);
+    Ok(json)
 }
 
-fn add_queue_operation(op: QueueOperation) -> IronResult<String> {
+fn add_queue_operation(op: &QueueOperation) -> IronResult<String> {
     let client = hyper::client::Client::new();
     let mut res = client
         .post(SERVER_URL.deref())
-        .body(&serde_json::ser::to_string(&op).unwrap())
+        .body(&serde_json::ser::to_string(op).unwrap())
         .send()
         .expect("sender ok");
     assert_eq!(res.status, hyper::status::StatusCode::Created);
@@ -95,9 +95,9 @@ fn add_queue_operation(op: QueueOperation) -> IronResult<String> {
 
 fn create_queue(req: &mut Request) -> IronResult<Response> {
     let json = json_from_body(req)?;
-    let op = serde_json::from_value::<types::QueueCreate>(json).map_err(|e| Error::from(e))?;
+    let op = serde_json::from_value::<types::QueueCreate>(json).map_err(Error::from)?;
     let name = op.name.clone();
-    match add_queue_operation(QueueOperation::Create(op)) {
+    match add_queue_operation(&QueueOperation::Create(op)) {
         Ok(_) => {
             let new_url = format!("http://{}:8000/queue/{}", HOST.deref(), &name);
             Ok(Response::with((
@@ -111,17 +111,17 @@ fn create_queue(req: &mut Request) -> IronResult<Response> {
 
 fn delete_queue(req: &mut Request) -> IronResult<Response> {
     let queue_name = get_queue_name(req)?;
-    add_queue_operation(QueueOperation::Delete(queue_name))?;
+    add_queue_operation(&QueueOperation::Delete(queue_name))?;
     Ok(Response::with(status::Ok))
 }
 
 fn row_to_state(row: &db::Row) -> IronResult<types::QueueState> {
     let raw_state: String = row.get("state");
     // FIXME: format! bit is a hacky workaround for https://github.com/serde-rs/serde/issues/251
-    return serde_json::from_str(&format!("\"{}\"", raw_state)).map_err(|e| Error::from(e).into());
+    serde_json::from_str(&format!("\"{}\"", raw_state)).map_err(|e| Error::from(e).into())
 }
 
-fn parse_progress<F>(req: &mut Request, progress: types::QueueProgress, should_update: F) -> IronResult<Response>
+fn parse_progress<F>(req: &mut Request, progress: &types::QueueProgress, should_update: F) -> IronResult<Response>
 where
     F: Fn(&types::QueueState, &Timestamp<WallT>) -> Option<(Timestamp<WallT>, String)>,
 {
@@ -131,19 +131,19 @@ where
             "SELECT task_name, state, hlc_tstamp from {} where id='{}'",
             &progress.queue_name, &progress.id
         ))
-        .map_err(|e| Error::from(e))?;
+        .map_err(Error::from)?;
     if results.is_empty() {
-        return Ok(Response::with((
+        Ok(Response::with((
             status::NotFound,
             format!("No queue item {} in {}", &progress.id, &progress.queue_name),
-        )));
+        )))
     } else {
         let row = results.get(0);
         let state = row_to_state(&row)?;
         let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
-        let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).map_err(|e| Error::from(e))?;
+        let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).map_err(Error::from)?;
         if let Some((log_when, status)) = should_update(&state, &when) {
-            let raw_timestamp = get_raw_timestamp(&log_when).map_err(|e| Error::from(e))?;
+            let raw_timestamp = get_raw_timestamp(&log_when).map_err(Error::from)?;
             conn.execute(&format!(
                 "UPDATE {} set hlc_tstamp='{}', worker='{}', state='{}' where id='{}'",
                 &progress.queue_name,
@@ -152,7 +152,7 @@ where
                 &status,
                 &progress.id
             ))
-            .map_err(|e| Error::from(e))?;
+            .map_err(Error::from)?;
             return Ok(Response::with(status::NoContent));
         } else {
             return Ok(Response::with((status::Conflict, "Out of date change")));
@@ -162,11 +162,11 @@ where
 
 fn new_event(req: &mut Request) -> IronResult<Response> {
     let json = json_from_body(req)?;
-    let log = serde_json::from_value::<Log>(json).map_err(|e| Error::from(e))?;
+    let log = serde_json::from_value::<Log>(json).map_err(Error::from)?;
     info!("log: {:?}", log);
-    let log_when = log.when.clone();
+    let log_when = log.when;
     clock::observe_timestamp(&clock::get_clock(req), log_when);
-    let op = serde_json::from_value::<QueueOperation>(log.data).map_err(|e| Error::from(e))?;
+    let op = serde_json::from_value::<QueueOperation>(log.data).map_err(Error::from)?;
     info!("op: {:?}", op);
     let conn = get_db_connection!(&req);
     match op {
@@ -178,7 +178,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
             match conn.execute(&format!(
                 "INSERT INTO queues (key, config) VALUES('{}', '{}')",
                 &create.name,
-                &serde_json::to_value(&qc).map_err(|e| Error::from(e))?
+                &serde_json::to_value(&qc).map_err(Error::from)?
             )) {
                 Ok(_) => {
                     conn.execute(&format!(
@@ -187,7 +187,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                          NULL, hlc_tstamp BYTEA NOT NULL, worker UUID NULL)",
                         &create.name
                     ))
-                    .map_err(|e| Error::from(e))?;
+                    .map_err(Error::from)?;
                 }
                 Err(db::Error(db::ErrorKind::UniqueViolation, _)) => {}
                 Err(db::Error(kind, val)) => bail!(Error::from(db::Error(kind, val))),
@@ -195,7 +195,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
         }
         QueueOperation::Add(add) => {
             info!("add: {:?}", add);
-            let raw_timestamp = get_raw_timestamp(&log.when).map_err(|e| Error::from(e))?;
+            let raw_timestamp = get_raw_timestamp(&log.when).map_err(Error::from)?;
             conn.execute(&format!(
                 "INSERT INTO {} (id, task_name, state, info, hlc_tstamp) VALUES('{}', '{}', \
                  '{}', '{}', '{}')",
@@ -203,15 +203,15 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                 &log.id,
                 &add.task_name,
                 "pending",
-                &serde_json::to_value(&add.info).map_err(|e| Error::from(e))?,
+                &serde_json::to_value(&add.info).map_err(Error::from)?,
                 &raw_timestamp.sql()
             ))
-            .map_err(|e| Error::from(e))?;
+            .map_err(Error::from)?;
         }
         QueueOperation::Progress(progress) => {
             info!("progress: {:?}", progress);
-            return parse_progress(req, progress, |state, when| {
-                if state == &types::QueueState::Pending || (state == &types::QueueState::Working && &log_when > when) {
+            return parse_progress(req, &progress, |state, when| {
+                if state == &types::QueueState::Pending || (state == &types::QueueState::Working && log_when > *when) {
                     Some((log_when, String::from("working")))
                 } else {
                     None
@@ -220,8 +220,8 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
         }
         QueueOperation::Done(done) => {
             info!("done: {:?}", done);
-            return parse_progress(req, done, |state, when| {
-                if state != &types::QueueState::Done || (state == &types::QueueState::Done && &log_when > when) {
+            return parse_progress(req, &done, |state, when| {
+                if state != &types::QueueState::Done || (state == &types::QueueState::Done && log_when > *when) {
                     Some((log_when, String::from("done")))
                 } else {
                     None
@@ -233,10 +233,10 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
             let trans = conn;
             trans
                 .execute(&format!("DROP TABLE IF EXISTS {}", queue_name))
-                .map_err(|e| Error::from(e))?;
+                .map_err(Error::from)?;
             trans
                 .execute(&format!("DELETE FROM queues where key={}", &queue_name))
-                .map_err(|e| Error::from(e))?;
+                .map_err(Error::from)?;
             //trans.commit()?;
         }
     };
@@ -244,7 +244,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
 }
 
 fn get_req_key_with_iron_err(req: &mut Request, key: &str) -> IronResult<String> {
-    potboiler_common::get_req_key(req, key).ok_or(ErrorKind::NoReqKey(key.to_string()).into())
+    potboiler_common::get_req_key(req, key).ok_or_else(|| ErrorKind::NoReqKey(key.to_string()).into())
 }
 
 fn get_queue_name(req: &mut Request) -> IronResult<String> {
@@ -256,15 +256,14 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
     let queue_name = get_queue_name(req)?;
     let config_row = conn
         .query(&format!("select config from queues where key='{}'", &queue_name))
-        .map_err(|e| Error::from(e))?;
+        .map_err(Error::from)?;
     if config_row.is_empty() {
         return Ok(Response::with((status::NotFound, format!("No queue {}", queue_name))));
     }
-    let config: types::QueueConfig =
-        serde_json::from_value(config_row.get(0).get("config")).map_err(|e| Error::from(e))?;
+    let config: types::QueueConfig = serde_json::from_value(config_row.get(0).get("config")).map_err(Error::from)?;
     let results = conn
         .query(&format!("select id, task_name, state, hlc_tstamp from {}", &queue_name))
-        .map_err(|e| Error::from(e))?;
+        .map_err(Error::from)?;
     let mut queue = Map::new();
     let now = clock::get_timestamp(req).time.as_timespec();
     let max_diff = Duration::milliseconds(config.timeout_ms);
@@ -276,7 +275,7 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
         }
         if state == types::QueueState::Working {
             let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
-            let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).map_err(|e| Error::from(e))?;
+            let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).map_err(Error::from)?;
             let diff = now - when.time.as_timespec();
             if diff > max_diff {
                 debug!("{} is out of date, so marking as pending", id);
@@ -285,9 +284,9 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
         }
         let item = types::QueueListItem {
             task_name: row.get("task_name"),
-            state: state,
+            state,
         };
-        queue.insert(id.to_string(), serde_json::to_value(&item).map_err(|e| Error::from(e))?);
+        queue.insert(id.to_string(), serde_json::to_value(&item).map_err(Error::from)?);
     }
     let value = Value::Object(queue);
     Ok(Response::with((
@@ -309,7 +308,7 @@ fn get_queue_item(req: &mut Request) -> IronResult<Response> {
             "select task_name, state, info, worker from {} where id='{}'",
             &queue_name, &id
         ))
-        .map_err(|e| Error::from(e))?;
+        .map_err(Error::from)?;
     if results.is_empty() {
         Ok(Response::with((
             status::NotFound,
@@ -334,11 +333,11 @@ fn add_queue_item(req: &mut Request) -> IronResult<Response> {
         let map = json.as_object_mut().unwrap();
         map.insert(
             "queue_name".to_string(),
-            serde_json::to_value(&queue_name).map_err(|e| Error::from(e))?,
+            serde_json::to_value(&queue_name).map_err(Error::from)?,
         );
     }
-    let op = serde_json::from_value::<types::QueueAdd>(json).map_err(|e| Error::from(e))?;
-    match add_queue_operation(QueueOperation::Add(op)) {
+    let op = serde_json::from_value::<types::QueueAdd>(json).map_err(Error::from)?;
+    match add_queue_operation(&QueueOperation::Add(op)) {
         Ok(val) => {
             let new_url = format!("http://{}:8000/queue/{}/{}", HOST.deref(), &queue_name, &val);
             Ok(Response::with((
@@ -358,16 +357,16 @@ fn build_queue_progress(req: &mut Request) -> IronResult<types::QueueProgress> {
         let map = json.as_object_mut().unwrap();
         map.insert(
             "queue_name".to_string(),
-            serde_json::to_value(&queue_name).map_err(|e| Error::from(e))?,
+            serde_json::to_value(&queue_name).map_err(Error::from)?,
         );
-        map.insert("id".to_string(), serde_json::to_value(&id).map_err(|e| Error::from(e))?);
+        map.insert("id".to_string(), serde_json::to_value(&id).map_err(Error::from)?);
     }
-    return Ok(serde_json::from_value::<types::QueueProgress>(json).map_err(|e| Error::from(e))?);
+    Ok(serde_json::from_value::<types::QueueProgress>(json).map_err(Error::from)?)
 }
 
 fn progress_queue_item(req: &mut Request) -> IronResult<Response> {
     let op = build_queue_progress(req)?;
-    match add_queue_operation(QueueOperation::Progress(op)) {
+    match add_queue_operation(&QueueOperation::Progress(op)) {
         Ok(_) => get_queue_item(req),
         Err(val) => Err(val),
     }
@@ -375,7 +374,7 @@ fn progress_queue_item(req: &mut Request) -> IronResult<Response> {
 
 fn finish_queue_item(req: &mut Request) -> IronResult<Response> {
     let op = build_queue_progress(req)?;
-    match add_queue_operation(QueueOperation::Done(op)) {
+    match add_queue_operation(&QueueOperation::Done(op)) {
         Ok(_) => Ok(Response::with(status::Ok)),
         Err(val) => Err(val),
     }
