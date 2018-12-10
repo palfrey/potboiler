@@ -6,4 +6,4 @@ RUN cargo fetch
 ADD . /code
 RUN cargo build
 ENV RUST_BACKTRACE=1
-CMD ../wait-for-it.sh --timeout 0 postgres:5432 -s -- ../wait-for-it.sh --timeout 0 core:8000 -s -- watchexec -e rs -i target/ -r cargo run
+CMD ../wait-for-it.sh --timeout=0 postgres:5432 -s -- ../wait-for-it.sh --timeout=0 core:8000 -s -- watchexec -e rs -i target/ -r cargo run
