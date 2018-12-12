@@ -115,7 +115,7 @@ class Correspondence:
         ret["environment"] = {"SERVER_URL": self.kv.base_url()}
         ret["ports"] = ["%d:5000"%self.base_port]
         ret["links"] = ["%s:kv"%self.kv.name]
-        ret["command"] = "bash -c \"./wait-for-port.sh kv 8001 && flask run --host=0.0.0.0\""
+        ret["command"] = "bash -c \"./wait-for-it.sh --timeout=0 kv:8001 -s -- flask run --host=0.0.0.0\""
         return ret
 
 parser = argparse.ArgumentParser()
