@@ -1,4 +1,13 @@
-sudo: required
+sudo: false
+
+dist: xenial
+addons:
+  apt:
+    sources:
+    - sourceline: 'ppa:kelleyk/curl'
+    packages:
+    - curl
+
 services:
   - docker
 
