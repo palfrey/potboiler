@@ -8,7 +8,7 @@ if [ "$PROJECT" = "docker" ]; then
 	docker-compose up &
 	./wait-for-it.sh --timeout=0 localhost:8001
 	pip install requests
-	python3 wait-for-http.py
+	python3 wait-for-http.py http://localhost:8001/kv/_config
 	docker-compose stop
 	docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
 	docker push potboiler/core
