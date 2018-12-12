@@ -7,8 +7,8 @@ if [ "$PROJECT" = "docker" ]; then
 	docker-compose build
 	docker-compose up &
 	./wait-for-it.sh --timeout=0 localhost:8001
-	sleep 5 # to wait for fully booted	
-	curl --retry 100 --retry-connrefused -v http://localhost:8001/kv/_config
+	pip install requests
+	python3 wait-for-http.py
 	docker-compose stop
 	docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
 	docker push potboiler/core
