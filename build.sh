@@ -6,7 +6,6 @@ if [ "$PROJECT" = "docker" ]; then
 	python generate-compose.py 1 > docker-compose.yml
 	docker-compose build
 	docker-compose up &
-	./wait-for-it.sh --timeout=0 localhost:8001
 	pip install requests
 	python3 wait-for-http.py http://localhost:8001/kv/_config
 	docker-compose stop
