@@ -19,6 +19,7 @@ elif [ "$PROJECT" = "check" ]; then
 	rustup component add clippy-preview
 	cargo fmt -- --check
 	cargo clippy
+	exit 0
 fi
 
 export PATH=$PATH:~/.cargo/bin &&
