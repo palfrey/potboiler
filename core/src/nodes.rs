@@ -92,13 +92,13 @@ fn parse_json_from_request(
         res.read_to_string(&mut body)?;
         body
     };
-    return match serde_json::de::from_str(&body_string) {
+    match serde_json::de::from_str(&body_string) {
         Ok(val) => {
             debug!("Good data back {:?}", val);
             Ok(val)
         }
         Err(_) => bail!(ErrorKind::CrappyData(body_string)),
-    };
+    }
 }
 
 fn parse_object_from_request(
@@ -108,13 +108,13 @@ fn parse_object_from_request(
         Ok(val) => val,
         Err(err) => bail!(err),
     };
-    return match json.as_object() {
+    match json.as_object() {
         Some(val) => Ok(val.clone()),
         None => bail!(ErrorKind::NotAMap(serde_json::to_string(&json).unwrap())),
-    };
+    }
 }
 
-fn check_host_once(host_url: &String, conn: &db::Connection, clock_state: SyncClock) -> Result<()> {
+fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncClock) -> Result<()> {
     let mut client = hyper::client::Client::new();
     client.set_read_timeout(Some(Duration::from_secs(10)));
     client.set_write_timeout(Some(Duration::from_secs(10)));
@@ -124,7 +124,10 @@ fn check_host_once(host_url: &String, conn: &db::Connection, clock_state: SyncCl
     let kv = match parse_object_from_request(raw_result) {
         Ok(val) => val,
         Err(err) => {
-            bail!(Error::with_chain(err, ErrorKind::HostRetrieveError(host_url.clone())));
+            bail!(Error::with_chain(
+                err,
+                ErrorKind::HostRetrieveError(host_url.to_string())
+            ));
         }
     };
     for (key, value) in kv.iter() {
@@ -157,13 +160,16 @@ fn check_host_once(host_url: &String, conn: &db::Connection, clock_state: SyncCl
             &key_uuid
         ))?;
         let start_uuid = if first_item.is_empty() {
-            let first_url = format!("{}/log/first", &host_url);
+            let first_url = format!("{}/log/first", host_url);
             debug!("Get first from {:?}", host_url);
             let res = client.get(&first_url).send();
             let first_entry = match parse_object_from_request(res) {
                 Ok(val) => val,
                 Err(err) => {
-                    bail!(Error::with_chain(err, ErrorKind::HostRetrieveError(host_url.clone())));
+                    bail!(Error::with_chain(
+                        err,
+                        ErrorKind::HostRetrieveError(host_url.to_string())
+                    ));
                 }
             };
             info!("First entry: {:?}", &first_entry);
@@ -189,7 +195,10 @@ fn check_host_once(host_url: &String, conn: &db::Connection, clock_state: SyncCl
             let last_entry = match parse_object_from_request(res) {
                 Ok(val) => val,
                 Err(err) => {
-                    bail!(Error::with_chain(err, ErrorKind::HostRetrieveError(host_url.clone())));
+                    bail!(Error::with_chain(
+                        err,
+                        ErrorKind::HostRetrieveError(host_url.to_string())
+                    ));
                 }
             };
             info!("Last entry: {:?}", last_entry);
@@ -201,13 +210,16 @@ fn check_host_once(host_url: &String, conn: &db::Connection, clock_state: SyncCl
                 let str_uuid = current_uuid.as_str();
                 String::from(str_uuid.ok_or_else(|| format!("Current id ({}) is not a UUID", current_uuid))?)
             };
-            let current_url = format!("{}/log/{}", &host_url, real_uuid);
+            let current_url = format!("{}/log/{}", host_url, real_uuid);
             debug!("Get {} from {}", real_uuid, host_url);
             let res = client.get(&current_url).send();
             let current_entry = match parse_object_from_request(res) {
                 Ok(val) => val,
                 Err(err) => {
-                    bail!(Error::with_chain(err, ErrorKind::HostRetrieveError(host_url.clone())));
+                    bail!(Error::with_chain(
+                        err,
+                        ErrorKind::HostRetrieveError(host_url.to_string())
+                    ));
                 }
             };
             let next = current_entry.get("next").ok_or(ErrorKind::NoNextKey)?;
@@ -229,7 +241,7 @@ fn check_host_once(host_url: &String, conn: &db::Connection, clock_state: SyncCl
             current_uuid = next.clone();
         }
     }
-    return Ok(());
+    Ok(())
 }
 
 fn get_uuid_from_map(map: &serde_json::value::Map<String, serde_json::Value>, key: &str) -> Option<Uuid> {
@@ -242,12 +254,10 @@ fn get_uuid_from_map(map: &serde_json::value::Map<String, serde_json::Value>, ke
     if value.is_null() {
         return None;
     }
-    return match value.as_str() {
-        Some(val) => {
-            return Uuid::parse_str(val).ok();
-        }
+    match value.as_str() {
+        Some(val) => Uuid::parse_str(val).ok(),
         None => None,
-    };
+    }
 }
 
 pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
@@ -266,13 +276,13 @@ pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
         &log.data,
         log.prev
             .map(|u| format!("'{}'", u.to_string()))
-            .unwrap_or(String::from("NULL")),
+            .unwrap_or_else(|| String::from("NULL")),
         &raw_timestamp.sql()
     ))?;
     Ok(())
 }
 
-fn hashset_from_json_array(nodes: &Vec<serde_json::Value>) -> Result<HashSet<String>> {
+fn hashset_from_json_array(nodes: &[serde_json::Value]) -> Result<HashSet<String>> {
     let mut ret = HashSet::new();
     for node in nodes {
         match node.as_str() {
@@ -284,12 +294,12 @@ fn hashset_from_json_array(nodes: &Vec<serde_json::Value>) -> Result<HashSet<Str
             }
         }
     }
-    return Ok(ret);
+    Ok(ret)
 }
 
-fn check_new_nodes(host_url: &String, conn: &db::Connection, nodelist: NodeList) -> Result<()> {
+fn check_new_nodes(host_url: &str, conn: &db::Connection, nodelist: &NodeList) -> Result<()> {
     let client = hyper::client::Client::new();
-    let check_url = format!("{}/nodes?query_port=8000", &host_url);
+    let check_url = format!("{}/nodes?query_port=8000", host_url);
     info!("Checking {} ({})", host_url, check_url);
     let raw_result = client.get(&check_url).send();
     let remote_nodes = match parse_json_from_request(raw_result) {
@@ -305,10 +315,7 @@ fn check_new_nodes(host_url: &String, conn: &db::Connection, nodelist: NodeList)
     let remote_node_set: HashSet<String> = hashset_from_json_array(remote_node_array)?;
     let existing_nodes = conn.query("select url from nodes")?;
     let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter().map(|x| x.get("url")));
-    let extra_nodes = remote_node_set
-        .difference(&existing_nodes_set)
-        .map(|x| x.clone())
-        .collect::<Vec<String>>();
+    let extra_nodes = remote_node_set.difference(&existing_nodes_set).cloned();
     debug!("From {} remote nodes: {:?}", check_url, remote_node_set);
     info!("Extra nodes from {}: {:?}", check_url, extra_nodes);
     let mut nodes = nodelist.nodes.write().map_err(|_| ErrorKind::PoisonError)?;
@@ -323,7 +330,7 @@ fn check_new_nodes(host_url: &String, conn: &db::Connection, nodelist: NodeList)
                     },
                 );
                 let nodeslist = nodelist.clone();
-                thread::spawn(move || check_host(extra.clone(), nodeslist, recv));
+                thread::spawn(move || check_host(&extra, &nodeslist, &recv));
             }
             InsertResult::Existing => {}
             InsertResult::Error(err) => {
@@ -331,35 +338,32 @@ fn check_new_nodes(host_url: &String, conn: &db::Connection, nodelist: NodeList)
             }
         }
     }
-    return Ok(());
+    Ok(())
 }
 
 macro_rules! check_should_exit {
     ($recv:ident, $host_url:ident) => {{
-        match $recv.try_recv() {
-            Ok(_) => {
-                // Only message is "quit" at the moment
-                info!("Quitting check thread for {}", $host_url);
-                return;
-            }
-            Err(_) => {}
+        if $recv.try_recv().is_ok() {
+            // Only message is "quit" at the moment
+            info!("Quitting check thread for {}", $host_url);
+            return;
         };
     }};
 }
 
-fn check_host(host_url: String, nodelist: NodeList, recv: Receiver<()>) {
+fn check_host(host_url: &str, nodelist: &NodeList, recv: &Receiver<()>) {
     let sleep_time = Duration::from_secs(5);
     let conn = nodelist.pool.get().unwrap();
     loop {
         check_should_exit!(recv, host_url);
-        match check_host_once(&host_url, &conn, nodelist.clock.clone()) {
+        match check_host_once(host_url, &conn, &nodelist.clock) {
             Ok(_) => {}
             Err(msg) => {
                 warn!("Got an error while checking for new log items on {}: {}", host_url, msg);
             }
         };
         check_should_exit!(recv, host_url);
-        match check_new_nodes(&host_url, &conn, nodelist.clone()) {
+        match check_new_nodes(host_url, &conn, nodelist) {
             Ok(_) => {}
             Err(msg) => {
                 warn!("Got an error while checking for new nodes on {}: {}", host_url, msg);
@@ -388,13 +392,13 @@ pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList>
             pool: pool.clone(),
             clock: clock_state.clone(),
         };
-        thread::spawn(move || check_host(url.clone(), nodeslist, recv));
+        thread::spawn(move || check_host(&url, &nodeslist, &recv));
     }
-    return Ok(NodeList {
+    Ok(NodeList {
         nodes: locked_nodes.clone(),
-        pool: pool,
+        pool,
         clock: clock_state,
-    });
+    })
 }
 
 fn get_nodes_list(req: &Request) -> Vec<String> {
@@ -404,16 +408,16 @@ fn get_nodes_list(req: &Request) -> Vec<String> {
     for key in nodes.keys() {
         vec.push(key.clone());
     }
-    return vec;
+    vec
 }
 
-fn insert_node(req: &mut Request, to_notify: &String) {
+fn insert_node(req: &mut Request, to_notify: &str) {
     let (send, recv) = channel();
     let nodelist = {
         let mut nodelist = req.extensions.get_mut::<State<Nodes>>().unwrap().write().unwrap();
         let nodelist_dm = nodelist.deref_mut();
         nodelist_dm.nodes.write().unwrap().insert(
-            to_notify.clone(),
+            to_notify.to_string(),
             NodeInfo {
                 sender: Mutex::new(send),
             },
@@ -424,12 +428,11 @@ fn insert_node(req: &mut Request, to_notify: &String) {
             clock: nodelist_dm.clock.clone(),
         }
     };
-
-    let url = to_notify.clone();
-    thread::spawn(move || check_host(url, nodelist, recv));
+    let url = to_notify.to_string();
+    thread::spawn(move || check_host(&url, &nodelist, &recv));
 }
 
-pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
+pub fn notify_everyone(req: &Request, log_arc: &Arc<Log>) {
     let nodes = get_nodes_list(req);
     for node in nodes {
         let local_log = log_arc.clone();
@@ -461,18 +464,18 @@ enum InsertResult {
     Error(Error),
 }
 
-fn node_insert(conn: &db::Connection, url: &String) -> InsertResult {
-    return match conn.execute(&format!("insert into nodes (url) values({})", &url)) {
+fn node_insert(conn: &db::Connection, url: &str) -> InsertResult {
+    match conn.execute(&format!("insert into nodes (url) values({})", url)) {
         Ok(_) => InsertResult::Inserted,
         Err(db::Error(db::ErrorKind::UniqueViolation, _)) => InsertResult::Existing,
         Err(err) => InsertResult::Error(convert::From::from(err)),
-    };
+    }
 }
 
-fn node_add_core(conn: &db::Connection, url: &String, req: &mut Request) -> Result<()> {
-    match node_insert(&conn, &url) {
+fn node_add_core(conn: &db::Connection, url: &str, req: &mut Request) -> Result<()> {
+    match node_insert(&conn, url) {
         InsertResult::Inserted => {
-            insert_node(req, &url);
+            insert_node(req, url);
             Ok(())
         }
         InsertResult::Existing => Ok(()),
@@ -518,7 +521,7 @@ pub fn node_remove(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with(status::NoContent))
 }
 
-fn add_node_from_req(req: &mut Request, nodes: &Vec<String>, conn: &db::Connection) -> Result<()> {
+fn add_node_from_req(req: &mut Request, nodes: &[String], conn: &db::Connection) -> Result<()> {
     let host = resolve::resolver::resolve_addr(&req.remote_addr.ip())?;
     let port = {
         let query = req.get_ref::<UrlEncodedQuery>()?;
@@ -531,7 +534,7 @@ fn add_node_from_req(req: &mut Request, nodes: &Vec<String>, conn: &db::Connecti
         info!("{} is missing from nodes", query_url);
         return node_add_core(conn, &query_url, req);
     }
-    return Ok(());
+    Ok(())
 }
 
 pub fn node_list(req: &mut Request) -> IronResult<Response> {

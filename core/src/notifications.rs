@@ -29,7 +29,7 @@ pub fn init_notifiers(conn: &db::Connection) -> Vec<String> {
         let url: String = row.get("url");
         notifiers.push(url);
     }
-    return notifiers;
+    notifiers
 }
 
 fn get_notifications_list(req: &Request) -> Vec<String> {
@@ -42,17 +42,17 @@ fn get_notifications_list(req: &Request) -> Vec<String> {
         .clone()
 }
 
-fn insert_notifier(req: &mut Request, to_notify: &String) {
+fn insert_notifier(req: &mut Request, to_notify: &str) {
     req.extensions
         .get_mut::<State<Notifications>>()
         .unwrap()
         .write()
         .unwrap()
         .deref_mut()
-        .push(to_notify.clone());
+        .push(to_notify.to_string());
 }
 
-pub fn notify_everyone(req: &Request, log_arc: Arc<Log>) {
+pub fn notify_everyone(req: &Request, log_arc: &Arc<Log>) {
     let notifications = get_notifications_list(req);
     for notifier in notifications {
         let local_log = log_arc.clone();

@@ -22,15 +22,13 @@ pub struct ClockMiddleware {
 impl BeforeMiddleware for ClockMiddleware {
     fn before(&self, req: &mut Request) -> IronResult<()> {
         req.extensions.insert::<Clock>(self.clock_state.clone());
-        return Ok(());
+        Ok(())
     }
 }
 
 pub fn init_clock() -> ClockMiddleware {
     let clock_state = Arc::new(RwLock::new(HClock::wall()));
-    ClockMiddleware {
-        clock_state: clock_state,
-    }
+    ClockMiddleware { clock_state }
 }
 
 pub fn get_clock(req: &mut Request) -> Arc<RwLock<HClock<Wall>>> {
