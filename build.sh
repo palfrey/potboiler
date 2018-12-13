@@ -7,6 +7,7 @@ if [ "$PROJECT" = "docker" ]; then
 	docker-compose build
 	docker-compose up &
 	pip install requests
+	python3 wait-for-http.py http://localhost:8000/log
 	python3 wait-for-http.py http://localhost:8001/kv/_config
 	docker-compose stop
 	docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
