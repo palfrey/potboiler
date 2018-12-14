@@ -1,3 +1,11 @@
+use error_chain::{
+    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
+    error_chain,
+    error_chain_processing,
+    impl_error_chain_kind,
+    impl_error_chain_processed,
+    impl_extract_backtrace,
+};
 use iron::typemap::Key;
 use postgres;
 use r2d2;
@@ -9,11 +17,6 @@ use std::convert::From;
 use std::fmt;
 use std::iter;
 use uuid::Uuid;
-
-// FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
-use error_chain::{
-    error_chain, error_chain_processing, impl_error_chain_kind, impl_error_chain_processed, impl_extract_backtrace,
-};
 
 error_chain! {
     errors {

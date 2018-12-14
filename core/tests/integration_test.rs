@@ -1,14 +1,13 @@
 use iron;
-use iron_test;
-use persistent;
-use potboiler;
-use potboiler_common;
-
 use iron::status::Status;
 use iron::Headers;
+use iron_test;
 use iron_test::request;
 use iron_test::response::extract_body_to_string;
+use persistent;
 use persistent::Read as PRead;
+use potboiler;
+use potboiler_common;
 use potboiler_common::server_id;
 
 #[test]
