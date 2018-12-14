@@ -20,29 +20,21 @@ use error_chain::{
     quick_main,
 };
 use hyper;
-use iron;
-use iron::prelude::*;
-use iron::status;
+use iron::{self, prelude::*, status};
 use lazy_static::lazy_static;
 use log::{debug, error, info};
 use log4rs;
-use logger;
-use logger::Logger;
+use logger::{self, Logger};
 use mime::{__mime__ident_or_ext, mime};
-use persistent;
-use persistent::Read as PRead;
-use persistent::State;
-use potboiler_common;
-use potboiler_common::types::{Log, CRDT};
-use potboiler_common::{db, get_db_connection, get_http_client, http_client, iron_error_from, pg, server_id};
+use persistent::{self, Read as PRead, State};
+use potboiler_common::{
+    self, db, get_db_connection, get_http_client, http_client, iron_error_from, pg, server_id,
+    types::{Log, CRDT},
+};
 use r2d2;
-use router;
-use router::Router;
+use router::{self, Router};
 use serde_json;
-use std::collections::HashMap;
-use std::env;
-use std::io::Read;
-use std::ops::Deref;
+use std::{collections::HashMap, env, io::Read, ops::Deref};
 
 mod serde_types;
 mod tables;
@@ -494,16 +486,10 @@ quick_main!(|| -> Result<()> {
 
 #[cfg(test)]
 mod test {
-    use crate::app_router;
-    use crate::db;
-    use crate::http_client;
-    use crate::register;
+    use crate::{app_router, db, http_client, register};
     use hyper;
-    use iron;
-    use iron::status::Status;
-    use iron::Headers;
-    use iron_test::request;
-    use iron_test::response::extract_body_to_string;
+    use iron::{self, status::Status, Headers};
+    use iron_test::{request, response::extract_body_to_string};
     use log4rs;
     use yup_hyper_mock::mock_connector_in_order;
 

@@ -17,15 +17,12 @@ use error_chain::{
     impl_extract_backtrace,
     quick_main,
 };
-use iron;
-use iron::Iron;
+use iron::{self, Iron};
 use log::info;
 use log4rs;
-use persistent;
-use persistent::Read as PRead;
+use persistent::{self, Read as PRead};
 use potboiler;
-use potboiler_common;
-use potboiler_common::server_id;
+use potboiler_common::{self, server_id};
 
 error_chain! {
     errors {

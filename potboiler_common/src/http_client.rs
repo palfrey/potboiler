@@ -1,6 +1,5 @@
 use hyper;
-use iron;
-use iron::typemap::Key;
+use iron::{self, typemap::Key};
 use persistent::Read as PRead;
 
 #[derive(Clone, Copy, Debug)]

@@ -16,8 +16,10 @@ pub mod server_id;
 pub mod types;
 
 use hybrid_clocks::{Timestamp, WallT};
-use iron::prelude::{IronError, Request};
-use iron::status;
+use iron::{
+    prelude::{IronError, Request},
+    status,
+};
 use router;
 use serde_json;
 use std::io::Read;

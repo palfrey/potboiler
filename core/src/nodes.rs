@@ -9,28 +9,31 @@ use error_chain::{
 };
 use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
 use hyper;
-use iron::prelude::{IronError, IronResult, Request, Response};
-use iron::status;
-use iron::typemap::Key;
+use iron::{
+    prelude::{IronError, IronResult, Request, Response},
+    status,
+    typemap::Key,
+};
 use log::{debug, info, warn};
-use persistent;
-use persistent::State;
+use persistent::{self, State};
 use plugin::Pluggable;
-use potboiler_common::types::Log;
-use potboiler_common::{clock, db, get_db_connection, get_raw_timestamp, iron_error_from, url_from_body};
+use potboiler_common::{clock, db, get_db_connection, get_raw_timestamp, iron_error_from, types::Log, url_from_body};
 use resolve;
 use serde_json;
-use std::collections::{HashMap, HashSet};
-use std::convert;
-use std::io::Read;
-use std::iter::FromIterator;
-use std::ops::{Deref, DerefMut};
-use std::result::Result as StdResult;
-use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::Arc;
-use std::sync::{Mutex, RwLock};
-use std::thread;
-use std::time::Duration;
+use std::{
+    collections::{HashMap, HashSet},
+    convert,
+    io::Read,
+    iter::FromIterator,
+    ops::{Deref, DerefMut},
+    result::Result as StdResult,
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc, Mutex, RwLock,
+    },
+    thread,
+    time::Duration,
+};
 use url::Url;
 use urlencoded::{UrlDecodingError, UrlEncodedQuery};
 use uuid::Uuid;

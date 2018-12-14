@@ -19,20 +19,14 @@ use error_chain::{
     impl_extract_backtrace,
 };
 use hyper;
-use iron;
-use iron::prelude::*;
+use iron::{self, prelude::*};
 use log4rs;
-use logger;
-use logger::Logger;
-use persistent;
-use persistent::Read as PRead;
-use persistent::State;
+use logger::{self, Logger};
+use persistent::{self, Read as PRead, State};
 use postgres;
-use potboiler_common;
-use potboiler_common::{clock, db, pg};
+use potboiler_common::{self, clock, db, pg};
 use r2d2;
-use router;
-use router::Router;
+use router::{self, Router};
 use schemamama;
 use std::env;
 
@@ -105,12 +99,9 @@ pub fn db_setup() -> Result<db::Pool> {
 
 #[cfg(test)]
 mod test {
-    use iron_test::request;
-    use iron_test::response::extract_body_to_string;
+    use iron_test::{request, response::extract_body_to_string};
 
-    use iron::headers;
-    use iron::status::Status;
-    use iron::Headers;
+    use iron::{headers, status::Status, Headers};
     use serde_json;
 
     use regex::Regex;

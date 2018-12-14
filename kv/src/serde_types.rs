@@ -1,10 +1,8 @@
 use hybrid_clocks::{Timestamp, WallT};
-use potboiler_common::enum_str;
-use potboiler_common::types::CRDT;
+use potboiler_common::{enum_str, types::CRDT};
 use serde_derive::{Deserialize, Serialize};
 use serde_json;
-use std::collections::HashMap;
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 enum_str!(Operation {
     Set("set"),

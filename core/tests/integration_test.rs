@@ -1,14 +1,8 @@
-use iron;
-use iron::status::Status;
-use iron::Headers;
-use iron_test;
-use iron_test::request;
-use iron_test::response::extract_body_to_string;
-use persistent;
-use persistent::Read as PRead;
+use iron::{self, status::Status, Headers};
+use iron_test::{self, request, response::extract_body_to_string};
+use persistent::{self, Read as PRead};
 use potboiler;
-use potboiler_common;
-use potboiler_common::server_id;
+use potboiler_common::{self, server_id};
 
 #[test]
 #[ignore] // because needs db

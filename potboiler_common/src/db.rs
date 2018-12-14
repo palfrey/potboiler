@@ -12,10 +12,7 @@ use r2d2;
 use r2d2_postgres;
 use regex;
 use serde_json;
-use std::collections::HashMap;
-use std::convert::From;
-use std::fmt;
-use std::iter;
+use std::{collections::HashMap, convert::From, fmt, iter};
 use uuid::Uuid;
 
 error_chain! {
