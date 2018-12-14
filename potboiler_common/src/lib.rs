@@ -8,9 +8,6 @@
     future_incompatible
 )]
 
-use router;
-use serde_json;
-
 pub mod clock;
 pub mod db;
 pub mod http_client;
@@ -21,6 +18,8 @@ pub mod types;
 use hybrid_clocks::{Timestamp, WallT};
 use iron::prelude::{IronError, Request};
 use iron::status;
+use router;
+use serde_json;
 use std::io::Read;
 
 pub fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {

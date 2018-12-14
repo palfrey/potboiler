@@ -8,44 +8,46 @@
     future_incompatible
 )]
 
+use crate::serde_types::*;
+use error_chain::{
+    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
+    bail,
+    error_chain,
+    error_chain_processing,
+    impl_error_chain_kind,
+    impl_error_chain_processed,
+    impl_extract_backtrace,
+    quick_main,
+};
 use hyper;
 use iron;
+use iron::prelude::*;
+use iron::status;
 use lazy_static::lazy_static;
 use log::{debug, error, info};
 use log4rs;
 use logger;
+use logger::Logger;
 use mime::{__mime__ident_or_ext, mime};
 use persistent;
-use potboiler_common;
-use r2d2;
-use router;
-use serde_json;
-mod tables;
-
-// FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
-use error_chain::{
-    bail, error_chain, error_chain_processing, impl_error_chain_kind, impl_error_chain_processed,
-    impl_extract_backtrace, quick_main,
-};
-
-mod serde_types;
-
-#[cfg(test)]
-use yup_hyper_mock as hyper_mock;
-
-use crate::serde_types::*;
-use iron::prelude::*;
-use iron::status;
-use logger::Logger;
 use persistent::Read as PRead;
 use persistent::State;
+use potboiler_common;
 use potboiler_common::types::{Log, CRDT};
 use potboiler_common::{db, get_db_connection, get_http_client, http_client, iron_error_from, pg, server_id};
+use r2d2;
+use router;
 use router::Router;
+use serde_json;
 use std::collections::HashMap;
 use std::env;
 use std::io::Read;
 use std::ops::Deref;
+#[cfg(test)]
+use yup_hyper_mock as hyper_mock;
+
+mod serde_types;
+mod tables;
 
 error_chain! {
     errors {
