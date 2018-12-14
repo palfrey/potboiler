@@ -1,13 +1,23 @@
+use error_chain::{
+    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
+    bail,
+    error_chain,
+    error_chain_processing,
+    impl_error_chain_kind,
+    impl_error_chain_processed,
+    impl_extract_backtrace,
+};
 use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
 use hyper;
 use iron::prelude::{IronError, IronResult, Request, Response};
 use iron::status;
 use iron::typemap::Key;
+use log::{debug, info, warn};
 use persistent;
 use persistent::State;
 use plugin::Pluggable;
 use potboiler_common::types::Log;
-use potboiler_common::{clock, db, get_raw_timestamp, url_from_body};
+use potboiler_common::{clock, db, get_db_connection, get_raw_timestamp, iron_error_from, url_from_body};
 use resolve;
 use serde_json;
 use std::collections::{HashMap, HashSet};
@@ -134,7 +144,7 @@ fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncCloc
         let value_uuid = match Uuid::parse_str(
             value
                 .as_str()
-                .ok_or(ErrorKind::BadUuid(serde_json::to_string(value)?))?,
+                .ok_or_else(|| ErrorKind::BadUuid(serde_json::to_string(value).unwrap()))?,
         ) {
             Ok(val) => val,
             Err(_) => {

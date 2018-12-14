@@ -10,6 +10,11 @@ use std::fmt;
 use std::iter;
 use uuid::Uuid;
 
+// FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
+use error_chain::{
+    error_chain, error_chain_processing, impl_error_chain_kind, impl_error_chain_processed, impl_extract_backtrace,
+};
+
 error_chain! {
     errors {
         UniqueViolation
@@ -107,7 +112,7 @@ impl RowIndex for String {
         ValueIndex::String(self.clone())
     }
 }
-impl<'a> RowIndex for &str {
+impl<'a> RowIndex for &'a str {
     fn val(&self) -> ValueIndex {
         ValueIndex::String(String::from(*self))
     }

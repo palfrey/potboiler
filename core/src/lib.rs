@@ -1,43 +1,39 @@
 #![recursion_limit = "128"]
-// #![deny(missing_debug_implementations, missing_copy_implementations,
-//         warnings,
-//         trivial_numeric_casts,
-//         unstable_features,
-//         unused, future_incompatible)]
+#![deny(
+    missing_debug_implementations,
+    missing_copy_implementations,
+    warnings,
+    trivial_numeric_casts,
+    unstable_features,
+    unused,
+    future_incompatible
+)]
 
-#[macro_use]
-extern crate schemamama;
-extern crate postgres;
-extern crate schemamama_postgres;
-#[macro_use]
-extern crate log;
-extern crate hyper;
-extern crate iron;
-extern crate log4rs;
-extern crate logger;
-extern crate router;
-extern crate url;
-extern crate uuid;
-#[macro_use]
-extern crate serde_derive;
-extern crate hybrid_clocks;
-extern crate persistent;
-extern crate r2d2;
-extern crate serde_json;
-#[macro_use]
-extern crate potboiler_common;
-extern crate plugin;
-extern crate resolve;
-extern crate urlencoded;
-#[macro_use]
-extern crate error_chain;
-
+use error_chain::{
+    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
+    bail,
+    error_chain,
+    error_chain_processing,
+    impl_error_chain_kind,
+    impl_error_chain_processed,
+    impl_extract_backtrace,
+};
+use hyper;
+use iron;
 use iron::prelude::*;
+use log4rs;
+use logger;
 use logger::Logger;
+use persistent;
 use persistent::Read as PRead;
 use persistent::State;
+use postgres;
+use potboiler_common;
 use potboiler_common::{clock, db, pg};
+use r2d2;
+use router;
 use router::Router;
+use schemamama;
 use std::env;
 
 mod logs;

@@ -1,8 +1,8 @@
-extern crate iron;
-extern crate iron_test;
-extern crate persistent;
-extern crate potboiler;
-extern crate potboiler_common;
+use iron;
+use iron_test;
+use persistent;
+use potboiler;
+use potboiler_common;
 
 use iron::status::Status;
 use iron::Headers;

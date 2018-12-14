@@ -8,21 +8,8 @@
     future_incompatible
 )]
 
-use hybrid_clocks;
-use iron;
-use postgres;
-use r2d2;
-use r2d2_postgres;
 use router;
 use serde_json;
-use uuid;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate error_chain;
-use hyper;
-use persistent;
-use regex;
 
 pub mod clock;
 pub mod db;

@@ -1,15 +1,30 @@
-#[macro_use]
-extern crate log;
-extern crate log4rs;
-#[macro_use]
-extern crate error_chain;
-extern crate iron;
-extern crate persistent;
-extern crate potboiler;
-extern crate potboiler_common;
+#![deny(
+    missing_debug_implementations,
+    missing_copy_implementations,
+    warnings,
+    trivial_numeric_casts,
+    unstable_features,
+    unused,
+    future_incompatible
+)]
 
+use error_chain::{
+    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
+    error_chain,
+    error_chain_processing,
+    impl_error_chain_kind,
+    impl_error_chain_processed,
+    impl_extract_backtrace,
+    quick_main,
+};
+use iron;
 use iron::Iron;
+use log::info;
+use log4rs;
+use persistent;
 use persistent::Read as PRead;
+use potboiler;
+use potboiler_common;
 use potboiler_common::server_id;
 
 error_chain! {

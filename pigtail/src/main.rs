@@ -8,27 +8,24 @@
     future_incompatible
 )]
 
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-use iron;
-use log4rs;
-use persistent;
-#[macro_use]
-extern crate potboiler_common;
 use hybrid_clocks;
 use hyper;
+use iron;
+use lazy_static::lazy_static;
+use log::{debug, info};
+use log4rs;
 use logger;
+use persistent;
+use potboiler_common;
 use router;
 use serde_json;
 use uuid;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate error_chain;
-
+// FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
 use crate::types::QueueOperation;
+use error_chain::{
+    bail, error_chain, error_chain_processing, impl_error_chain_kind, impl_error_chain_processed,
+    impl_extract_backtrace,
+};
 use hybrid_clocks::{Timestamp, WallT};
 use iron::modifiers::Redirect;
 use iron::prelude::{Chain, Iron, IronError, IronResult, Request, Response};
@@ -36,7 +33,7 @@ use iron::status;
 use logger::Logger;
 use persistent::Read as PRead;
 use potboiler_common::types::Log;
-use potboiler_common::{clock, db, get_raw_timestamp, pg};
+use potboiler_common::{clock, db, get_db_connection, get_raw_timestamp, iron_error_from, pg};
 use serde_json::{Map, Value};
 use std::env;
 use std::io::{self, Cursor};
