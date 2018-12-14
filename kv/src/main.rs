@@ -43,8 +43,6 @@ use std::collections::HashMap;
 use std::env;
 use std::io::Read;
 use std::ops::Deref;
-#[cfg(test)]
-use yup_hyper_mock as hyper_mock;
 
 mod serde_types;
 mod tables;
@@ -496,9 +494,6 @@ quick_main!(|| -> Result<()> {
 
 #[cfg(test)]
 mod test {
-    use iron_test::request;
-    use iron_test::response::extract_body_to_string;
-
     use crate::app_router;
     use crate::db;
     use crate::http_client;
@@ -507,7 +502,10 @@ mod test {
     use iron;
     use iron::status::Status;
     use iron::Headers;
+    use iron_test::request;
+    use iron_test::response::extract_body_to_string;
     use log4rs;
+    use yup_hyper_mock::mock_connector_in_order;
 
     fn setup_logging() {
         let stdout = log4rs::append::console::ConsoleAppender::builder().build();
