@@ -20,7 +20,6 @@ use uuid;
 extern crate serde_derive;
 #[macro_use]
 extern crate error_chain;
-use hyper;
 use persistent;
 use regex;
 

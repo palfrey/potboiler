@@ -20,7 +20,6 @@ extern crate lazy_static;
 #[macro_use]
 extern crate potboiler_common;
 use hybrid_clocks;
-use hyper;
 use serde_json;
 #[macro_use]
 extern crate mime;
@@ -67,7 +66,7 @@ error_chain! {
     }
     foreign_links {
         Serde(serde_json::Error);
-        Hyper(hyper::Error);
+        Reqwest(reqwest::Error);
         Log(log4rs::Error);
         R2D2(r2d2::Error);
     }
@@ -188,10 +187,10 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
     let client = get_http_client!(req);
     let res = client
         .post(SERVER_URL.deref())
-        .body(&string_change)
+        .body(string_change)
         .send()
         .expect("sender ok");
-    assert_eq!(res.status, hyper::status::StatusCode::Created);
+    assert_eq!(res.status(), reqwest::StatusCode::CREATED);
     Ok(Response::with(status::Ok))
 }
 
@@ -468,7 +467,7 @@ fn app_router(pool: db::Pool) -> Result<iron::Chain> {
     Ok(chain)
 }
 
-fn register(client: &hyper::Client) -> Result<()> {
+fn register(client: &reqwest::Client) -> Result<()> {
     let mut map = serde_json::Map::new();
     let host: &str = &env::var("HOST").unwrap_or_else(|_| "localhost".to_string());
     map.insert(
@@ -477,9 +476,9 @@ fn register(client: &hyper::Client) -> Result<()> {
     );
     let res = client
         .post(&format!("{}/register", SERVER_URL.deref()))
-        .body(&serde_json::ser::to_string(&map)?)
+        .json(&map)
         .send()?;
-    assert_eq!(res.status, hyper::status::StatusCode::NoContent);
+    assert_eq!(res.status(), reqwest::StatusCode::NO_CONTENT);
     Ok(())
 }
 
@@ -489,11 +488,11 @@ quick_main!(|| -> Result<()> {
     let pool = pg::get_pool(db_url)?;
     let mut router = app_router(pool)?;
     router.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
-    let client = hyper::client::Client::new();
+    let client = reqwest::Client::new();
     register(&client)?;
     http_client::set_client(&mut router, client);
     info!("Potboiler-kv booted");
-    Iron::new(router).http("0.0.0.0:8001")?;
+    Iron::new(router).http("0.0.0.0:8001").unwrap();
     Ok(())
 });
 

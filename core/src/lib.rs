@@ -11,7 +11,6 @@ extern crate postgres;
 extern crate schemamama_postgres;
 #[macro_use]
 extern crate log;
-extern crate hyper;
 extern crate iron;
 extern crate log4rs;
 extern crate logger;
@@ -57,7 +56,6 @@ error_chain! {
         PostgresError(r2d2::Error);
         SchemammaError(schemamama::Error<postgres::Error>);
         LogError(log4rs::Error);
-        HyperError(hyper::Error);
     }
 }
 

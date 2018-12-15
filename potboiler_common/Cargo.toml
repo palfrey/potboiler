@@ -18,8 +18,8 @@ hybrid-clocks = { version = "^0.3.4", features = ["serde"] }
 router = "0.6"
 error-chain = "0.12"
 regex = "*"
-hyper = "0.10"
 persistent = "0.4"
+reqwest = "*"
 
 [lib]
 name = "potboiler_common"

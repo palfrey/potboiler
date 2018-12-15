@@ -24,6 +24,7 @@ serde_derive = "1.0"
 serde_json = "1.0"
 urlencoded = "0.6"
 url = "*"
+reqwest = "*"
 
 potboiler_common = { path = "../potboiler_common" }
 
@@ -35,7 +36,6 @@ r2d2 = "0.8"
 r2d2_postgres = "0.14"
 persistent = "0.4"
 
-hyper = "0.10"
 resolve = "0.2"
 error-chain = "0.12"
 
