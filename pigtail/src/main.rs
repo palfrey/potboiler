@@ -8,41 +8,39 @@
     future_incompatible
 )]
 
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-use iron;
-use log4rs;
-use persistent;
-#[macro_use]
-extern crate potboiler_common;
-use hybrid_clocks;
-use hyper;
-use logger;
-use router;
-use serde_json;
-use uuid;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate error_chain;
-
 use crate::types::QueueOperation;
+use error_chain::{
+    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
+    bail,
+    error_chain,
+    error_chain_processing,
+    impl_error_chain_kind,
+    impl_error_chain_processed,
+    impl_extract_backtrace,
+};
 use hybrid_clocks::{Timestamp, WallT};
-use iron::modifiers::Redirect;
-use iron::prelude::{Chain, Iron, IronError, IronResult, Request, Response};
-use iron::status;
-use logger::Logger;
-use persistent::Read as PRead;
-use potboiler_common::types::Log;
-use potboiler_common::{clock, db, get_raw_timestamp, pg};
-use serde_json::{Map, Value};
-use std::env;
-use std::io::{self, Cursor};
-use std::ops::Deref;
+use hyper;
+use iron::{
+    self,
+    modifiers::Redirect,
+    prelude::{Chain, Iron, IronError, IronResult, Request, Response},
+    status,
+};
+use lazy_static::lazy_static;
+use log::{debug, info};
+use log4rs;
+use logger::{self, Logger};
+use persistent::{self, Read as PRead};
+use potboiler_common::{self, clock, db, get_db_connection, get_raw_timestamp, iron_error_from, pg, types::Log};
+use router;
+use serde_json::{self, Map, Value};
+use std::{
+    env,
+    io::{self, Cursor},
+    ops::Deref,
+};
 use time::Duration;
-use uuid::Uuid;
+use uuid::{self, Uuid};
 
 mod types;
 
@@ -141,7 +139,7 @@ where
         let row = results.get(0);
         let state = row_to_state(&row)?;
         let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
-        let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).map_err(Error::from)?;
+        let when = Timestamp::read_bytes(Cursor::new(hlc_tstamp)).map_err(Error::from)?;
         if let Some((log_when, status)) = should_update(&state, &when) {
             let raw_timestamp = get_raw_timestamp(&log_when).map_err(Error::from)?;
             conn.execute(&format!(
@@ -275,7 +273,7 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
         }
         if state == types::QueueState::Working {
             let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
-            let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).map_err(Error::from)?;
+            let when = Timestamp::read_bytes(Cursor::new(hlc_tstamp)).map_err(Error::from)?;
             let diff = now - when.time.as_timespec();
             if diff > max_diff {
                 debug!("{} is out of date, so marking as pending", id);

@@ -1,9 +1,10 @@
 use iron::typemap::Key;
-use std::env;
-use std::fs::File;
-use std::io::Read;
-use std::io::Write;
-use std::path::Path;
+use std::{
+    env,
+    fs::File,
+    io::{Read, Write},
+    path::Path,
+};
 use uuid::Uuid;
 
 #[derive(Copy, Clone, Debug)]

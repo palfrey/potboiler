@@ -1,10 +1,9 @@
-use hybrid_clocks::Clock as HClock;
-use hybrid_clocks::{Timestamp, Wall, WallT};
-use iron::typemap::Key;
-use iron::{BeforeMiddleware, IronResult, Request};
-use std::ops::DerefMut;
-use std::sync::Arc;
-use std::sync::RwLock;
+use hybrid_clocks::{Clock as HClock, Timestamp, Wall, WallT};
+use iron::{typemap::Key, BeforeMiddleware, IronResult, Request};
+use std::{
+    ops::DerefMut,
+    sync::{Arc, RwLock},
+};
 pub type SyncClock = Arc<RwLock<HClock<Wall>>>;
 
 #[derive(Copy, Clone, Debug)]

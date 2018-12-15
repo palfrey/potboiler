@@ -1,16 +1,19 @@
 use hyper;
-use iron::prelude::{IronError, IronResult, Response};
-use iron::status;
-use iron::typemap::Key;
-use iron::Request;
-use persistent;
-use persistent::State;
-use potboiler_common::types::Log;
-use potboiler_common::{db, url_from_body};
+use iron::{
+    prelude::{IronError, IronResult, Response},
+    status,
+    typemap::Key,
+    Request,
+};
+use log::{debug, warn};
+use persistent::{self, State};
+use potboiler_common::{db, get_db_connection, types::Log, url_from_body};
 use serde_json;
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
-use std::thread;
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Arc,
+    thread,
+};
 use url::Url;
 
 #[derive(Copy, Clone)]

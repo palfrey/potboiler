@@ -8,49 +8,36 @@
     future_incompatible
 )]
 
-#[macro_use]
-extern crate log;
-use iron;
-use log4rs;
-use logger;
-use persistent;
-use router;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate potboiler_common;
-use hybrid_clocks;
-use hyper;
-use serde_json;
-#[macro_use]
-extern crate mime;
-use r2d2;
-mod tables;
-
-#[macro_use]
-extern crate error_chain;
-
-#[macro_use]
-extern crate serde_derive;
-mod serde_types;
-
-#[cfg(test)]
-#[macro_use]
-extern crate yup_hyper_mock as hyper_mock;
-
 use crate::serde_types::*;
-use iron::prelude::*;
-use iron::status;
-use logger::Logger;
-use persistent::Read as PRead;
-use persistent::State;
-use potboiler_common::types::{Log, CRDT};
-use potboiler_common::{db, http_client, pg, server_id};
-use router::Router;
-use std::collections::HashMap;
-use std::env;
-use std::io::Read;
-use std::ops::Deref;
+use error_chain::{
+    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
+    bail,
+    error_chain,
+    error_chain_processing,
+    impl_error_chain_kind,
+    impl_error_chain_processed,
+    impl_extract_backtrace,
+    quick_main,
+};
+use hyper;
+use iron::{self, prelude::*, status};
+use lazy_static::lazy_static;
+use log::{debug, error, info};
+use log4rs;
+use logger::{self, Logger};
+use mime::{__mime__ident_or_ext, mime};
+use persistent::{self, Read as PRead, State};
+use potboiler_common::{
+    self, db, get_db_connection, get_http_client, http_client, iron_error_from, pg, server_id,
+    types::{Log, CRDT},
+};
+use r2d2;
+use router::{self, Router};
+use serde_json;
+use std::{collections::HashMap, env, io::Read, ops::Deref};
+
+mod serde_types;
+mod tables;
 
 error_chain! {
     errors {
@@ -499,18 +486,12 @@ quick_main!(|| -> Result<()> {
 
 #[cfg(test)]
 mod test {
-    use iron_test::request;
-    use iron_test::response::extract_body_to_string;
-
-    use crate::app_router;
-    use crate::db;
-    use crate::http_client;
-    use crate::register;
+    use crate::{app_router, db, http_client, register};
     use hyper;
-    use iron;
-    use iron::status::Status;
-    use iron::Headers;
+    use iron::{self, status::Status, Headers};
+    use iron_test::{request, response::extract_body_to_string};
     use log4rs;
+    use yup_hyper_mock::mock_connector_in_order;
 
     fn setup_logging() {
         let stdout = log4rs::append::console::ConsoleAppender::builder().build();

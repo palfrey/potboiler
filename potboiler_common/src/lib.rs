@@ -8,22 +8,6 @@
     future_incompatible
 )]
 
-use hybrid_clocks;
-use iron;
-use postgres;
-use r2d2;
-use r2d2_postgres;
-use router;
-use serde_json;
-use uuid;
-#[macro_use]
-extern crate serde_derive;
-#[macro_use]
-extern crate error_chain;
-use hyper;
-use persistent;
-use regex;
-
 pub mod clock;
 pub mod db;
 pub mod http_client;
@@ -32,8 +16,12 @@ pub mod server_id;
 pub mod types;
 
 use hybrid_clocks::{Timestamp, WallT};
-use iron::prelude::{IronError, Request};
-use iron::status;
+use iron::{
+    prelude::{IronError, Request},
+    status,
+};
+use router;
+use serde_json;
 use std::io::Read;
 
 pub fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
