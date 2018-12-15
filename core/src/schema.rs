@@ -1,9 +1,7 @@
 #![allow(clippy::inconsistent_digit_grouping)]
 
-use postgres;
-use postgres::transaction::Transaction;
-use schemamama;
-use schemamama::Migrator;
+use postgres::{self, transaction::Transaction};
+use schemamama::{self, migration, Migrator};
 use schemamama_postgres::{PostgresAdapter, PostgresMigration};
 
 struct CreateLog;

@@ -1,15 +1,8 @@
-extern crate iron;
-extern crate iron_test;
-extern crate persistent;
-extern crate potboiler;
-extern crate potboiler_common;
-
-use iron::status::Status;
-use iron::Headers;
-use iron_test::request;
-use iron_test::response::extract_body_to_string;
-use persistent::Read as PRead;
-use potboiler_common::server_id;
+use iron::{self, status::Status, Headers};
+use iron_test::{self, request, response::extract_body_to_string};
+use persistent::{self, Read as PRead};
+use potboiler;
+use potboiler_common::{self, server_id};
 
 #[test]
 #[ignore] // because needs db

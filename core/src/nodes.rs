@@ -1,25 +1,37 @@
+use error_chain::{
+    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
+    bail,
+    error_chain,
+    error_chain_processing,
+    impl_error_chain_kind,
+    impl_error_chain_processed,
+    impl_extract_backtrace,
+};
 use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
-use reqwest;
-use iron::prelude::{IronError, IronResult, Request, Response};
-use iron::status;
-use iron::typemap::Key;
-use persistent;
-use persistent::State;
+use iron::{
+    prelude::{IronError, IronResult, Request, Response},
+    status,
+    typemap::Key,
+};
+use log::{debug, info, warn};
+use persistent::{self, State};
 use plugin::Pluggable;
-use potboiler_common::types::Log;
-use potboiler_common::{clock, db, get_raw_timestamp, url_from_body};
+use potboiler_common::{clock, db, get_db_connection, get_raw_timestamp, iron_error_from, types::Log, url_from_body};
 use resolve;
 use serde_json;
-use std::collections::{HashMap, HashSet};
-use std::convert;
-use std::iter::FromIterator;
-use std::ops::{Deref, DerefMut};
-use std::result::Result as StdResult;
-use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::Arc;
-use std::sync::{Mutex, RwLock};
-use std::thread;
-use std::time::Duration;
+use std::{
+    collections::{HashMap, HashSet},
+    convert,
+    iter::FromIterator,
+    ops::{Deref, DerefMut},
+    result::Result as StdResult,
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc, Mutex, RwLock,
+    },
+    thread,
+    time::Duration,
+};
 use url::Url;
 use urlencoded::{UrlDecodingError, UrlEncodedQuery};
 use uuid::Uuid;
@@ -91,9 +103,7 @@ fn parse_object_from_request(
 }
 
 fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncClock) -> Result<()> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()?;
+    let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build()?;
     let check_url = format!("{}/log", &host_url);
     info!("Checking {} ({})", host_url, check_url);
     let raw_result = client.get(&check_url).send();
@@ -110,7 +120,7 @@ fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncCloc
         let value_uuid = match Uuid::parse_str(
             value
                 .as_str()
-                .ok_or(ErrorKind::BadUuid(serde_json::to_string(value)?))?,
+                .ok_or_else(|| ErrorKind::BadUuid(serde_json::to_string(value).unwrap()))?,
         ) {
             Ok(val) => val,
             Err(_) => {
@@ -398,10 +408,7 @@ pub fn notify_everyone(req: &Request, log_arc: &Arc<Log>) {
             let client = reqwest::Client::new();
             let notify_url = format!("{}/log/other", node);
             debug!("Notifying (node) {}", notify_url);
-            let res = client
-                .post(&notify_url)
-                .json(&local_log.deref())
-                .send();
+            let res = client.post(&notify_url).json(&local_log.deref()).send();
             match res {
                 Ok(val) => {
                     if val.status() != reqwest::StatusCode::OK {

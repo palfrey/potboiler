@@ -1,12 +1,11 @@
-use iron::typemap::Key;
-use iron::Request;
+use iron::{typemap::Key, Request};
 use persistent::State;
-use potboiler_common::db;
-use potboiler_common::types::CRDT;
-use serde_json;
-use serde_json::Value;
-use std::collections::HashMap;
-use std::ops::{Deref, DerefMut};
+use potboiler_common::{db, types::CRDT};
+use serde_json::{self, Value};
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 
 #[derive(Copy, Clone)]
 pub struct Tables;

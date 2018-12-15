@@ -1,7 +1,6 @@
-use reqwest;
-use iron;
-use iron::typemap::Key;
+use iron::{self, typemap::Key};
 use persistent::Read as PRead;
+use reqwest;
 
 #[derive(Clone, Copy, Debug)]
 pub struct ReqwestKey;

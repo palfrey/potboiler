@@ -1,18 +1,31 @@
-use crate::nodes;
-use crate::notifications;
+use crate::{nodes, notifications};
+use error_chain::{
+    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
+    bail,
+    error_chain,
+    error_chain_processing,
+    impl_error_chain_kind,
+    impl_error_chain_processed,
+    impl_extract_backtrace,
+};
 use hybrid_clocks;
-use iron;
-use iron::modifiers::Redirect;
-use iron::prelude::{IronError, IronResult, Request, Response};
-use iron::status;
+use iron::{
+    self,
+    modifiers::Redirect,
+    prelude::{IronError, IronResult, Request, Response},
+    status,
+};
+use log::info;
 use persistent;
-use potboiler_common::types::Log;
-use potboiler_common::{clock, db, server_id};
+use potboiler_common::{clock, db, get_db_connection, get_server_id, iron_error_from, server_id, types::Log};
 use router::Router;
+use serde_derive::Serialize;
 use serde_json::{self, Map, Value};
-use std::io::{Cursor, Read};
-use std::ops::Deref;
-use std::sync::Arc;
+use std::{
+    io::{Cursor, Read},
+    ops::Deref,
+    sync::Arc,
+};
 use url::Url;
 use uuid::Uuid;
 

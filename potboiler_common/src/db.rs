@@ -1,13 +1,18 @@
+use error_chain::{
+    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
+    error_chain,
+    error_chain_processing,
+    impl_error_chain_kind,
+    impl_error_chain_processed,
+    impl_extract_backtrace,
+};
 use iron::typemap::Key;
 use postgres;
 use r2d2;
 use r2d2_postgres;
 use regex;
 use serde_json;
-use std::collections::HashMap;
-use std::convert::From;
-use std::fmt;
-use std::iter;
+use std::{collections::HashMap, convert::From, fmt, iter};
 use uuid::Uuid;
 
 error_chain! {
@@ -107,7 +112,7 @@ impl RowIndex for String {
         ValueIndex::String(self.clone())
     }
 }
-impl<'a> RowIndex for &str {
+impl<'a> RowIndex for &'a str {
     fn val(&self) -> ValueIndex {
         ValueIndex::String(String::from(*self))
     }
