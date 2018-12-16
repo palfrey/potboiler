@@ -7,6 +7,10 @@ root:
     appenders:
         - stdout
 loggers:
+    tokio_reactor:
+        level: info
+    hyper::proto:
+        level: info
     hyper::server:
         level: info
     postgres:

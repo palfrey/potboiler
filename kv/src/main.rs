@@ -493,16 +493,7 @@ mod test {
     use yup_hyper_mock::mock_connector_in_order;
 
     fn setup_logging() {
-        let stdout = log4rs::append::console::ConsoleAppender::builder().build();
-        let config = log4rs::config::Config::builder()
-            .appender(log4rs::config::Appender::builder().build("stdout", Box::new(stdout)))
-            .build(
-                log4rs::config::Root::builder()
-                    .appender("stdout")
-                    .build(log::LevelFilter::Debug),
-            )
-            .unwrap();
-        log4rs::init_config(config).unwrap();
+        log4rs::init_file("log.yaml", Default::default()).unwrap();
     }
 
     fn test_get_route(router: &iron::Chain, path: &str, expected_body: &str, expected_status: Status) {
