@@ -1,5 +1,6 @@
 FROM palfrey/rustup-watchexec:1.31.0
 WORKDIR /code/core
+RUN apt-get update && apt-get install -y libssl-dev pkg-config
 ADD potboiler_common/Cargo.* /code/potboiler_common/
 ADD core/Cargo.* /code/core/
 RUN cargo fetch
