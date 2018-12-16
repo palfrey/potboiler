@@ -486,25 +486,29 @@ quick_main!(|| -> Result<()> {
 #[cfg(test)]
 mod test {
     use crate::{app_router, db, http_client, register};
-    use hyper;
     use iron::{self, status::Status, Headers};
     use iron_test::{request, response::extract_body_to_string};
     use log4rs;
-    use yup_hyper_mock::mock_connector_in_order;
+    use mockito;
 
     fn setup_logging() {
         log4rs::init_file("log.yaml", Default::default()).unwrap();
     }
 
     fn test_get_route(router: &iron::Chain, path: &str, expected_body: &str, expected_status: Status) {
-        let response = request::get(&format!("http://localhost:8001/{}", path), Headers::new(), router).unwrap();
+        let response = request::get(&format!("{}/{}", mockito::SERVER_URL, path), Headers::new(), router).unwrap();
         assert_eq!(response.status.unwrap(), expected_status);
         let result = extract_body_to_string(response);
         assert_eq!(result, expected_body);
     }
 
     fn test_post_route(router: &iron::Chain, path: &str, body: &str, expected_body: &str, expected_status: Status) {
-        let resp = request::post(&format!("http://localhost:8001/{}", path), Headers::new(), body, router);
+        let resp = request::post(
+            &format!("{}/{}", mockito::SERVER_URL, path),
+            Headers::new(),
+            body,
+            router,
+        );
         let response = match resp {
             Ok(response) => response,
             Err(err) => err.response,
@@ -528,7 +532,7 @@ mod test {
     }
 
     fn setup_router(conn: db::TestConnection) -> iron::Chain {
-        super::env::set_var("SERVER_URL", "http://core");
+        super::env::set_var("SERVER_URL", mockito::SERVER_URL);
         let pool = super::db::Pool::TestPool(conn);
         app_router(pool).unwrap()
     }
@@ -546,11 +550,11 @@ mod test {
         setup_logging();
         let conn = setup_db(vec![]);
         let mut router = setup_router(conn);
-        mock_connector_in_order!(MockCore {
-            "HTTP/1.1 204 NoContent\r\n\r\n" // register
-            "HTTP/1.1 201 Created\r\n\r\n" // add key
-        });
-        let client = hyper::Client::with_connector(MockCore::default());
+        let _mocks = vec![
+            mockito::mock("POST", "/register").with_status(204).create(),
+            mockito::mock("POST", "/").with_status(201).create(),
+        ];
+        let client = reqwest::Client::new();
         register(&client).unwrap();
         http_client::set_client(&mut router, client);
         test_post_route(

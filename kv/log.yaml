@@ -9,9 +9,9 @@ root:
 loggers:
     tokio_reactor:
         level: info
-    hyper::proto:
+    hyper:
         level: info
-    hyper::server:
+    reqwest:
         level: info
     postgres:
         level: warn
