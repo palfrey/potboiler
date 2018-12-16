@@ -8,7 +8,6 @@ use error_chain::{
     impl_extract_backtrace,
 };
 use hybrid_clocks::{Clock, Timestamp, Wall, WallT};
-use hyper;
 use iron::{
     prelude::{IronError, IronResult, Request, Response},
     status,
@@ -23,7 +22,6 @@ use serde_json;
 use std::{
     collections::{HashMap, HashSet},
     convert,
-    io::Read,
     iter::FromIterator,
     ops::{Deref, DerefMut},
     result::Result as StdResult,
@@ -84,40 +82,17 @@ error_chain! {
         ParseIntError(::std::num::ParseIntError);
         Io(::std::io::Error);
         UrlEncoding(UrlDecodingError);
-        LogFailure(hyper::Error);
+        LogFailure(reqwest::Error);
         SerdeError(serde_json::Error);
     }
 }
 
 iron_error_from!();
 
-fn parse_json_from_request(
-    raw_result: StdResult<hyper::client::Response, hyper::Error>,
-) -> Result<serde_json::value::Value> {
-    let mut res = match raw_result {
-        Ok(val) => val,
-        Err(val) => {
-            bail!(ErrorKind::LogFailure(val));
-        }
-    };
-    let body_string = {
-        let mut body = String::new();
-        res.read_to_string(&mut body)?;
-        body
-    };
-    match serde_json::de::from_str(&body_string) {
-        Ok(val) => {
-            debug!("Good data back {:?}", val);
-            Ok(val)
-        }
-        Err(_) => bail!(ErrorKind::CrappyData(body_string)),
-    }
-}
-
 fn parse_object_from_request(
-    raw_result: StdResult<hyper::client::Response, hyper::Error>,
+    raw_result: StdResult<reqwest::Response, reqwest::Error>,
 ) -> Result<serde_json::value::Map<String, serde_json::Value>> {
-    let json: serde_json::Value = match parse_json_from_request(raw_result) {
+    let json: serde_json::Value = match raw_result?.json() {
         Ok(val) => val,
         Err(err) => bail!(err),
     };
@@ -128,9 +103,7 @@ fn parse_object_from_request(
 }
 
 fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncClock) -> Result<()> {
-    let mut client = hyper::client::Client::new();
-    client.set_read_timeout(Some(Duration::from_secs(10)));
-    client.set_write_timeout(Some(Duration::from_secs(10)));
+    let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build()?;
     let check_url = format!("{}/log", &host_url);
     info!("Checking {} ({})", host_url, check_url);
     let raw_result = client.get(&check_url).send();
@@ -295,37 +268,19 @@ pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
     Ok(())
 }
 
-fn hashset_from_json_array(nodes: &[serde_json::Value]) -> Result<HashSet<String>> {
-    let mut ret = HashSet::new();
-    for node in nodes {
-        match node.as_str() {
-            None => {
-                bail!(ErrorKind::NonStringRemoteNode(serde_json::to_string(node).unwrap()));
-            }
-            Some(val) => {
-                ret.insert(String::from(val));
-            }
-        }
-    }
-    Ok(ret)
-}
-
 fn check_new_nodes(host_url: &str, conn: &db::Connection, nodelist: &NodeList) -> Result<()> {
-    let client = hyper::client::Client::new();
+    let client = reqwest::Client::new();
     let check_url = format!("{}/nodes?query_port=8000", host_url);
     info!("Checking {} ({})", host_url, check_url);
     let raw_result = client.get(&check_url).send();
-    let remote_nodes = match parse_json_from_request(raw_result) {
+    let remote_nodes: Vec<String> = match raw_result?.json() {
         Ok(val) => val,
         Err(err) => {
             warn!("Error while getting from {}: {:?}", host_url, err);
-            return Err(err);
+            bail!(err);
         }
     };
-    let remote_node_array = remote_nodes
-        .as_array()
-        .ok_or_else(|| ErrorKind::NonArrayRemoteNodes(serde_json::to_string(&remote_nodes).unwrap()))?;
-    let remote_node_set: HashSet<String> = hashset_from_json_array(remote_node_array)?;
+    let remote_node_set: HashSet<String> = HashSet::from_iter(remote_nodes);
     let existing_nodes = conn.query("select url from nodes")?;
     let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter().map(|x| x.get("url")));
     let extra_nodes = remote_node_set.difference(&existing_nodes_set).cloned();
@@ -450,17 +405,14 @@ pub fn notify_everyone(req: &Request, log_arc: &Arc<Log>) {
     for node in nodes {
         let local_log = log_arc.clone();
         thread::spawn(move || {
-            let client = hyper::client::Client::new();
+            let client = reqwest::Client::new();
             let notify_url = format!("{}/log/other", node);
             debug!("Notifying (node) {}", notify_url);
-            let res = client
-                .post(&notify_url)
-                .body(&serde_json::ser::to_string(&local_log.deref()).unwrap())
-                .send();
+            let res = client.post(&notify_url).json(&local_log.deref()).send();
             match res {
                 Ok(val) => {
-                    if val.status != hyper::status::StatusCode::Ok {
-                        warn!("Failed to notify {:?}: {:?}", &node, val.status);
+                    if val.status() != reqwest::StatusCode::OK {
+                        warn!("Failed to notify {:?}: {:?}", &node, val.status());
                     }
                 }
                 Err(val) => {

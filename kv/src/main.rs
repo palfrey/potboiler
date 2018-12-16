@@ -19,7 +19,6 @@ use error_chain::{
     impl_extract_backtrace,
     quick_main,
 };
-use hyper;
 use iron::{self, prelude::*, status};
 use lazy_static::lazy_static;
 use log::{debug, error, info};
@@ -54,7 +53,7 @@ error_chain! {
     }
     foreign_links {
         Serde(serde_json::Error);
-        Hyper(hyper::Error);
+        Reqwest(reqwest::Error);
         Log(log4rs::Error);
         R2D2(r2d2::Error);
     }
@@ -175,10 +174,10 @@ fn update_key(req: &mut Request) -> IronResult<Response> {
     let client = get_http_client!(req);
     let res = client
         .post(SERVER_URL.deref())
-        .body(&string_change)
+        .body(string_change)
         .send()
         .expect("sender ok");
-    assert_eq!(res.status, hyper::status::StatusCode::Created);
+    assert_eq!(res.status(), reqwest::StatusCode::CREATED);
     Ok(Response::with(status::Ok))
 }
 
@@ -455,7 +454,7 @@ fn app_router(pool: db::Pool) -> Result<iron::Chain> {
     Ok(chain)
 }
 
-fn register(client: &hyper::Client) -> Result<()> {
+fn register(client: &reqwest::Client) -> Result<()> {
     let mut map = serde_json::Map::new();
     let host: &str = &env::var("HOST").unwrap_or_else(|_| "localhost".to_string());
     map.insert(
@@ -464,9 +463,9 @@ fn register(client: &hyper::Client) -> Result<()> {
     );
     let res = client
         .post(&format!("{}/register", SERVER_URL.deref()))
-        .body(&serde_json::ser::to_string(&map)?)
+        .json(&map)
         .send()?;
-    assert_eq!(res.status, hyper::status::StatusCode::NoContent);
+    assert_eq!(res.status(), reqwest::StatusCode::NO_CONTENT);
     Ok(())
 }
 
@@ -476,45 +475,40 @@ quick_main!(|| -> Result<()> {
     let pool = pg::get_pool(db_url)?;
     let mut router = app_router(pool)?;
     router.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
-    let client = hyper::client::Client::new();
+    let client = reqwest::Client::new();
     register(&client)?;
     http_client::set_client(&mut router, client);
     info!("Potboiler-kv booted");
-    Iron::new(router).http("0.0.0.0:8001")?;
+    Iron::new(router).http("0.0.0.0:8001").unwrap();
     Ok(())
 });
 
 #[cfg(test)]
 mod test {
     use crate::{app_router, db, http_client, register};
-    use hyper;
     use iron::{self, status::Status, Headers};
     use iron_test::{request, response::extract_body_to_string};
     use log4rs;
-    use yup_hyper_mock::mock_connector_in_order;
+    use mockito;
 
     fn setup_logging() {
-        let stdout = log4rs::append::console::ConsoleAppender::builder().build();
-        let config = log4rs::config::Config::builder()
-            .appender(log4rs::config::Appender::builder().build("stdout", Box::new(stdout)))
-            .build(
-                log4rs::config::Root::builder()
-                    .appender("stdout")
-                    .build(log::LevelFilter::Debug),
-            )
-            .unwrap();
-        log4rs::init_config(config).unwrap();
+        log4rs::init_file("log.yaml", Default::default()).unwrap();
     }
 
     fn test_get_route(router: &iron::Chain, path: &str, expected_body: &str, expected_status: Status) {
-        let response = request::get(&format!("http://localhost:8001/{}", path), Headers::new(), router).unwrap();
+        let response = request::get(&format!("{}/{}", mockito::SERVER_URL, path), Headers::new(), router).unwrap();
         assert_eq!(response.status.unwrap(), expected_status);
         let result = extract_body_to_string(response);
         assert_eq!(result, expected_body);
     }
 
     fn test_post_route(router: &iron::Chain, path: &str, body: &str, expected_body: &str, expected_status: Status) {
-        let resp = request::post(&format!("http://localhost:8001/{}", path), Headers::new(), body, router);
+        let resp = request::post(
+            &format!("{}/{}", mockito::SERVER_URL, path),
+            Headers::new(),
+            body,
+            router,
+        );
         let response = match resp {
             Ok(response) => response,
             Err(err) => err.response,
@@ -538,7 +532,7 @@ mod test {
     }
 
     fn setup_router(conn: db::TestConnection) -> iron::Chain {
-        super::env::set_var("SERVER_URL", "http://core");
+        super::env::set_var("SERVER_URL", mockito::SERVER_URL);
         let pool = super::db::Pool::TestPool(conn);
         app_router(pool).unwrap()
     }
@@ -556,11 +550,11 @@ mod test {
         setup_logging();
         let conn = setup_db(vec![]);
         let mut router = setup_router(conn);
-        mock_connector_in_order!(MockCore {
-            "HTTP/1.1 204 NoContent\r\n\r\n" // register
-            "HTTP/1.1 201 Created\r\n\r\n" // add key
-        });
-        let client = hyper::Client::with_connector(MockCore::default());
+        let _mocks = vec![
+            mockito::mock("POST", "/register").with_status(204).create(),
+            mockito::mock("POST", "/").with_status(201).create(),
+        ];
+        let client = reqwest::Client::new();
         register(&client).unwrap();
         http_client::set_client(&mut router, client);
         test_post_route(

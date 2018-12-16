@@ -1,4 +1,3 @@
-use hyper;
 use iron::{
     prelude::{IronError, IronResult, Response},
     status,
@@ -60,16 +59,13 @@ pub fn notify_everyone(req: &Request, log_arc: &Arc<Log>) {
     for notifier in notifications {
         let local_log = log_arc.clone();
         thread::spawn(move || {
-            let client = hyper::client::Client::new();
+            let client = reqwest::Client::new();
             debug!("Notifying {:?}", notifier);
-            let res = client
-                .post(&notifier)
-                .body(&serde_json::to_string(&local_log.deref()).unwrap())
-                .send();
+            let res = client.post(&notifier).json(&local_log.deref()).send();
             match res {
                 Ok(val) => {
-                    if val.status != hyper::status::StatusCode::NoContent {
-                        warn!("Failed to notify {:?}: {:?}", &notifier, val.status);
+                    if val.status() != reqwest::StatusCode::NO_CONTENT {
+                        warn!("Failed to notify {:?}: {:?}", &notifier, val.status());
                     }
                 }
                 Err(val) => {

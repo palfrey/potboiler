@@ -18,7 +18,6 @@ use error_chain::{
     impl_error_chain_processed,
     impl_extract_backtrace,
 };
-use hyper;
 use iron::{self, prelude::*};
 use log4rs;
 use logger::{self, Logger};
@@ -47,7 +46,6 @@ error_chain! {
         PostgresError(r2d2::Error);
         SchemammaError(schemamama::Error<postgres::Error>);
         LogError(log4rs::Error);
-        HyperError(hyper::Error);
     }
 }
 

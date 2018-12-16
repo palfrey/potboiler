@@ -19,7 +19,6 @@ use error_chain::{
     impl_extract_backtrace,
 };
 use hybrid_clocks::{Timestamp, WallT};
-use hyper;
 use iron::{
     self,
     modifiers::Redirect,
@@ -81,13 +80,9 @@ fn json_from_body(req: &mut Request) -> IronResult<Value> {
 }
 
 fn add_queue_operation(op: &QueueOperation) -> IronResult<String> {
-    let client = hyper::client::Client::new();
-    let mut res = client
-        .post(SERVER_URL.deref())
-        .body(&serde_json::ser::to_string(op).unwrap())
-        .send()
-        .expect("sender ok");
-    assert_eq!(res.status, hyper::status::StatusCode::Created);
+    let client = reqwest::Client::new();
+    let mut res = client.post(SERVER_URL.deref()).json(op).send().expect("sender ok");
+    assert_eq!(res.status(), reqwest::StatusCode::CREATED);
     string_from_body(&mut res)
 }
 
@@ -385,8 +380,7 @@ fn make_queue_table(conn: &db::Connection) {
 
 fn main() {
     log4rs::init_file("log.yaml", Default::default()).expect("log config ok");
-    let client = hyper::client::Client::new();
-
+    let client = reqwest::Client::new();
     let mut map = serde_json::Map::new();
     map.insert(
         "url".to_string(),
@@ -394,10 +388,10 @@ fn main() {
     );
     let res = client
         .post(&format!("{}/register", SERVER_URL.deref()))
-        .body(&serde_json::ser::to_string(&map).unwrap())
+        .json(&map)
         .send()
         .expect("Register ok");
-    assert_eq!(res.status, hyper::status::StatusCode::NoContent);
+    assert_eq!(res.status(), reqwest::StatusCode::NO_CONTENT);
 
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = pg::get_pool(db_url).unwrap();
