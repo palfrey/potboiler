@@ -41,3 +41,5 @@ error-chain = "0.12"
 
 [dev-dependencies]
 regex = "1.0"
+pretty_assertions = "0.5"
+antidote = "1.0"
