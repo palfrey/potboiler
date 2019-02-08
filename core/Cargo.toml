@@ -42,5 +42,5 @@ error-chain = "0.12"
 [dev-dependencies]
 regex = "1.0"
 pretty_assertions = "0.5"
-serial_test = "0.1"
-serial_test_derive = "0.1"
+serial_test = "*"
+serial_test_derive = "*"
