@@ -7,7 +7,6 @@ use iron::{
 use log::{debug, warn};
 use persistent::{self, State};
 use potboiler_common::{db, get_db_connection, types::Log, url_from_body};
-use serde_json;
 use std::{
     ops::{Deref, DerefMut},
     sync::Arc,

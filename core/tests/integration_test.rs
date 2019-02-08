@@ -4,6 +4,7 @@ use persistent::{self, Read as PRead};
 use potboiler;
 use potboiler_common::{self, server_id};
 use pretty_assertions::assert_eq;
+use serde_json::Value;
 use serial_test_derive::serial;
 
 fn test_setup() -> Chain {
@@ -33,8 +34,9 @@ fn test_create() {
     response = request::get("http://localhost:8000/log", Headers::new(), &router).unwrap();
     assert_eq!(response.status.unwrap(), Status::Ok);
     let result = extract_body_to_string(response);
-    assert_eq!(
-        result,
-        "{\"feedface-dead-feed-face-deadfacedead\":\"28f4b0c4-4149-49d5-a0e6-52a1fc8f2e56\"}"
-    );
+    let v: Value = serde_json::from_str(&result).unwrap();
+    assert!(v
+        .as_object()
+        .unwrap()
+        .contains_key("feedface-dead-feed-face-deadfacedead"));
 }
