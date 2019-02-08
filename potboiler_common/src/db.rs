@@ -14,6 +14,7 @@ use regex;
 use serde_json;
 use std::{collections::HashMap, convert::From, fmt, iter};
 use uuid::Uuid;
+use postgres_shared;
 
 error_chain! {
     errors {
@@ -352,12 +353,22 @@ pub enum Connection {
     Test(TestConnection),
 }
 
+fn convert_postgres_error(e: postgres_shared::error::Error, query: &str) -> Error {
+    let err = if *e.code().unwrap() == postgres_shared::error::UNIQUE_VIOLATION {
+        ErrorKind::UniqueViolation
+    }
+    else {
+        ErrorKind::PostgresError(query.to_string())
+    };
+    Error::with_chain(e, err)
+}
+
 impl<'conn> Connection {
     pub fn query(&'conn self, query: &str) -> Result<Rows> {
         match *self {
             Connection::Postgres(ref conn) => {
                 Ok(Rows::Postgres(conn.query(query, &[]).map_err(|e| {
-                    Error::with_chain(e, ErrorKind::PostgresError(query.to_string()))
+                    convert_postgres_error(e, query)
                 })?))
             }
             Connection::Test(ref conn) => Ok(Rows::Test(conn.get_rows(query)?)),
@@ -367,7 +378,7 @@ impl<'conn> Connection {
         match *self {
             Connection::Postgres(ref conn) => conn
                 .execute(equery, &[])
-                .map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(equery.to_string()))),
+                .map_err(|e| convert_postgres_error(e, equery)),
             Connection::Test(ref conn) => conn.execute(equery),
         }
     }

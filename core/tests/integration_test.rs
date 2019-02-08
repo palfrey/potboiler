@@ -4,7 +4,7 @@ use persistent::{self, Read as PRead};
 use potboiler;
 use potboiler_common::{self, server_id};
 use pretty_assertions::assert_eq;
-use serde_json::Value;
+use serde_json::{json, Value};
 use serial_test_derive::serial;
 
 fn test_setup() -> Chain {
@@ -39,4 +39,29 @@ fn test_create() {
         .as_object()
         .unwrap()
         .contains_key("feedface-dead-feed-face-deadfacedead"));
+}
+
+#[test]
+#[serial]
+fn test_register() {
+    let router = test_setup();
+    let args = json!({
+        "url": "http://foo"
+    });
+    let mut response = request::post(
+        "http://localhost:8000/log/register",
+        Headers::new(),
+        &args.to_string(),
+        &router,
+    )
+    .unwrap();
+    assert_eq!(response.status.unwrap(), Status::Created);
+    response = request::post(
+        "http://localhost:8000/log/register",
+        Headers::new(),
+        &args.to_string(),
+        &router,
+    )
+    .unwrap();
+    assert_eq!(response.status.unwrap(), Status::Created);
 }

@@ -84,9 +84,9 @@ pub fn log_register(req: &mut Request) -> IronResult<Response> {
         Ok(_) => match conn.execute(&format!("insert into notifications (url) values('{}')", &url)) {
             Ok(_) => {
                 insert_notifier(req, &url);
-                Ok(Response::with(status::NoContent))
+                Ok(Response::with(status::Created))
             }
-            Err(db::Error(db::ErrorKind::UniqueViolation, _)) => Ok(Response::with(status::NoContent)),
+            Err(db::Error(db::ErrorKind::UniqueViolation, _)) => Ok(Response::with(status::Created)),
             Err(err) => Err(IronError::new(err, (status::BadRequest, "Some other error"))),
         },
     }

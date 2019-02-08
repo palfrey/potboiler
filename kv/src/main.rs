@@ -551,7 +551,7 @@ mod test {
         let conn = setup_db(vec![]);
         let mut router = setup_router(conn);
         let _mocks = vec![
-            mockito::mock("POST", "/register").with_status(204).create(),
+            mockito::mock("POST", "/register").with_status(201).create(),
             mockito::mock("POST", "/").with_status(201).create(),
         ];
         let client = reqwest::Client::new();

@@ -8,6 +8,7 @@ edition = "2018"
 iron = "0.6"
 uuid = {version = "0.5", features=["use_std","v4","serde"]} # required by Postgres
 postgres = {features=["with-uuid","with-serde_json"], version="0.15"}
+postgres-shared = "0.4"
 r2d2 = "0.8"
 r2d2_postgres = "0.14"
 serde = "1.0"
