@@ -4,6 +4,7 @@ dist: xenial
 
 services:
   - docker
+  - postgresql
 
 language: rust
 rust:
@@ -27,6 +28,7 @@ script: ./build.sh
 matrix:
   allow_failures:
     - rust: nightly
+    - rust: beta
   fast_finish: true
   exclude:
   - rust: beta

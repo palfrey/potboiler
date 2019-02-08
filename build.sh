@@ -1,6 +1,7 @@
 #!/bin/bash
 set -eux -o pipefail
 
+
 if [ "$PROJECT" = "docker" ]; then
 	pip install PyYAML
 	python generate-compose.py 1 > docker-compose.yml
@@ -24,6 +25,7 @@ elif [ "$PROJECT" = "check" ]; then
 fi
 
 export PATH=$PATH:~/.cargo/bin &&
+export DATABASE_URL=postgresql://postgres:@localhost:5432
 cd "$PROJECT"
 cargo build
 cargo test
