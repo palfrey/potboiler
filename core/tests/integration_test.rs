@@ -65,3 +65,36 @@ fn test_register() {
     .unwrap();
     assert_eq!(response.status.unwrap(), Status::Created);
 }
+
+#[test]
+#[serial]
+fn test_deregister() {
+    let router = test_setup();
+    let args = json!({
+        "url": "http://bar"
+    });
+    let mut response = request::post(
+        "http://localhost:8000/log/deregister",
+        Headers::new(),
+        &args.to_string(),
+        &router,
+    )
+    .unwrap();
+    assert_eq!(response.status.unwrap(), Status::NotFound);
+    response = request::post(
+        "http://localhost:8000/log/register",
+        Headers::new(),
+        &args.to_string(),
+        &router,
+    )
+    .unwrap();
+    assert_eq!(response.status.unwrap(), Status::Created);
+    response = request::post(
+        "http://localhost:8000/log/deregister",
+        Headers::new(),
+        &args.to_string(),
+        &router,
+    )
+    .unwrap();
+    assert_eq!(response.status.unwrap(), Status::NoContent);
+}
