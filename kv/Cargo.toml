@@ -33,3 +33,8 @@ reqwest = "*"
 mockito = "*"
 
 lazy_static = "1"
+
+[dev-dependencies]
+pretty_assertions = "0.5"
+serial_test = "*"
+serial_test_derive = "*"
