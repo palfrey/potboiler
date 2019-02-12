@@ -430,7 +430,7 @@ enum InsertResult {
 }
 
 fn node_insert(conn: &db::Connection, url: &str) -> InsertResult {
-    match conn.execute(&format!("insert into nodes (url) values({})", url)) {
+    match conn.execute(&format!("insert into nodes (url) values('{}')", url)) {
         Ok(_) => InsertResult::Inserted,
         Err(db::Error(db::ErrorKind::UniqueViolation, _)) => InsertResult::Existing,
         Err(err) => InsertResult::Error(convert::From::from(err)),
@@ -455,7 +455,7 @@ pub fn node_add(req: &mut Request) -> IronResult<Response> {
     match Url::parse(&url) {
         Err(err) => Err(IronError::new(err, (status::BadRequest, "Bad URL"))),
         Ok(_) => match node_add_core(&conn, &url, req) {
-            Ok(_) => Ok(Response::with(status::NoContent)),
+            Ok(_) => Ok(Response::with(status::Created)),
             Err(err) => Err(IronError::new(err, (status::BadRequest, "Some other error"))),
         },
     }
