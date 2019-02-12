@@ -65,12 +65,12 @@ lazy_static! {
     static ref SERVER_URL: String = env::var("SERVER_URL").expect("Needed SERVER_URL");
 }
 
-fn get_table_kind(table: &str) -> CRDT {
+fn get_table_kind(req: &Request, table: &str) -> Option<CRDT> {
     if table == tables::CONFIG_TABLE {
-        CRDT::LWW
+        Some(CRDT::LWW)
     } else {
-        //let tables = tables::get_tables(req);
-        unimplemented!()
+        let tables = tables::get_tables(req);
+        tables.get(table).map(|x| x.clone())
     }
 }
 
@@ -78,7 +78,10 @@ fn get_key(req: &mut Request) -> IronResult<Response> {
     let conn = get_db_connection!(&req);
     let table = &potboiler_common::get_req_key(req, "table").unwrap();
     let key = &potboiler_common::get_req_key(req, "key").unwrap();
-    let kind = get_table_kind(table);
+    let kind = match get_table_kind(req, table) {
+        Some(k) => k,
+        None => return Ok(Response::with((status::NotFound, format!("No such table '{}'", table))))
+    };
     match kind {
         CRDT::ORSET => {
             match conn.query(&format!(
@@ -110,7 +113,7 @@ fn get_key(req: &mut Request) -> IronResult<Response> {
         CRDT::LWW => match conn.query(&format!("SELECT value FROM {} where key='{}'", table, key)) {
             Ok(rows) => {
                 if rows.is_empty() {
-                    Ok(Response::with(status::NotFound))
+                    Ok(Response::with((status::NotFound, format!("No such key '{}'", key))))
                 } else {
                     let value: String = rows.get(0).get("value");
                     Ok(Response::with((status::Ok, value)))
@@ -533,7 +536,7 @@ mod test {
         let mut conn = setup_db(vec![]);
         conn.add_test_query("SELECT value FROM _config where key='test'", vec![]);
         let router = setup_router(conn);
-        test_get_route(&router, "kv/_config/test", "", Status::NotFound);
+        test_get_route(&router, "kv/_config/test", "No such key 'test'", Status::NotFound);
     }
 
     #[test]

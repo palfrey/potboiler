@@ -7,7 +7,6 @@ use pretty_assertions::assert_eq;
 use serial_test_derive::serial;
 
 fn test_setup() -> Chain {
-    log4rs::init_file("log.yaml", Default::default()).unwrap();
     let pool = kv::db_setup().unwrap();
     let conn = pool.get().unwrap();
     conn.execute("delete from log").unwrap();
@@ -24,4 +23,16 @@ fn test_empty_table() {
     let router = test_setup();
     let response = request::get("http://localhost:8000/kv/_config/test", Headers::new(), &router).unwrap();
     assert_eq!(response.status.unwrap(), Status::NotFound);
+    let result = extract_body_to_string(response);
+    assert_eq!(result, "No such key 'test'");
+}
+
+#[test]
+#[serial]
+fn test_no_such_table() {
+    let router = test_setup();
+    let response = request::get("http://localhost:8000/kv/test/foo", Headers::new(), &router).unwrap();
+    assert_eq!(response.status.unwrap(), Status::NotFound);
+    let result = extract_body_to_string(response);
+    assert_eq!(result, "No such table 'test'");
 }
