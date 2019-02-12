@@ -391,7 +391,7 @@ fn main() {
         .json(&map)
         .send()
         .expect("Register ok");
-    assert_eq!(res.status(), reqwest::StatusCode::NO_CONTENT);
+    assert_eq!(res.status(), reqwest::StatusCode::CREATED);
 
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = pg::get_pool(db_url).unwrap();

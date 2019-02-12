@@ -465,7 +465,7 @@ fn register(client: &reqwest::Client) -> Result<()> {
         .post(&format!("{}/register", SERVER_URL.deref()))
         .json(&map)
         .send()?;
-    assert_eq!(res.status(), reqwest::StatusCode::NO_CONTENT);
+    assert_eq!(res.status(), reqwest::StatusCode::CREATED);
     Ok(())
 }
 
