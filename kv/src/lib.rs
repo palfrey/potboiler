@@ -80,7 +80,7 @@ fn get_key(req: &mut Request) -> IronResult<Response> {
     let key = &potboiler_common::get_req_key(req, "key").unwrap();
     let kind = match get_table_kind(req, table) {
         Some(k) => k,
-        None => return Ok(Response::with((status::NotFound, format!("No such table '{}'", table))))
+        None => return Ok(Response::with((status::NotFound, format!("No such table '{}'", table)))),
     };
     match kind {
         CRDT::ORSET => {
@@ -255,12 +255,6 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
     match table_type {
         CRDT::LWW => match change.op {
             Operation::Set => {
-                let crdt_to_use: Option<CRDT> = if change.table == tables::CONFIG_TABLE {
-                    let config_op: LWWConfigOp = serde_json::from_value(change.change.clone()).map_err(Error::from)?;
-                    Some(config_op.crdt)
-                } else {
-                    None
-                };
                 let conn = get_db_connection!(&req);
                 let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
                 match raw_crdt {
@@ -278,9 +272,10 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                         ))
                         .map_err(Error::from)?;
                         if change.table == tables::CONFIG_TABLE {
-                            let crdt = crdt_to_use.unwrap();
-                            make_table(&conn, &change.key, crdt)?;
-                            tables::add_table(req, &change.key, crdt);
+                            let config_op: LWWConfigOp =
+                                serde_json::from_value(change.change.clone()).map_err(Error::from)?;
+                            make_table(&conn, &change.key, config_op.crdt)?;
+                            tables::add_table(req, &change.key, config_op.crdt);
                         }
                     }
                     Some(raw_crdt) => {

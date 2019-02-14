@@ -8,15 +8,13 @@
     future_incompatible
 )]
 
-use error_chain::{
-    quick_main,
-};
+use error_chain::quick_main;
 
-use kv;
-use potboiler_common::{http_client, server_id};
 use iron::{self, prelude::*};
-use log::{info};
-use persistent::{Read as PRead};
+use kv;
+use log::info;
+use persistent::Read as PRead;
+use potboiler_common::{http_client, server_id};
 
 quick_main!(|| -> kv::Result<()> {
     log4rs::init_file("log.yaml", Default::default())?;
