@@ -39,3 +39,4 @@ serial_test = "*"
 serial_test_derive = "*"
 env_logger = "0.6"
 uuid = {version = "^0.5", features=["use_std","v4","serde"]} # Can't upgrade, because postgres
+potboiler = { path = "../core" }

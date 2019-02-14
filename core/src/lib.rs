@@ -37,6 +37,7 @@ mod schema;
 error_chain! {
     errors {
         MigrationsOnNonPostgres(pool: db::Pool)
+        IronError
     }
     links {
         NodeError(nodes::Error, nodes::ErrorKind);
