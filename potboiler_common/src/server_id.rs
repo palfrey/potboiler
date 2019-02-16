@@ -1,4 +1,3 @@
-use iron::typemap::Key;
 use std::{
     env,
     fs::File,
@@ -6,26 +5,6 @@ use std::{
     path::Path,
 };
 use uuid::Uuid;
-
-#[derive(Copy, Clone, Debug)]
-pub struct ServerId;
-
-impl Key for ServerId {
-    type Value = Uuid;
-}
-
-#[macro_export]
-macro_rules! get_server_id {
-    ($req:expr) => {
-        match $req.extensions.get::<persistent::Read<server_id::ServerId>>() {
-            Some(id) => id,
-            None => {
-                println!("Couldn't get the server id from the request!");
-                return Ok(Response::with(status::InternalServerError));
-            }
-        }
-    };
-}
 
 pub fn setup() -> Uuid {
     let id_path = &env::var("ID_PATH").unwrap_or_else(|_| "server-id".to_string());

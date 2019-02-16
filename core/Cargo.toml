@@ -14,11 +14,7 @@ uuid = {version = "0.5", features=["v4","serde"]} # Required by Postgres
 log = "*"
 log4rs = {version = "0.8", features=["yaml_format"]}
 
-iron = "0.6"
-iron-test = "0.6"
-plugin = "0.2"
-router = "0.6"
-logger = "0.4"
+actix-web = "0.7"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
@@ -44,3 +40,4 @@ regex = "1.0"
 pretty_assertions = "0.5"
 serial_test = "*"
 serial_test_derive = "*"
+env_logger = "*"

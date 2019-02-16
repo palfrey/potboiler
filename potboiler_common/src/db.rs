@@ -6,7 +6,6 @@ use error_chain::{
     impl_error_chain_processed,
     impl_extract_backtrace,
 };
-use iron::typemap::Key;
 use postgres;
 use postgres_shared;
 use r2d2;
@@ -395,31 +394,4 @@ impl Pool {
             Pool::TestPool(ref conn) => Ok(Connection::Test(conn.clone())),
         }
     }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct PoolKey;
-
-impl Key for PoolKey {
-    type Value = Pool;
-}
-
-// Gets a connection from the pool from the given request or returns a 500
-#[macro_export]
-macro_rules! get_db_connection {
-    ($req:expr) => {
-        match $req.extensions.get::<persistent::Read<db::PoolKey>>() {
-            Some(pool) => match pool.get() {
-                Ok(conn) => conn,
-                Err(_) => {
-                    println!("Couldn't get a connection to pg!");
-                    return Ok(Response::with(status::InternalServerError));
-                }
-            },
-            None => {
-                println!("Couldn't get the pg pool from the request!");
-                return Ok(Response::with(status::InternalServerError));
-            }
-        }
-    };
 }

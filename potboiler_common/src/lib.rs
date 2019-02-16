@@ -10,40 +10,11 @@
 
 pub mod clock;
 pub mod db;
-pub mod http_client;
 pub mod pg;
 pub mod server_id;
 pub mod types;
 
 use hybrid_clocks::{Timestamp, WallT};
-use iron::{
-    prelude::{IronError, Request},
-    status,
-};
-use router;
-use serde_json;
-use std::io::Read;
-
-pub fn url_from_body(req: &mut Request) -> Result<Option<String>, IronError> {
-    let body_string = {
-        let mut body = String::new();
-        req.body.read_to_string(&mut body).expect("could read from body");
-        body
-    };
-    let json: serde_json::Value = match serde_json::de::from_str(&body_string) {
-        Ok(val) => val,
-        Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
-    };
-    Ok(Some(String::from(json.get("url").unwrap().as_str().unwrap())))
-}
-
-pub fn get_req_key<T: Into<String>>(req: &Request, key: T) -> Option<String> {
-    req.extensions
-        .get::<router::Router>()
-        .unwrap()
-        .find(&key.into())
-        .map(|s| s.to_string())
-}
 
 pub fn get_raw_timestamp(timestamp: &Timestamp<WallT>) -> Result<db::HexSlice, ::std::io::Error> {
     let mut raw_timestamp: Vec<u8> = Vec::new();

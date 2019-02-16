@@ -1,47 +1,26 @@
 use hybrid_clocks::{Clock as HClock, Timestamp, Wall, WallT};
-use iron::{typemap::Key, BeforeMiddleware, IronResult, Request};
 use std::{
     ops::DerefMut,
     sync::{Arc, RwLock},
 };
-pub type SyncClock = Arc<RwLock<HClock<Wall>>>;
 
-#[derive(Copy, Clone, Debug)]
-pub struct Clock;
-
-impl Key for Clock {
-    type Value = SyncClock;
+#[derive(Debug, Clone)]
+pub struct SyncClock {
+    clock: Arc<RwLock<HClock<Wall>>>,
 }
 
-#[derive(Debug)]
-pub struct ClockMiddleware {
-    pub clock_state: SyncClock,
-}
-
-impl BeforeMiddleware for ClockMiddleware {
-    fn before(&self, req: &mut Request) -> IronResult<()> {
-        req.extensions.insert::<Clock>(self.clock_state.clone());
-        Ok(())
+impl SyncClock {
+    pub fn new() -> SyncClock {
+        SyncClock {
+            clock: Arc::new(RwLock::new(HClock::wall())),
+        }
     }
-}
 
-pub fn init_clock() -> ClockMiddleware {
-    let clock_state = Arc::new(RwLock::new(HClock::wall()));
-    ClockMiddleware { clock_state }
-}
+    pub fn get_timestamp(&self) -> Timestamp<WallT> {
+        self.clock.write().unwrap().deref_mut().now()
+    }
 
-pub fn get_clock(req: &mut Request) -> Arc<RwLock<HClock<Wall>>> {
-    req.extensions.get::<Clock>().expect("get clock").clone()
-}
-
-pub fn get_timestamp(req: &mut Request) -> Timestamp<WallT> {
-    get_timestamp_from_state(&get_clock(req))
-}
-
-pub fn get_timestamp_from_state(clock: &Arc<RwLock<HClock<Wall>>>) -> Timestamp<WallT> {
-    clock.write().unwrap().deref_mut().now()
-}
-
-pub fn observe_timestamp(clock_state: &Arc<RwLock<HClock<Wall>>>, timestamp: Timestamp<WallT>) {
-    clock_state.write().unwrap().deref_mut().observe(&timestamp).unwrap();
+    pub fn observe_timestamp(&self, timestamp: Timestamp<WallT>) {
+        self.clock.write().unwrap().deref_mut().observe(&timestamp).unwrap();
+    }
 }

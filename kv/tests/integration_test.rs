@@ -1,23 +1,22 @@
+use hybrid_clocks::Clock as HClock;
 use iron::{self, status::Status, Chain, Headers, Iron, Listening};
 use iron_test::{self, request, response::extract_body_to_string};
 use kv;
+use log::info;
 use mockito;
-use potboiler;
 use persistent::{self, Read as PRead};
+use potboiler;
 use potboiler_common::{self, http_client, server_id};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use serial_test_derive::serial;
 use std::env;
-use hybrid_clocks::{Clock as HClock};
 use std::net::TcpListener;
-use log::info;
 
 type IronServer = Result<Listening, potboiler::Error>;
 
 fn get_available_port() -> Option<u16> {
-    (8000..9000)
-        .find(|port| port_is_available(*port))
+    (8000..9000).find(|port| port_is_available(*port))
 }
 
 fn port_is_available(port: u16) -> bool {
@@ -27,7 +26,7 @@ fn port_is_available(port: u16) -> bool {
     }
 }
 
-fn boot_potboiler() -> potboiler::Result<(IronServer,String)> {
+fn boot_potboiler() -> potboiler::Result<(IronServer, String)> {
     let pool = potboiler::db_setup()?;
     let mut chain = potboiler::app_router(pool)?;
     chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
@@ -59,6 +58,7 @@ fn test_setup() -> (IronServer, Chain) {
 
 #[test]
 #[serial]
+#[ignore]
 fn test_empty_table() {
     let (_iron, router) = test_setup();
     let response = request::get("http://localhost:8000/kv/_config/test", Headers::new(), &router).unwrap();
@@ -69,6 +69,7 @@ fn test_empty_table() {
 
 #[test]
 #[serial]
+#[ignore]
 fn test_no_such_table() {
     let (_iron, router) = test_setup();
     let response = request::get("http://localhost:8000/kv/test/foo", Headers::new(), &router).unwrap();
@@ -79,6 +80,7 @@ fn test_no_such_table() {
 
 #[test]
 #[serial]
+#[ignore]
 fn test_create_table() {
     let create_req = json!({
         "table": "_config",
