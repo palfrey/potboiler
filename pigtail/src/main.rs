@@ -70,7 +70,7 @@ fn string_from_body<T: std::io::Read>(body: &mut T) -> IronResult<String> {
     Ok(result)
 }
 
-fn json_from_body(req: &mut Request) -> IronResult<Value> {
+fn json_from_body(req: HttpRequest<AppState>) -> IronResult<Value> {
     let body_string = string_from_body(&mut req.body)?;
     let json: Value = match serde_json::de::from_str(&body_string) {
         Ok(val) => val,
@@ -86,7 +86,7 @@ fn add_queue_operation(op: &QueueOperation) -> IronResult<String> {
     string_from_body(&mut res)
 }
 
-fn create_queue(req: &mut Request) -> IronResult<Response> {
+fn create_queue(req: HttpRequest<AppState>) -> HttpResponse {
     let json = json_from_body(req)?;
     let op = serde_json::from_value::<types::QueueCreate>(json).map_err(Error::from)?;
     let name = op.name.clone();
@@ -102,7 +102,7 @@ fn create_queue(req: &mut Request) -> IronResult<Response> {
     }
 }
 
-fn delete_queue(req: &mut Request) -> IronResult<Response> {
+fn delete_queue(req: HttpRequest<AppState>) -> HttpResponse {
     let queue_name = get_queue_name(req)?;
     add_queue_operation(&QueueOperation::Delete(queue_name))?;
     Ok(Response::with(status::Ok))
@@ -114,7 +114,7 @@ fn row_to_state(row: &db::Row) -> IronResult<types::QueueState> {
     serde_json::from_str(&format!("\"{}\"", raw_state)).map_err(|e| Error::from(e).into())
 }
 
-fn parse_progress<F>(req: &mut Request, progress: &types::QueueProgress, should_update: F) -> IronResult<Response>
+fn parse_progress<F>(req: HttpRequest<AppState>, progress: &types::QueueProgress, should_update: F) -> HttpResponse
 where
     F: Fn(&types::QueueState, &Timestamp<WallT>) -> Option<(Timestamp<WallT>, String)>,
 {
@@ -153,7 +153,7 @@ where
     }
 }
 
-fn new_event(req: &mut Request) -> IronResult<Response> {
+fn new_event(req: HttpRequest<AppState>) -> HttpResponse {
     let json = json_from_body(req)?;
     let log = serde_json::from_value::<Log>(json).map_err(Error::from)?;
     info!("log: {:?}", log);
@@ -236,15 +236,15 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with(status::NoContent))
 }
 
-fn get_req_key_with_iron_err(req: &mut Request, key: &str) -> IronResult<String> {
+fn get_req_key_with_iron_err(req: HttpRequest<AppState>, key: &str) -> IronResult<String> {
     potboiler_common::get_req_key(req, key).ok_or_else(|| ErrorKind::NoReqKey(key.to_string()).into())
 }
 
-fn get_queue_name(req: &mut Request) -> IronResult<String> {
+fn get_queue_name(req: HttpRequest<AppState>) -> IronResult<String> {
     get_req_key_with_iron_err(req, "queue_name")
 }
 
-fn get_queue_items(req: &mut Request) -> IronResult<Response> {
+fn get_queue_items(req: HttpRequest<AppState>) -> HttpResponse {
     let conn = get_db_connection!(&req);
     let queue_name = get_queue_name(req)?;
     let config_row = conn
@@ -288,11 +288,11 @@ fn get_queue_items(req: &mut Request) -> IronResult<Response> {
     )))
 }
 
-fn get_item_id(req: &mut Request) -> IronResult<Uuid> {
+fn get_item_id(req: HttpRequest<AppState>) -> IronResult<Uuid> {
     Uuid::parse_str(&get_req_key_with_iron_err(req, "id")?).map_err(|e| Error::from(e).into())
 }
 
-fn get_queue_item(req: &mut Request) -> IronResult<Response> {
+fn get_queue_item(req: HttpRequest<AppState>) -> HttpResponse {
     let conn = get_db_connection!(&req);
     let queue_name = get_queue_name(req)?;
     let id = get_item_id(req)?;
@@ -319,7 +319,7 @@ fn get_queue_item(req: &mut Request) -> IronResult<Response> {
     }
 }
 
-fn add_queue_item(req: &mut Request) -> IronResult<Response> {
+fn add_queue_item(req: HttpRequest<AppState>) -> HttpResponse {
     let mut json = json_from_body(req)?;
     let queue_name = get_queue_name(req)?;
     {
@@ -342,7 +342,7 @@ fn add_queue_item(req: &mut Request) -> IronResult<Response> {
     }
 }
 
-fn build_queue_progress(req: &mut Request) -> IronResult<types::QueueProgress> {
+fn build_queue_progress(req: HttpRequest<AppState>) -> IronResult<types::QueueProgress> {
     let mut json = json_from_body(req)?;
     {
         let queue_name = get_queue_name(req)?;
@@ -357,7 +357,7 @@ fn build_queue_progress(req: &mut Request) -> IronResult<types::QueueProgress> {
     Ok(serde_json::from_value::<types::QueueProgress>(json).map_err(Error::from)?)
 }
 
-fn progress_queue_item(req: &mut Request) -> IronResult<Response> {
+fn progress_queue_item(req: HttpRequest<AppState>) -> HttpResponse {
     let op = build_queue_progress(req)?;
     match add_queue_operation(&QueueOperation::Progress(op)) {
         Ok(_) => get_queue_item(req),
@@ -365,7 +365,7 @@ fn progress_queue_item(req: &mut Request) -> IronResult<Response> {
     }
 }
 
-fn finish_queue_item(req: &mut Request) -> IronResult<Response> {
+fn finish_queue_item(req: HttpRequest<AppState>) -> HttpResponse {
     let op = build_queue_progress(req)?;
     match add_queue_operation(&QueueOperation::Done(op)) {
         Ok(_) => Ok(Response::with(status::Ok)),

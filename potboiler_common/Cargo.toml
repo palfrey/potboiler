@@ -6,6 +6,10 @@ edition = "2018"
 
 [dependencies]
 actix-web = "0.7"
+actix-net = "0.2"
+actix = "0.7"
+futures = "0.1"
+
 uuid = {version = "0.5", features=["use_std","v4","serde"]} # required by Postgres
 postgres = {features=["with-uuid","with-serde_json"], version="0.15"}
 postgres-shared = "0.4"
@@ -18,7 +22,7 @@ log = "*"
 hybrid-clocks = { version = "^0.3.4", features = ["serde"] }
 error-chain = "0.12"
 regex = "*"
-reqwest = "*"
+failure = "0.1"
 
 [lib]
 name = "potboiler_common"

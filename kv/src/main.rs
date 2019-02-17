@@ -8,23 +8,21 @@
     future_incompatible
 )]
 
+use actix_web::server;
 use error_chain::quick_main;
-
-use iron::{self, prelude::*};
 use kv;
 use log::info;
-use persistent::Read as PRead;
-use potboiler_common::{http_client, server_id};
 
 quick_main!(|| -> kv::Result<()> {
     log4rs::init_file("log.yaml", Default::default())?;
     let pool = kv::db_setup()?;
-    let mut router = kv::app_router(pool)?;
-    router.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
     let client = reqwest::Client::new();
-    kv::register(&client)?;
-    http_client::set_client(&mut router, client);
+    let app_state = kv::AppState::new(pool, client.clone())?;
+    server::new(move || kv::app_router(app_state.clone()).unwrap().finish())
+        .bind("0.0.0.0:8001")
+        .unwrap()
+        .run();
+    kv::register(&client).unwrap();
     info!("Potboiler-kv booted");
-    Iron::new(router).http("0.0.0.0:8001").unwrap();
     Ok(())
 });

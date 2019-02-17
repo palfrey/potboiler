@@ -19,21 +19,23 @@ use error_chain::{
 };
 
 use crate::serde_types::*;
-use iron::{self, prelude::*, status};
+use actix_web::{http::Method, App, HttpResponse, Json, Path, State};
 use lazy_static::lazy_static;
 use log::{debug, error, info};
 use log4rs;
-use logger::{self, Logger};
-use mime::{__mime__ident_or_ext, mime};
-use persistent::{self, Read as PRead, State};
 use potboiler_common::{
-    self, db, get_db_connection, get_http_client, http_client, iron_error_from, pg,
+    self, db, pg,
     types::{Log, CRDT},
 };
 use r2d2;
-use router::{self, Router};
+use serde_derive::Deserialize;
 use serde_json;
-use std::{collections::HashMap, env, io::Read, ops::Deref};
+use std::{
+    collections::HashMap,
+    env,
+    ops::Deref,
+    sync::{Arc, RwLock},
+};
 
 mod serde_types;
 mod tables;
@@ -59,34 +61,38 @@ error_chain! {
     }
 }
 
-iron_error_from!();
-
 lazy_static! {
     static ref SERVER_URL: String = env::var("SERVER_URL").expect("Needed SERVER_URL");
 }
 
-fn get_table_kind(req: &Request, table: &str) -> Option<CRDT> {
+fn get_table_kind(state: &AppState, table: &str) -> Option<CRDT> {
     if table == tables::CONFIG_TABLE {
         Some(CRDT::LWW)
     } else {
-        let tables = tables::get_tables(req);
-        tables.get(table).map(|x| x.clone())
+        state.tables.get(table)
     }
 }
 
-fn get_key(req: &mut Request) -> IronResult<Response> {
-    let conn = get_db_connection!(&req);
-    let table = &potboiler_common::get_req_key(req, "table").unwrap();
-    let key = &potboiler_common::get_req_key(req, "key").unwrap();
-    let kind = match get_table_kind(req, table) {
+#[derive(Deserialize)]
+struct GetKeyPath {
+    table: String,
+    key: String,
+}
+
+fn get_key(path: Path<GetKeyPath>, state: State<AppState>) -> HttpResponse {
+    let conn = state.pool.get().unwrap();
+    let kind = match get_table_kind(state.deref(), &path.table) {
         Some(k) => k,
-        None => return Ok(Response::with((status::NotFound, format!("No such table '{}'", table)))),
+        None => {
+            //return Ok(Response::with((status::NotFound, format!("No such table '{}'", path.table))));
+            return HttpResponse::NotFound().finish();
+        }
     };
     match kind {
         CRDT::ORSET => {
             match conn.query(&format!(
                 "SELECT key, item, metadata FROM {}_items where collection='{}'",
-                table, key
+                path.table, path.key
             )) {
                 Ok(rows) => {
                     let mut items = Vec::new();
@@ -96,92 +102,88 @@ fn get_key(req: &mut Request) -> IronResult<Response> {
                         let metadata: serde_json::Value = row.get("metadata");
                         items.push(ORSetOp { item, key, metadata });
                     }
-                    Ok(Response::with((
-                        status::Ok,
-                        serde_json::ser::to_string(&items).unwrap(),
-                    )))
+                    HttpResponse::Ok().json(items)
                 }
                 Err(db::Error(db::ErrorKind::NoSuchTable, _)) => {
-                    Ok(Response::with((status::NotFound, format!("No such table {}", table))))
+                    //Ok(Response::with((status::NotFound, format!("No such table {}", path.table))))
+                    HttpResponse::NotFound().finish()
                 }
                 Err(err) => {
-                    error!("Error while getting key {} from table {}: {:?}", key, table, err);
-                    Ok(Response::with(status::InternalServerError))
+                    error!(
+                        "Error while getting key {} from table {}: {:?}",
+                        path.key, path.table, err
+                    );
+                    HttpResponse::InternalServerError().finish()
                 }
             }
         }
-        CRDT::LWW => match conn.query(&format!("SELECT value FROM {} where key='{}'", table, key)) {
+        CRDT::LWW => match conn.query(&format!("SELECT value FROM {} where key='{}'", path.table, path.key)) {
             Ok(rows) => {
                 if rows.is_empty() {
-                    Ok(Response::with((status::NotFound, format!("No such key '{}'", key))))
+                    HttpResponse::NotFound().finish()
+                //Ok(Response::with((status::NotFound, format!("No such key '{}'", path.key))))
                 } else {
                     let value: String = rows.get(0).get("value");
-                    Ok(Response::with((status::Ok, value)))
+                    HttpResponse::Ok().body(value)
                 }
             }
             Err(db::Error(db::ErrorKind::NoSuchTable, _)) => {
-                Ok(Response::with((status::NotFound, format!("No such table {}", table))))
+                //Ok(Response::with((status::NotFound, format!("No such table {}", table))))
+                HttpResponse::NotFound().finish()
             }
             Err(err) => {
-                error!("Error while getting key {} from table {}: {:?}", key, table, err);
-                Ok(Response::with(status::InternalServerError))
+                error!(
+                    "Error while getting key {} from table {}: {:?}",
+                    path.key, path.table, err
+                );
+                HttpResponse::InternalServerError().finish()
             }
         },
-        _ => Ok(Response::with((
-            status::InternalServerError,
-            format!("No key getter for {:?}", kind),
-        ))),
+        _ => HttpResponse::InternalServerError().finish(), //format!("No key getter for {:?}", kind),
     }
 }
 
-fn update_key(req: &mut Request) -> IronResult<Response> {
-    let body_string = {
-        let mut body = String::new();
-        req.body.read_to_string(&mut body).expect("could read from body");
-        body
-    };
-    let mut json: serde_json::Value = match serde_json::de::from_str(&body_string) {
-        Ok(val) => val,
-        Err(err) => {
-            info!("Failed to parse '{}'", &body_string);
-            return Err(IronError::new(err, (status::BadRequest, "Bad JSON")));
-        }
-    };
-    {
-        let map = json.as_object_mut().unwrap();
-        map.insert(
-            "table".to_string(),
-            serde_json::to_value(&potboiler_common::get_req_key(req, "table").unwrap()).unwrap(),
-        );
-        map.insert(
-            "key".to_string(),
-            serde_json::to_value(&potboiler_common::get_req_key(req, "key").unwrap()).unwrap(),
-        );
-    }
+#[derive(Deserialize, Debug)]
+pub struct UpdateKeyPath {
+    table: String,
+    key: String,
+}
 
-    let change: Change = serde_json::from_value(json).map_err(Error::from)?;
-    let string_change = serde_json::ser::to_string(&change).map_err(Error::from)?;
+fn update_key(json: Json<serde_json::Value>, path: Path<UpdateKeyPath>, state: State<AppState>) -> HttpResponse {
+    let mut json_mut = json.clone();
+    let map = json_mut.as_object_mut().unwrap();
+    map.insert("table".to_string(), serde_json::to_value(path.table.clone()).unwrap());
+    map.insert("key".to_string(), serde_json::to_value(path.key.clone()).unwrap());
+
+    let change: Change = serde_json::from_value(json_mut).map_err(Error::from).unwrap();
+    let send_change = change.clone();
     match change.op {
         Operation::Add | Operation::Remove => {
-            serde_json::from_value::<ORSetOp>(change.change).map_err(Error::from)?;
+            serde_json::from_value::<ORSetOp>(change.change)
+                .map_err(Error::from)
+                .unwrap();
         }
         Operation::Create => {
-            serde_json::from_value::<ORCreateOp>(change.change).map_err(Error::from)?;
+            serde_json::from_value::<ORCreateOp>(change.change)
+                .map_err(Error::from)
+                .unwrap();
         }
         Operation::Set => {
             if change.table == tables::CONFIG_TABLE {
-                serde_json::from_value::<LWWConfigOp>(change.change).map_err(Error::from)?;
+                serde_json::from_value::<LWWConfigOp>(change.change)
+                    .map_err(Error::from)
+                    .unwrap();
             }
         }
     }
-    let client = get_http_client!(req);
-    let res = client
-        .post(SERVER_URL.deref())
-        .body(string_change)
+    let res = state
+        .client()
+        .post(dbg!(SERVER_URL.deref()))
+        .json(&send_change)
         .send()
         .expect("sender ok");
     assert_eq!(res.status(), reqwest::StatusCode::CREATED);
-    Ok(Response::with(status::Ok))
+    HttpResponse::Ok().finish()
 }
 
 fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result<()> {
@@ -219,7 +221,7 @@ fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result<()>
     Ok(())
 }
 
-fn get_crdt(conn: &db::Connection, table: &str, key: &str) -> IronResult<Option<serde_json::Value>> {
+fn get_crdt(conn: &db::Connection, table: &str, key: &str) -> Result<Option<serde_json::Value>> {
     let results = conn
         .query(&format!("select crdt from {} where key='{}'", table, key))
         .map_err(Error::from)?;
@@ -235,28 +237,20 @@ fn get_crdt(conn: &db::Connection, table: &str, key: &str) -> IronResult<Option<
 }
 
 #[allow(clippy::map_entry)] // FIXME do maps better
-fn new_event(req: &mut Request) -> IronResult<Response> {
-    let body_string = {
-        let mut body = String::new();
-        req.body.read_to_string(&mut body).expect("could read from body");
-        body
-    };
-    let json: serde_json::Value = serde_json::de::from_str(&body_string).map_err(Error::from)?;
-    info!("body: {:?}", json);
-    let log = serde_json::from_value::<Log>(json).map_err(Error::from)?;
+fn new_event(state: State<AppState>, log: Json<Log>) -> HttpResponse {
     info!("log: {:?}", log);
-    let change: Change = serde_json::from_value(log.data).unwrap();
+    let change: Change = serde_json::from_value(log.data.clone()).unwrap();
     info!("change: {:?}", change);
-    let tables = tables::get_tables(req);
-    let table_type = match tables.get(&change.table) {
-        None => bail!(ErrorKind::NoTable(change.table)),
-        Some(&val) => val,
+    let table_type = match state.tables.get(&change.table) {
+        //None => bail!(ErrorKind::NoTable(change.table)),
+        None => return HttpResponse::BadRequest().reason("No such table").finish(),
+        Some(val) => val,
     };
     match table_type {
         CRDT::LWW => match change.op {
             Operation::Set => {
-                let conn = get_db_connection!(&req);
-                let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
+                let conn = state.pool.get().unwrap();
+                let raw_crdt = get_crdt(&conn, &change.table, &change.key).unwrap();
                 match raw_crdt {
                     None => {
                         let lww = LWW {
@@ -268,18 +262,20 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                             &change.table,
                             &change.key,
                             &change.change,
-                            &serde_json::to_value(&lww).map_err(Error::from)?
+                            &serde_json::to_value(&lww).map_err(Error::from).unwrap()
                         ))
-                        .map_err(Error::from)?;
+                        .map_err(Error::from)
+                        .unwrap();
                         if change.table == tables::CONFIG_TABLE {
-                            let config_op: LWWConfigOp =
-                                serde_json::from_value(change.change.clone()).map_err(Error::from)?;
-                            make_table(&conn, &change.key, config_op.crdt)?;
-                            tables::add_table(req, &change.key, config_op.crdt);
+                            let config_op: LWWConfigOp = serde_json::from_value(change.change.clone())
+                                .map_err(Error::from)
+                                .unwrap();
+                            make_table(&conn, &change.key, config_op.crdt).unwrap();
+                            state.tables.add(&change.key, config_op.crdt);
                         }
                     }
                     Some(raw_crdt) => {
-                        let mut lww: LWW = serde_json::from_value(raw_crdt).map_err(Error::from)?;
+                        let mut lww: LWW = serde_json::from_value(raw_crdt).map_err(Error::from).unwrap();
                         if lww.when < log.when {
                             lww.when = log.when;
                             lww.data = change.change.clone();
@@ -288,9 +284,9 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                                 &change.table,
                                 &change.change,
                                 &change.key,
-                                &serde_json::to_value(&lww).map_err(Error::from)?
+                                &serde_json::to_value(&lww).map_err(Error::from).unwrap()
                             ))
-                            .map_err(Error::from)?;
+                            .unwrap();
                         } else {
                             info!("Earlier event, skipping");
                         }
@@ -298,18 +294,21 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                 }
             }
             _ => {
-                return Err(ErrorKind::UnsupportedLWWOp(change.op).into());
+                //return Err(ErrorKind::UnsupportedLWWOp(change.op).into());
+                return HttpResponse::BadRequest().reason("UnsupportedLWWOp").finish();
             }
         },
         CRDT::ORSET => {
             let op: Option<ORSetOp> = match change.op {
-                Operation::Add | Operation::Remove => Some(serde_json::from_value(change.change).map_err(Error::from)?),
+                Operation::Add | Operation::Remove => {
+                    Some(serde_json::from_value(change.change).map_err(Error::from).unwrap())
+                }
                 Operation::Create | Operation::Set => None,
             };
-            let conn = get_db_connection!(&req);
-            let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
+            let conn = state.pool.get().unwrap();
+            let raw_crdt = get_crdt(&conn, &change.table, &change.key).unwrap();
             let (mut crdt, existing) = match raw_crdt {
-                Some(val) => (serde_json::from_value(val).map_err(Error::from)?, true),
+                Some(val) => (serde_json::from_value(val).map_err(Error::from).unwrap(), true),
                 None => (
                     ORSet {
                         adds: HashMap::new(),
@@ -332,7 +331,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                                      and key='{}'",
                                     &change.table, &metadata, &change.key, &unwrap_op.key
                                 ))
-                                .map_err(Error::from)?;
+                                .unwrap();
                         } else {
                             trans
                                 .execute(&format!(
@@ -340,7 +339,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                                      VALUES ('{}', '{}', '{}', '{}')",
                                     &change.table, &change.key, &unwrap_op.key, &unwrap_op.item, &metadata
                                 ))
-                                .map_err(Error::from)?;
+                                .unwrap();
                             crdt.adds.insert(unwrap_op.key, unwrap_op.item);
                         }
                     }
@@ -352,7 +351,7 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                             "DELETE FROM {}_items where collection='{}' and key='{}'",
                             &change.table, &change.key, &unwrap_op.key
                         ))
-                        .map_err(Error::from)?;
+                        .unwrap();
                     crdt.adds.remove(&unwrap_op.key);
                     crdt.removes.insert(unwrap_op.key, unwrap_op.item);
                 }
@@ -360,7 +359,8 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                     // Don't need to actually do anything to the item lists
                 }
                 _ => {
-                    return Err(ErrorKind::UnsupportedORSETOp(change.op).into());
+                    return HttpResponse::BadRequest().reason("UnsupportedORSETOp").finish();
+                    //return Err(ErrorKind::UnsupportedORSETOp(change.op).into());
                 }
             }
             debug!("OR-Set for {}: {:?}", &change.table, &crdt);
@@ -369,19 +369,19 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
                     .execute(&format!(
                         "UPDATE {} set crdt='{}' where key='{}'",
                         &change.table,
-                        &serde_json::to_value(&crdt).map_err(ErrorKind::Serde)?,
+                        &serde_json::to_value(&crdt).map_err(ErrorKind::Serde).unwrap(),
                         &change.key
                     ))
-                    .map_err(Error::from)?;
+                    .unwrap();
             } else {
                 trans
                     .execute(&format!(
                         "INSERT INTO {} (key, crdt) VALUES ('{}', '{}')",
                         &change.table,
-                        &serde_json::to_value(&crdt).map_err(ErrorKind::Serde)?,
+                        &serde_json::to_value(&crdt).map_err(ErrorKind::Serde).unwrap(),
                         &change.key
                     ))
-                    .map_err(Error::from)?;
+                    .unwrap();
             }
             let mut items: Vec<&str> = Vec::new();
             for key in crdt.adds.keys() {
@@ -394,75 +394,84 @@ fn new_event(req: &mut Request) -> IronResult<Response> {
             //trans.commit()?;
         }
         _ => {
-            return Err(ErrorKind::UnsupportedCRDT(table_type).into());
+            return HttpResponse::BadRequest().reason("UnsupportedCRDT").finish();
+            //return Err(ErrorKind::UnsupportedCRDT(table_type).into());
         }
     }
-    Ok(Response::with(status::NoContent))
+    HttpResponse::NoContent().finish()
 }
 
-fn list_tables(req: &mut Request) -> IronResult<Response> {
-    let tables = tables::get_tables(req);
-    let mut table_names = vec![];
-    for t in tables.keys() {
-        table_names.push(t);
-    }
-    Ok(Response::with((
-        status::Ok,
-        mime!(Application / Json),
-        serde_json::to_string(&table_names).unwrap(),
-    )))
+fn list_tables(state: State<AppState>) -> HttpResponse {
+    HttpResponse::Ok().json(state.tables.list())
 }
 
-fn list_keys(req: &mut Request) -> IronResult<Response> {
-    let table = potboiler_common::get_req_key(req, "table").ok_or(ErrorKind::NoTableKey)?;
-    let conn = get_db_connection!(&req);
+#[derive(Deserialize, Debug)]
+pub struct ListKeysReq {
+    table: String,
+}
+
+fn list_keys(req: Path<ListKeysReq>, state: State<AppState>) -> HttpResponse {
+    let conn = state.pool.get().unwrap();
     let mut key_names = vec![];
-    for row in &conn.query(&format!("select key from {}", table)).map_err(Error::from)? {
+    for row in &conn.query(&format!("select key from {}", req.table)).unwrap() {
         let key: String = row.get("key");
         key_names.push(key);
     }
-    Ok(Response::with((
-        status::Ok,
-        mime!(Application / Json),
-        serde_json::to_string(&key_names).map_err(ErrorKind::Serde)?,
-    )))
+    HttpResponse::Ok().json(key_names)
 }
 
 pub fn db_setup() -> Result<db::Pool> {
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
-    return pg::get_pool(db_url).map_err(Error::from);
+    pg::get_pool(db_url).map_err(Error::from)
 }
 
-pub fn app_router(pool: db::Pool) -> Result<iron::Chain> {
-    let conn = pool.get().unwrap();
+#[derive(Debug, Clone)]
+pub struct AppState {
+    pool: db::Pool,
+    tables: tables::Tables,
+    client: Arc<RwLock<reqwest::Client>>,
+}
+
+impl AppState {
+    pub fn new(pool: db::Pool, client: reqwest::Client) -> Result<AppState> {
+        let conn = pool.get()?;
+        let tables = tables::Tables::new(&conn);
+        Ok(AppState {
+            pool,
+            tables,
+            client: Arc::new(RwLock::new(client)),
+        })
+    }
+
+    pub fn client(&self) -> reqwest::Client {
+        self.client.read().unwrap().deref().clone()
+    }
+}
+
+pub fn app_router(state: AppState) -> Result<App<AppState>> {
+    let conn = state.pool.get().unwrap();
     match make_table(&conn, tables::CONFIG_TABLE, CRDT::LWW) {
         Ok(_) => {}
         Err(err) => {
             bail!(Error::with_chain(err, ErrorKind::ConfigTableCreation));
         }
     }
-    let (logger_before, logger_after) = Logger::new(None);
-    let mut router = Router::new();
-    router.get("/kv", list_tables, "list tables");
-    router.get("/kv/:table", list_keys, "list keys for a table");
-    router.get("/kv/:table/:key", get_key, "get a key");
-    router.post("/kv/:table/:key", update_key, "update a key");
-    router.post("/kv/event", new_event, "process new event");
-    let mut chain = Chain::new(router);
-    chain.link_before(logger_before);
-    chain.link_after(logger_after);
-    chain.link(PRead::<db::PoolKey>::both(pool));
-    let tables = tables::init_tables(&conn);
-    chain.link(State::<tables::Tables>::both(tables));
-    Ok(chain)
+    Ok(App::with_state(state)
+        .resource("/kv", |r| r.method(Method::GET).with(list_tables))
+        .resource("/kv/event", |r| r.method(Method::POST).with(new_event))
+        .resource("/kv/{table}", |r| r.method(Method::GET).with(list_keys))
+        .resource("/kv/{table}/{key}", |r| {
+            r.method(Method::GET).with(get_key);
+            r.method(Method::POST).with(update_key)
+        }))
 }
 
 pub fn register(client: &reqwest::Client) -> Result<()> {
     let mut map = serde_json::Map::new();
-    let host: &str = &env::var("HOST").unwrap_or_else(|_| "localhost".to_string());
+    let root: &str = &dbg!(env::var("KV_ROOT").unwrap_or_else(|_| "http://localhost:8001/".to_string()));
     map.insert(
         "url".to_string(),
-        serde_json::Value::String(format!("http://{}:8001/kv/event", host)),
+        serde_json::Value::String(format!("{}kv/event", &root)),
     );
     let res = client
         .post(&format!("{}/register", SERVER_URL.deref()))
@@ -474,37 +483,39 @@ pub fn register(client: &reqwest::Client) -> Result<()> {
 
 #[cfg(test)]
 mod test {
-    use crate::{app_router, db, http_client, register};
-    use iron::{self, status::Status, Headers};
-    use iron_test::{request, response::extract_body_to_string};
+    use crate::{app_router, db, AppState};
+    use actix_web::{http::Method, http::StatusCode, test, HttpMessage};
     use log4rs;
     use mockito;
+    use serde_json::{json, Value};
+    use std::str;
 
     fn setup_logging() {
         log4rs::init_file("log.yaml", Default::default()).unwrap();
     }
 
-    fn test_get_route(router: &iron::Chain, path: &str, expected_body: &str, expected_status: Status) {
-        let response = request::get(&format!("{}/{}", mockito::SERVER_URL, path), Headers::new(), router).unwrap();
-        assert_eq!(response.status.unwrap(), expected_status);
-        let result = extract_body_to_string(response);
-        assert_eq!(result, expected_body);
+    fn test_get_route(server: &mut test::TestServer, path: &str, expected_body: &str, expected_status: StatusCode) {
+        let request = server.client(Method::GET, path).finish().unwrap();
+        let response = server.execute(request.send()).unwrap();
+        assert_eq!(response.status(), expected_status);
+        let bytes = server.execute(response.body()).unwrap();
+        let body = str::from_utf8(&bytes).unwrap();
+        assert_eq!(body, expected_body);
     }
 
-    fn test_post_route(router: &iron::Chain, path: &str, body: &str, expected_body: &str, expected_status: Status) {
-        let resp = request::post(
-            &format!("{}/{}", mockito::SERVER_URL, path),
-            Headers::new(),
-            body,
-            router,
-        );
-        let response = match resp {
-            Ok(response) => response,
-            Err(err) => err.response,
-        };
-        assert_eq!(response.status.unwrap(), expected_status);
-        let result = extract_body_to_string(response);
-        assert_eq!(result, expected_body);
+    fn test_post_route(
+        server: &mut test::TestServer,
+        path: &str,
+        body: Value,
+        expected_body: &str,
+        expected_status: StatusCode,
+    ) {
+        let request = server.client(Method::POST, path).json(body).unwrap();
+        let response = server.execute(request.send()).unwrap();
+        assert_eq!(response.status(), expected_status);
+        let bytes = server.execute(response.body()).unwrap();
+        let body = str::from_utf8(&bytes).unwrap();
+        assert_eq!(body, expected_body);
     }
 
     fn setup_db(tables: Vec<db::TestRow>) -> db::TestConnection {
@@ -520,38 +531,40 @@ mod test {
         return conn;
     }
 
-    fn setup_router(conn: db::TestConnection) -> iron::Chain {
+    fn setup_server(conn: db::TestConnection) -> test::TestServer {
         super::env::set_var("SERVER_URL", mockito::SERVER_URL);
         let pool = super::db::Pool::TestPool(conn);
-        app_router(pool).unwrap()
+        let app_state = AppState::new(pool, reqwest::Client::new()).unwrap();
+        test::TestServer::with_factory(move || app_router(app_state.clone()).unwrap())
     }
 
     #[test]
     fn no_key_table() {
         let mut conn = setup_db(vec![]);
         conn.add_test_query("SELECT value FROM _config where key='test'", vec![]);
-        let router = setup_router(conn);
-        test_get_route(&router, "kv/_config/test", "No such key 'test'", Status::NotFound);
+        let mut server = setup_server(conn);
+        //test_get_route(&mut server, "kv/_config/test", "No such key 'test'", StatusCode::NOT_FOUND);
+        test_get_route(&mut server, "/kv/_config/test", "", StatusCode::NOT_FOUND);
     }
 
     #[test]
     fn key_table() {
         setup_logging();
         let conn = setup_db(vec![]);
-        let mut router = setup_router(conn);
+        let mut server = setup_server(conn);
         let _mocks = vec![
             mockito::mock("POST", "/register").with_status(201).create(),
             mockito::mock("POST", "/").with_status(201).create(),
         ];
-        let client = reqwest::Client::new();
-        register(&client).unwrap();
-        http_client::set_client(&mut router, client);
         test_post_route(
-            &router,
-            "kv/_config/test",
-            r#"{"op":"set","change":{"crdt": "LWW"}}"#,
+            &mut server,
+            "/kv/_config/test",
+            json!({
+                "op":"set",
+                "change":{"crdt": "LWW"}
+            }),
             "",
-            Status::Ok,
+            StatusCode::OK,
         );
     }
 }

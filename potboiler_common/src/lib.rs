@@ -12,7 +12,10 @@ pub mod clock;
 pub mod db;
 pub mod pg;
 pub mod server_id;
+pub mod server_thread;
 pub mod types;
+
+pub use server_thread::ServerThread;
 
 use hybrid_clocks::{Timestamp, WallT};
 
@@ -20,25 +23,6 @@ pub fn get_raw_timestamp(timestamp: &Timestamp<WallT>) -> Result<db::HexSlice, :
     let mut raw_timestamp: Vec<u8> = Vec::new();
     timestamp.write_bytes(&mut raw_timestamp)?;
     Ok(db::HexSlice::new(raw_timestamp))
-}
-
-#[macro_export]
-macro_rules! iron_error_from {
-    () => {
-        impl From<ErrorKind> for IronError {
-            fn from(errkind: ErrorKind) -> IronError {
-                let desc = format!("{:?}", errkind);
-                return IronError::new(Error::from_kind(errkind), (status::BadRequest, desc));
-            }
-        }
-
-        impl From<Error> for IronError {
-            fn from(error: Error) -> IronError {
-                let desc = format!("{:?}", error);
-                return IronError::new(error, (status::BadRequest, desc));
-            }
-        }
-    };
 }
 
 #[cfg(test)]

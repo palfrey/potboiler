@@ -24,3 +24,9 @@ impl SyncClock {
         self.clock.write().unwrap().deref_mut().observe(&timestamp).unwrap();
     }
 }
+
+impl Default for SyncClock {
+    fn default() -> Self {
+        Self::new()
+    }
+}

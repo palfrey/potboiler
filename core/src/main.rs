@@ -39,10 +39,10 @@ quick_main!(|| -> Result<()> {
     log4rs::init_file("log.yaml", Default::default())?;
     let pool = potboiler::db_setup()?;
     let app_state = potboiler::AppState::new(pool, server_id::setup())?;
-    info!("Potboiler booted");
     server::new(move || potboiler::app_router(app_state.clone()).unwrap().finish())
         .bind("0.0.0.0:8000")
         .unwrap()
         .run();
+    info!("Potboiler booted");
     Ok(())
 });
