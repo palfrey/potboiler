@@ -1,3 +1,4 @@
+use failure::{err_msg, Error, Fail};
 use potboiler_common::{db, types::CRDT};
 use serde_json::{self, Value};
 use std::{
@@ -13,8 +14,58 @@ pub struct Tables {
 
 pub static CONFIG_TABLE: &'static str = "_config";
 
+#[derive(Debug, Fail)]
+pub enum TableError {
+    #[fail(display = "ConfigTableCreation")]
+    ConfigTableCreation {
+        #[cause]
+        cause: Error,
+    },
+}
+
+pub fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result<(), Error> {
+    match kind {
+        CRDT::LWW => {
+            conn.execute(&format!(
+                "CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, value \
+                 JSONB NOT NULL, crdt JSONB NOT NULL)",
+                &table_name
+            ))
+            .map_err(Error::from)?;
+        }
+        CRDT::ORSET => {
+            conn.execute(&format!(
+                "CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, crdt \
+                 JSONB NOT NULL)",
+                &table_name
+            ))
+            .map_err(Error::from)?;
+            conn.execute(&format!(
+                "CREATE TABLE IF NOT EXISTS {}_items (\
+                                   collection VARCHAR(1024) NOT NULL,
+                                   key VARCHAR(1024) NOT NULL, \
+                                   item VARCHAR(1024) NOT NULL, \
+                                   metadata JSONB NOT NULL, \
+                                   PRIMARY KEY(collection, key, item))",
+                &table_name
+            ))
+            .map_err(Error::from)?;
+        }
+        CRDT::GSET => {
+            err_msg("No G-Set make table yet");
+        }
+    }
+    Ok(())
+}
+
 impl Tables {
-    pub fn new(conn: &db::Connection) -> Tables {
+    pub fn new(conn: &db::Connection) -> Result<Tables, TableError> {
+        match make_table(&conn, CONFIG_TABLE, CRDT::LWW) {
+            Ok(_) => {}
+            Err(err) => {
+                return Err(TableError::ConfigTableCreation { cause: err });
+            }
+        }
         let mut tables: HashMap<String, CRDT> = HashMap::new();
         tables.insert(CONFIG_TABLE.to_string(), CRDT::LWW);
         for row in &conn
@@ -28,9 +79,9 @@ impl Tables {
                 serde_json::from_value(value.get("crdt").unwrap().clone()).unwrap(),
             );
         }
-        Tables {
+        Ok(Tables {
             tables: Arc::new(RwLock::new(tables)),
-        }
+        })
     }
 
     pub fn list(&self) -> Vec<String> {

@@ -9,33 +9,13 @@
 )]
 
 use actix_web::server;
-use error_chain::{
-    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
-    error_chain,
-    error_chain_processing,
-    impl_error_chain_kind,
-    impl_error_chain_processed,
-    impl_extract_backtrace,
-    quick_main,
-};
+use failure::Error;
 use log::info;
 use log4rs;
 use potboiler;
 use potboiler_common::server_id;
 
-error_chain! {
-    errors {
-        IronError
-    }
-    links {
-        PotboilerError(potboiler::Error, potboiler::ErrorKind);
-    }
-    foreign_links {
-        LogError(log4rs::Error);
-    }
-}
-
-quick_main!(|| -> Result<()> {
+pub fn main() -> Result<(), Error> {
     log4rs::init_file("log.yaml", Default::default())?;
     let pool = potboiler::db_setup()?;
     let app_state = potboiler::AppState::new(pool, server_id::setup())?;
@@ -45,4 +25,4 @@ quick_main!(|| -> Result<()> {
         .run();
     info!("Potboiler booted");
     Ok(())
-});
+}

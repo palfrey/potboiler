@@ -83,7 +83,7 @@ pub fn other_log(log: Json<Log>, state: State<AppState>) -> HttpResponse {
     } else {
         info!("Told about new log item ({}) I already have", log.id);
     }
-    HttpResponse::Ok().reason("Added").finish()
+    HttpResponse::Ok().body("Added")
 }
 
 fn get_with_null<T>(row: &db::Row, index: &str) -> Option<T>
@@ -102,8 +102,7 @@ where
 pub fn get_log(query: Path<String>, state: State<AppState>) -> HttpResponse {
     let query_id = match Uuid::parse_str(&query) {
         Ok(val) => val,
-        // &format!("No log {}", query)
-        Err(_) => return HttpResponse::NotFound().reason("No log").finish(),
+        Err(_) => return HttpResponse::NotFound().body(&format!("No log {}", query)),
     };
     let conn = state.pool.get().unwrap();
     let results = conn
@@ -113,8 +112,7 @@ pub fn get_log(query: Path<String>, state: State<AppState>) -> HttpResponse {
         ))
         .unwrap();
     if results.is_empty() {
-        // &format!("No log {}", query)
-        HttpResponse::NotFound().reason("No log").finish()
+        HttpResponse::NotFound().body(&format!("No log {}", query))
     } else {
         let row = results.get(0);
         let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");

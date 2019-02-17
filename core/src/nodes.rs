@@ -65,6 +65,8 @@ enum NodesError {
     BadUuid { uuid: String },
     #[fail(display = "NoLastEntry")]
     NoLastEntry { key: String },
+    #[fail(display = "NoSuchNotifier")]
+    NoSuchNotifier { name: String },
 }
 
 fn parse_object_from_request(
@@ -446,8 +448,12 @@ pub fn node_remove(state: State<AppState>, body: Json<UrlJson>) -> HttpResponse 
     let info = match nodes.get(notifier) {
         Some(val) => val,
         None => {
-            // .reason(&Error::from_kind(NodesError::NoSuchNotifier(notifier.to_string())).to_string())
-            return HttpResponse::NotFound().reason("no such notifier").finish();
+            return HttpResponse::NotFound().body(
+                NodesError::NoSuchNotifier {
+                    name: notifier.to_string(),
+                }
+                .to_string(),
+            );
         }
     };
     info.sender.lock().unwrap().deref().send(()).unwrap();

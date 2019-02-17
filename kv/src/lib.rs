@@ -8,26 +8,15 @@
     future_incompatible
 )]
 
-use error_chain::{
-    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
-    bail,
-    error_chain,
-    error_chain_processing,
-    impl_error_chain_kind,
-    impl_error_chain_processed,
-    impl_extract_backtrace,
-};
-
 use crate::serde_types::*;
-use actix_web::{http::Method, App, HttpResponse, Json, Path, State};
+use actix_web::{http::Method, http::StatusCode, App, HttpResponse, Json, Path, ResponseError, State};
+use failure::{bail, Error, Fail};
 use lazy_static::lazy_static;
 use log::{debug, error, info};
-use log4rs;
 use potboiler_common::{
     self, db, pg,
     types::{Log, CRDT},
 };
-use r2d2;
 use serde_derive::Deserialize;
 use serde_json;
 use std::{
@@ -40,24 +29,38 @@ use std::{
 mod serde_types;
 mod tables;
 
-error_chain! {
-    errors {
-        WrongResultsCount(key: String, count: usize)
-        NoTableKey
-        UnsupportedCRDT(name: CRDT)
-        UnsupportedORSETOp(name: Operation)
-        UnsupportedLWWOp(name: Operation)
-        NoTable(name: String)
-        ConfigTableCreation
-    }
-    links {
-        DbError(db::Error, db::ErrorKind);
-    }
-    foreign_links {
-        Serde(serde_json::Error);
-        Reqwest(reqwest::Error);
-        Log(log4rs::Error);
-        R2D2(r2d2::Error);
+#[derive(Debug, Fail)]
+enum KvError {
+    #[fail(display = "WrongResultsCount")]
+    WrongResultsCount { key: String, count: usize },
+    #[fail(display = "UnsupportedCRDT")]
+    UnsupportedCRDT { name: CRDT },
+    #[fail(display = "UnsupportedORSETOp")]
+    UnsupportedORSETOp { name: Operation },
+    #[fail(display = "UnsupportedLWWOp")]
+    UnsupportedLWWOp { name: Operation },
+    #[fail(display = "NoTable")]
+    NoTable { name: String },
+    #[fail(display = "No such table '{}'", name)]
+    NoSuchTable { name: String },
+    #[fail(display = "No such key '{}'", name)]
+    NoSuchKey { name: String },
+    #[fail(display = "No key getter for {:?}", kind)]
+    NoKeyGetter { kind: CRDT },
+    #[fail(display = "DbError")]
+    DbError {
+        #[cause]
+        cause: db::Error,
+    },
+}
+
+impl ResponseError for KvError {
+    fn error_response(&self) -> HttpResponse {
+        let code = match *self {
+            KvError::NoSuchKey { .. } | KvError::NoSuchTable { .. } => StatusCode::NOT_FOUND,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        };
+        HttpResponse::build(code).body(format!("{}", self))
     }
 }
 
@@ -79,13 +82,14 @@ struct GetKeyPath {
     key: String,
 }
 
-fn get_key(path: Path<GetKeyPath>, state: State<AppState>) -> HttpResponse {
+fn get_key(path: Path<GetKeyPath>, state: State<AppState>) -> Result<HttpResponse, KvError> {
     let conn = state.pool.get().unwrap();
     let kind = match get_table_kind(state.deref(), &path.table) {
         Some(k) => k,
         None => {
-            //return Ok(Response::with((status::NotFound, format!("No such table '{}'", path.table))));
-            return HttpResponse::NotFound().finish();
+            return Err(KvError::NoSuchTable {
+                name: path.table.clone(),
+            });
         }
     };
     match kind {
@@ -102,44 +106,42 @@ fn get_key(path: Path<GetKeyPath>, state: State<AppState>) -> HttpResponse {
                         let metadata: serde_json::Value = row.get("metadata");
                         items.push(ORSetOp { item, key, metadata });
                     }
-                    HttpResponse::Ok().json(items)
+                    Ok(HttpResponse::Ok().json(items))
                 }
-                Err(db::Error(db::ErrorKind::NoSuchTable, _)) => {
-                    //Ok(Response::with((status::NotFound, format!("No such table {}", path.table))))
-                    HttpResponse::NotFound().finish()
-                }
+                Err(db::Error(db::ErrorKind::NoSuchTable, _)) => Err(KvError::NoSuchTable {
+                    name: path.table.clone(),
+                }),
+
                 Err(err) => {
                     error!(
                         "Error while getting key {} from table {}: {:?}",
                         path.key, path.table, err
                     );
-                    HttpResponse::InternalServerError().finish()
+                    Err(KvError::DbError { cause: err })
                 }
             }
         }
         CRDT::LWW => match conn.query(&format!("SELECT value FROM {} where key='{}'", path.table, path.key)) {
             Ok(rows) => {
                 if rows.is_empty() {
-                    HttpResponse::NotFound().finish()
-                //Ok(Response::with((status::NotFound, format!("No such key '{}'", path.key))))
+                    Err(KvError::NoSuchKey { name: path.key.clone() })
                 } else {
                     let value: String = rows.get(0).get("value");
-                    HttpResponse::Ok().body(value)
+                    Ok(HttpResponse::Ok().body(value))
                 }
             }
-            Err(db::Error(db::ErrorKind::NoSuchTable, _)) => {
-                //Ok(Response::with((status::NotFound, format!("No such table {}", table))))
-                HttpResponse::NotFound().finish()
-            }
+            Err(db::Error(db::ErrorKind::NoSuchTable, _)) => Err(KvError::NoSuchTable {
+                name: path.table.clone(),
+            }),
             Err(err) => {
                 error!(
                     "Error while getting key {} from table {}: {:?}",
                     path.key, path.table, err
                 );
-                HttpResponse::InternalServerError().finish()
+                Err(KvError::DbError { cause: err })
             }
         },
-        _ => HttpResponse::InternalServerError().finish(), //format!("No key getter for {:?}", kind),
+        _ => Err(KvError::NoKeyGetter { kind }),
     }
 }
 
@@ -186,42 +188,7 @@ fn update_key(json: Json<serde_json::Value>, path: Path<UpdateKeyPath>, state: S
     HttpResponse::Ok().finish()
 }
 
-fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result<()> {
-    match kind {
-        CRDT::LWW => {
-            conn.execute(&format!(
-                "CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, value \
-                 JSONB NOT NULL, crdt JSONB NOT NULL)",
-                &table_name
-            ))
-            .map_err(Error::from)?;
-        }
-        CRDT::ORSET => {
-            conn.execute(&format!(
-                "CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, crdt \
-                 JSONB NOT NULL)",
-                &table_name
-            ))
-            .map_err(Error::from)?;
-            conn.execute(&format!(
-                "CREATE TABLE IF NOT EXISTS {}_items (\
-                                   collection VARCHAR(1024) NOT NULL,
-                                   key VARCHAR(1024) NOT NULL, \
-                                   item VARCHAR(1024) NOT NULL, \
-                                   metadata JSONB NOT NULL, \
-                                   PRIMARY KEY(collection, key, item))",
-                &table_name
-            ))
-            .map_err(Error::from)?;
-        }
-        CRDT::GSET => {
-            error!("No G-Set make table yet");
-        }
-    }
-    Ok(())
-}
-
-fn get_crdt(conn: &db::Connection, table: &str, key: &str) -> Result<Option<serde_json::Value>> {
+fn get_crdt(conn: &db::Connection, table: &str, key: &str) -> Result<Option<serde_json::Value>, Error> {
     let results = conn
         .query(&format!("select crdt from {} where key='{}'", table, key))
         .map_err(Error::from)?;
@@ -232,18 +199,21 @@ fn get_crdt(conn: &db::Connection, table: &str, key: &str) -> Result<Option<serd
         let raw_crdt: serde_json::Value = row.get("crdt");
         Ok(Some(raw_crdt))
     } else {
-        Err(ErrorKind::WrongResultsCount(key.to_string(), results.len()).into())
+        Err(KvError::WrongResultsCount {
+            key: key.to_string(),
+            count: results.len(),
+        }
+        .into())
     }
 }
 
 #[allow(clippy::map_entry)] // FIXME do maps better
-fn new_event(state: State<AppState>, log: Json<Log>) -> HttpResponse {
+fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Error> {
     info!("log: {:?}", log);
     let change: Change = serde_json::from_value(log.data.clone()).unwrap();
     info!("change: {:?}", change);
     let table_type = match state.tables.get(&change.table) {
-        //None => bail!(ErrorKind::NoTable(change.table)),
-        None => return HttpResponse::BadRequest().reason("No such table").finish(),
+        None => bail!(KvError::NoTable { name: change.table }),
         Some(val) => val,
     };
     match table_type {
@@ -270,7 +240,7 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> HttpResponse {
                             let config_op: LWWConfigOp = serde_json::from_value(change.change.clone())
                                 .map_err(Error::from)
                                 .unwrap();
-                            make_table(&conn, &change.key, config_op.crdt).unwrap();
+                            tables::make_table(&conn, &change.key, config_op.crdt).unwrap();
                             state.tables.add(&change.key, config_op.crdt);
                         }
                     }
@@ -294,8 +264,7 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> HttpResponse {
                 }
             }
             _ => {
-                //return Err(ErrorKind::UnsupportedLWWOp(change.op).into());
-                return HttpResponse::BadRequest().reason("UnsupportedLWWOp").finish();
+                bail!(KvError::UnsupportedLWWOp { name: change.op });
             }
         },
         CRDT::ORSET => {
@@ -359,8 +328,7 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> HttpResponse {
                     // Don't need to actually do anything to the item lists
                 }
                 _ => {
-                    return HttpResponse::BadRequest().reason("UnsupportedORSETOp").finish();
-                    //return Err(ErrorKind::UnsupportedORSETOp(change.op).into());
+                    bail!(KvError::UnsupportedORSETOp { name: change.op });
                 }
             }
             debug!("OR-Set for {}: {:?}", &change.table, &crdt);
@@ -369,7 +337,7 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> HttpResponse {
                     .execute(&format!(
                         "UPDATE {} set crdt='{}' where key='{}'",
                         &change.table,
-                        &serde_json::to_value(&crdt).map_err(ErrorKind::Serde).unwrap(),
+                        &serde_json::to_value(&crdt).unwrap(),
                         &change.key
                     ))
                     .unwrap();
@@ -378,7 +346,7 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> HttpResponse {
                     .execute(&format!(
                         "INSERT INTO {} (key, crdt) VALUES ('{}', '{}')",
                         &change.table,
-                        &serde_json::to_value(&crdt).map_err(ErrorKind::Serde).unwrap(),
+                        &serde_json::to_value(&crdt).unwrap(),
                         &change.key
                     ))
                     .unwrap();
@@ -394,11 +362,10 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> HttpResponse {
             //trans.commit()?;
         }
         _ => {
-            return HttpResponse::BadRequest().reason("UnsupportedCRDT").finish();
-            //return Err(ErrorKind::UnsupportedCRDT(table_type).into());
+            bail!(KvError::UnsupportedCRDT { name: table_type });
         }
     }
-    HttpResponse::NoContent().finish()
+    Ok(HttpResponse::NoContent().finish())
 }
 
 fn list_tables(state: State<AppState>) -> HttpResponse {
@@ -420,7 +387,7 @@ fn list_keys(req: Path<ListKeysReq>, state: State<AppState>) -> HttpResponse {
     HttpResponse::Ok().json(key_names)
 }
 
-pub fn db_setup() -> Result<db::Pool> {
+pub fn db_setup() -> Result<db::Pool, Error> {
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     pg::get_pool(db_url).map_err(Error::from)
 }
@@ -433,9 +400,9 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(pool: db::Pool, client: reqwest::Client) -> Result<AppState> {
+    pub fn new(pool: db::Pool, client: reqwest::Client) -> Result<AppState, Error> {
         let conn = pool.get()?;
-        let tables = tables::Tables::new(&conn);
+        let tables = tables::Tables::new(&conn)?;
         Ok(AppState {
             pool,
             tables,
@@ -448,14 +415,7 @@ impl AppState {
     }
 }
 
-pub fn app_router(state: AppState) -> Result<App<AppState>> {
-    let conn = state.pool.get().unwrap();
-    match make_table(&conn, tables::CONFIG_TABLE, CRDT::LWW) {
-        Ok(_) => {}
-        Err(err) => {
-            bail!(Error::with_chain(err, ErrorKind::ConfigTableCreation));
-        }
-    }
+pub fn app_router(state: AppState) -> Result<App<AppState>, Error> {
     Ok(App::with_state(state)
         .resource("/kv", |r| r.method(Method::GET).with(list_tables))
         .resource("/kv/event", |r| r.method(Method::POST).with(new_event))
@@ -466,7 +426,7 @@ pub fn app_router(state: AppState) -> Result<App<AppState>> {
         }))
 }
 
-pub fn register(client: &reqwest::Client) -> Result<()> {
+pub fn register(client: &reqwest::Client) -> Result<(), Error> {
     let mut map = serde_json::Map::new();
     let root: &str = &dbg!(env::var("KV_ROOT").unwrap_or_else(|_| "http://localhost:8001/".to_string()));
     map.insert(
@@ -543,8 +503,12 @@ mod test {
         let mut conn = setup_db(vec![]);
         conn.add_test_query("SELECT value FROM _config where key='test'", vec![]);
         let mut server = setup_server(conn);
-        //test_get_route(&mut server, "kv/_config/test", "No such key 'test'", StatusCode::NOT_FOUND);
-        test_get_route(&mut server, "/kv/_config/test", "", StatusCode::NOT_FOUND);
+        test_get_route(
+            &mut server,
+            "/kv/_config/test",
+            "No such key 'test'",
+            StatusCode::NOT_FOUND,
+        );
     }
 
     #[test]

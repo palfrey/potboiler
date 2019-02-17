@@ -77,10 +77,7 @@ pub fn log_register(state: State<AppState>, body: Json<UrlJson>) -> HttpResponse
                 HttpResponse::Created().finish()
             }
             Err(db::Error(db::ErrorKind::UniqueViolation, _)) => HttpResponse::Created().finish(),
-            Err(_err) => {
-                //let reason = format!("Some other error: {}", err);
-                HttpResponse::BadRequest().reason("Other error").finish()
-            }
+            Err(err) => HttpResponse::BadRequest().body(format!("Some other error: {}", err)),
         },
     }
 }

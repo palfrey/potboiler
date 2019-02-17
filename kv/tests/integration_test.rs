@@ -1,32 +1,45 @@
 use actix_web::{server, test::TestServer};
-use failure::Error;
+use failure::{Error, Fail};
 use kv;
 use potboiler;
-use potboiler_common::{server_id, ServerThread};
+use potboiler_common::{db, server_id, ServerThread};
 use pretty_assertions::assert_eq;
 use reqwest::{Client, StatusCode};
 use serde_json::json;
 use serial_test_derive::serial;
 use std::env;
+use std::{thread, time};
 
-fn boot_potboiler() -> Result<ServerThread, std::io::Error> {
+#[derive(Debug, Fail)]
+enum IntegrationError {
+    #[fail(display = "IoError")]
+    IoError {
+        #[cause]
+        cause: std::io::Error,
+    },
+}
+
+fn wipe_db(pool: &db::Pool) -> Result<(), Error> {
+    let conn = pool.get()?;
+    conn.execute("DROP SCHEMA public CASCADE")?;
+    conn.execute("CREATE SCHEMA public")?;
+    Ok(())
+}
+
+fn boot_potboiler() -> Result<ServerThread, Error> {
     let _ = env_logger::try_init();
-    let pool = potboiler::db_setup().unwrap();
-    let conn = pool.get().unwrap();
-    conn.execute("delete from log").unwrap();
-    conn.execute("delete from nodes").unwrap();
-    conn.execute("delete from notifications").unwrap();
+    let pool = potboiler::db_setup()?;
     let app_state = potboiler::AppState::new(pool, server_id::test()).unwrap();
     return ServerThread::new({
         move || server::new(move || potboiler::app_router(app_state.clone()).unwrap()).bind("0.0.0.0:8000")
-    });
+    })
+    .map_err(|e| IntegrationError::IoError { cause: e }.into());
 }
 
 fn test_setup() -> Result<(ServerThread, TestServer), Error> {
     let _ = env_logger::try_init();
     let pool = kv::db_setup().unwrap();
-    let conn = pool.get()?;
-    conn.execute("delete from _config").unwrap();
+    wipe_db(&pool)?;
     let pb_server = boot_potboiler()?;
     env::set_var("SERVER_URL", dbg!("http://localhost:8000/log"));
     let client = reqwest::Client::new();
@@ -44,8 +57,7 @@ fn test_empty_table() {
     let client = Client::new();
     let mut response = client.get(&kv_server.url("/kv/_config/test")).send().unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    assert_eq!(response.text().unwrap(), "");
-    //assert_eq!(result, "No such key 'test'");
+    assert_eq!(response.text().unwrap(), "No such key 'test'");
 }
 
 #[test]
@@ -55,8 +67,7 @@ fn test_no_such_table() {
     let client = Client::new();
     let mut response = client.get(&kv_server.url("/kv/test/foo")).send().unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    assert_eq!(response.text().unwrap(), "");
-    //assert_eq!(result, "No such table 'test'");
+    assert_eq!(response.text().unwrap(), "No such table 'test'");
 }
 
 #[test]
@@ -66,6 +77,7 @@ fn test_create_table() {
     let client = Client::new();
     let mut response = client.get(&kv_server.url("/kv/test/foo")).send().unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.text().unwrap(), "No such table 'test'");
 
     let args = json!({
         "op": "set",
@@ -78,7 +90,10 @@ fn test_create_table() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
+    // give it some time to build the table
+    thread::sleep(time::Duration::from_millis(100));
+
     response = client.get(&kv_server.url("/kv/test/foo")).send().unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    //assert_eq!(result, "No such key 'foo'");
+    assert_eq!(response.text().unwrap(), "No such key 'foo'");
 }
