@@ -10,20 +10,8 @@
 )]
 
 use actix_web::{http::Method, App};
-use error_chain::{
-    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
-    bail,
-    error_chain,
-    error_chain_processing,
-    impl_error_chain_kind,
-    impl_error_chain_processed,
-    impl_extract_backtrace,
-};
-use log4rs;
-use postgres;
+use failure::{bail, Error, Fail};
 use potboiler_common::{self, clock, db, pg};
-use r2d2;
-use schemamama;
 use std::env;
 
 mod logs;
@@ -31,20 +19,10 @@ mod nodes;
 mod notifications;
 mod schema;
 
-error_chain! {
-    errors {
-        MigrationsOnNonPostgres(pool: db::Pool)
-        IronError
-    }
-    links {
-        NodeError(nodes::Error, nodes::ErrorKind);
-        DbError(db::Error, db::ErrorKind);
-    }
-    foreign_links {
-        PostgresError(r2d2::Error);
-        SchemammaError(schemamama::Error<postgres::Error>);
-        LogError(log4rs::Error);
-    }
+#[derive(Debug, Fail)]
+enum CoreError {
+    #[fail(display = "migration on non-postgres: {:?}", pool)]
+    MigrationsOnNonPostgres { pool: db::Pool },
 }
 
 #[derive(Debug, Clone)]
@@ -57,7 +35,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(pool: db::Pool, server: uuid::Uuid) -> Result<AppState> {
+    pub fn new(pool: db::Pool, server: uuid::Uuid) -> Result<AppState, Error> {
         let clock = clock::SyncClock::new();
         Ok(AppState {
             server_id: server,
@@ -69,7 +47,7 @@ impl AppState {
     }
 }
 
-pub fn app_router(state: AppState) -> Result<App<AppState>> {
+pub fn app_router(state: AppState) -> Result<App<AppState>, Error> {
     Ok(App::with_state(state)
         .resource("/log", |r| {
             r.method(Method::GET).with(logs::log_lasts);
@@ -91,7 +69,7 @@ pub fn app_router(state: AppState) -> Result<App<AppState>> {
         }))
 }
 
-pub fn db_setup() -> Result<db::Pool> {
+pub fn db_setup() -> Result<db::Pool, Error> {
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = pg::get_pool(db_url)?;
     if let db::Pool::Postgres(pg_pool) = pool {
@@ -99,7 +77,7 @@ pub fn db_setup() -> Result<db::Pool> {
         schema::up(&conn)?;
         Ok(db::Pool::Postgres(pg_pool))
     } else {
-        bail!(ErrorKind::MigrationsOnNonPostgres(pool));
+        bail!(CoreError::MigrationsOnNonPostgres { pool });
     }
 }
 

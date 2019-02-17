@@ -1,13 +1,5 @@
 use crate::{nodes, AppState};
 use actix_web::{HttpRequest, HttpResponse, Json, Path, State};
-use error_chain::{
-    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
-    error_chain,
-    error_chain_processing,
-    impl_error_chain_kind,
-    impl_error_chain_processed,
-    impl_extract_backtrace,
-};
 use hybrid_clocks;
 use log::info;
 use potboiler_common::{db, types::Log};
@@ -15,16 +7,6 @@ use serde_derive::Serialize;
 use serde_json::{self, Map, Value};
 use std::{io::Cursor, sync::Arc};
 use uuid::Uuid;
-
-error_chain! {
-    links {
-        DbError(db::Error, db::ErrorKind);
-    }
-    foreign_links {
-        SerdeError(serde_json::Error);
-        IoError(::std::io::Error);
-    }
-}
 
 fn log_status<S: Into<String>>(req: HttpRequest<AppState>, stmt: S) -> HttpResponse {
     let conn = req.state().pool.get().unwrap();

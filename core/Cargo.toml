@@ -30,10 +30,9 @@ schemamama_postgres = "=0.2.2"
 
 r2d2 = "0.8"
 r2d2_postgres = "0.14"
-persistent = "0.4"
 
 resolve = "0.2"
-error-chain = "0.12"
+failure = "0.1"
 
 [dev-dependencies]
 regex = "1.0"
