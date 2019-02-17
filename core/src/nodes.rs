@@ -402,7 +402,7 @@ enum InsertResult {
 fn node_insert(conn: &db::Connection, url: &str) -> InsertResult {
     match conn.execute(&format!("insert into nodes (url) values('{}')", url)) {
         Ok(_) => InsertResult::Inserted,
-        Err(db::Error(db::ErrorKind::UniqueViolation, _)) => InsertResult::Existing,
+        Err(db::Error::UniqueViolation) => InsertResult::Existing,
         Err(err) => InsertResult::Error(convert::From::from(err)),
     }
 }

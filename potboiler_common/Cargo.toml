@@ -20,7 +20,6 @@ serde_derive = "1.0"
 serde_json = "1.0"
 log = "*"
 hybrid-clocks = { version = "^0.3.4", features = ["serde"] }
-error-chain = "0.12"
 regex = "*"
 failure = "0.1"
 

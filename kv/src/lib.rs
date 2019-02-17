@@ -108,7 +108,7 @@ fn get_key(path: Path<GetKeyPath>, state: State<AppState>) -> Result<HttpRespons
                     }
                     Ok(HttpResponse::Ok().json(items))
                 }
-                Err(db::Error(db::ErrorKind::NoSuchTable, _)) => Err(KvError::NoSuchTable {
+                Err(db::Error::NoSuchTable) => Err(KvError::NoSuchTable {
                     name: path.table.clone(),
                 }),
 
@@ -130,7 +130,7 @@ fn get_key(path: Path<GetKeyPath>, state: State<AppState>) -> Result<HttpRespons
                     Ok(HttpResponse::Ok().body(value))
                 }
             }
-            Err(db::Error(db::ErrorKind::NoSuchTable, _)) => Err(KvError::NoSuchTable {
+            Err(db::Error::NoSuchTable) => Err(KvError::NoSuchTable {
                 name: path.table.clone(),
             }),
             Err(err) => {
