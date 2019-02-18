@@ -2,6 +2,7 @@ FROM rust:1.32-slim
 RUN cargo install cargo-watch
 RUN apt-get update && apt-get install -y libssl-dev pkg-config
 WORKDIR /code/pigtail
+ADD core/Cargo.* /code/core/
 ADD pigtail/Cargo.* /code/pigtail/
 ADD potboiler_common/Cargo.* /code/potboiler_common/
 RUN cargo fetch
