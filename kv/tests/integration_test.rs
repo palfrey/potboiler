@@ -2,7 +2,7 @@ use actix_web::{server, test::TestServer};
 use failure::{Error, Fail};
 use kv;
 use potboiler;
-use potboiler_common::{db, server_id, ServerThread};
+use potboiler_common::{server_id, ServerThread};
 use pretty_assertions::assert_eq;
 use reqwest::{Client, StatusCode};
 use serde_json::json;
@@ -19,13 +19,6 @@ enum IntegrationError {
     },
 }
 
-fn wipe_db(pool: &db::Pool) -> Result<(), Error> {
-    let conn = pool.get()?;
-    conn.execute("DROP SCHEMA public CASCADE")?;
-    conn.execute("CREATE SCHEMA public")?;
-    Ok(())
-}
-
 fn boot_potboiler() -> Result<ServerThread, Error> {
     let _ = env_logger::try_init();
     let pool = potboiler::db_setup()?;
@@ -39,7 +32,7 @@ fn boot_potboiler() -> Result<ServerThread, Error> {
 fn test_setup() -> Result<(ServerThread, TestServer), Error> {
     let _ = env_logger::try_init();
     let pool = kv::db_setup().unwrap();
-    wipe_db(&pool)?;
+    pool.wipe_db()?;
     let pb_server = boot_potboiler()?;
     env::set_var("SERVER_URL", dbg!("http://localhost:8000/log"));
     let client = reqwest::Client::new();

@@ -380,4 +380,11 @@ impl Pool {
             Pool::TestPool(ref conn) => Ok(Connection::Test(conn.clone())),
         }
     }
+
+    pub fn wipe_db(&self) -> Result<(), Error> {
+        let conn = self.get()?;
+        conn.execute("DROP SCHEMA public CASCADE")?;
+        conn.execute("CREATE SCHEMA public")?;
+        Ok(())
+    }
 }

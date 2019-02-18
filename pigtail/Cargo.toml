@@ -26,3 +26,10 @@ log4rs = {version = "0.8", features=["yaml_format"]}
 lazy_static = "1"
 time = "0.1"
 failure = "0.1"
+
+[dev-dependencies]
+serial_test = "*"
+serial_test_derive = "*"
+env_logger = "0.6"
+potboiler = { path = "../core" }
+regex = "1.0"

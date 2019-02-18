@@ -222,7 +222,7 @@ pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<(), Error> {
     debug!("Inserting {:?}", log);
     if let Some(prev) = log.prev {
         conn.execute(&format!(
-            "update log set next = {} where owner = '{}' and id = '{}'",
+            "update log set next = '{}' where owner = '{}' and id = '{}'",
             &log.id, &log.owner, &prev
         ))?;
     }
