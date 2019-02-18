@@ -21,7 +21,7 @@ fn main() -> Result<(), Error> {
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = pg::get_pool(db_url).unwrap();
     let app_state = pigtail::AppState::new(pool)?;
-    let port: u16 = u16::from_str_radix(&env::var("PORT").unwrap_or("8000".to_string()), 10)?;
+    let port: u16 = u16::from_str_radix(&env::var("PORT").unwrap_or_else(|_| "8000".to_string()), 10)?;
     server::new(move || pigtail::app_router(app_state.clone()).unwrap().finish())
         .bind(("0.0.0.0", port))
         .unwrap()
