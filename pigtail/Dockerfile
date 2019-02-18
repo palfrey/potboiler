@@ -1,6 +1,7 @@
-FROM palfrey/rustup-watchexec:1.31.0
-WORKDIR /code/pigtail
+FROM rust:1.32-slim
+RUN cargo install cargo-watch
 RUN apt-get update && apt-get install -y libssl-dev pkg-config
+WORKDIR /code/pigtail
 ADD pigtail/Cargo.* /code/pigtail/
 ADD potboiler_common/Cargo.* /code/potboiler_common/
 RUN cargo fetch
