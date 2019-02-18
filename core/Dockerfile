@@ -8,4 +8,4 @@ RUN cargo fetch
 ADD . /code
 RUN cargo build
 ENV RUST_BACKTRACE=1
-CMD cargo build && ../wait-for-it.sh --timeout=0 postgres:5432 -s -- cargo watch -x test
+CMD cargo build && ../wait-for-it.sh --timeout=0 postgres:5432 -s -- cargo watch -x run
