@@ -3,11 +3,11 @@ use env_logger;
 use failure::{Error, Fail};
 use potboiler;
 use potboiler_common::{pg, server_id, ServerThread};
-use reqwest::{Client, header};
+use regex::Regex;
+use reqwest::{header, Client};
 use serde_json::json;
 use serial_test_derive::serial;
-use std::{str, env};
-use regex::Regex;
+use std::{env, str};
 
 #[derive(Debug, Fail)]
 enum IntegrationError {
