@@ -17,14 +17,9 @@ pub enum Error {
     #[fail(display = "NoTestExecute")]
     NoTestExecute { cmd: String },
     #[fail(display = "PostgresError")]
-    PostgresError {
-        query: String,
-        cause: String,
-    },
+    PostgresError { query: String, cause: String },
     #[fail(display = "R2D2Error")]
-    R2D2Error {
-        cause: String,
-    },
+    R2D2Error { cause: String },
     #[fail(display = "NoSuchTable")]
     NoSuchTable,
 }
@@ -347,7 +342,7 @@ fn convert_postgres_error(e: postgres_shared::error::Error, query: &str) -> Erro
     } else {
         Error::PostgresError {
             query: query.to_string(),
-            cause: e.to_string()
+            cause: e.to_string(),
         }
     }
 }
@@ -379,7 +374,7 @@ impl Pool {
     pub fn get(&self) -> Result<Connection, Error> {
         match *self {
             Pool::Postgres(ref pool) => {
-                let conn = pool.get().map_err(|e| Error::R2D2Error{cause: e.to_string()})?;
+                let conn = pool.get().map_err(|e| Error::R2D2Error { cause: e.to_string() })?;
                 Ok(Connection::Postgres(conn))
             }
             Pool::TestPool(ref conn) => Ok(Connection::Test(conn.clone())),
