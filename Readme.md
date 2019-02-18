@@ -37,7 +37,7 @@ For subsequent nodes, add 100 to the port numbers (e.g. 8100-2 for the second, 8
    - `curl http://localhost:8000/log -d "{\"foo\":\"bar\", \"dfdsf\":\"sdfdsfs\"}"` => redirect to "get log item"
 
 - Register for log updates
-  - `curl http://localhost:8000/log/register -d "{\"url\": \"[URL to send msgs to]\"}"` => 204
+  - `curl http://localhost:8000/log/register -d "{\"url\": \"[URL to send msgs to]\"}"` => 201
 
 - Deregister for log updates
   - `curl http://localhost:8000/log/deregister -d "{\"url\": \"[URL to send msgs to]\"}"` => 204 if existed, otherwise 404
@@ -46,7 +46,7 @@ For subsequent nodes, add 100 to the port numbers (e.g. 8100-2 for the second, 8
   - `curl http://localhost:8000/nodes` => `["http://core1:8000","http://core0:8000"]`
 
 - Add new other node
-  - `curl http://localhost:8000/nodes -d "{\"url\": \"[Potboiler node root]\"}"` => 204
+  - `curl http://localhost:8000/nodes -d "{\"url\": \"[Potboiler node root]\"}"` => 201
 
 ### KV
 

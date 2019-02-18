@@ -5,9 +5,14 @@ authors = ["Tom Parker <palfrey@tevp.net>"]
 edition = "2018"
 
 [dependencies]
-iron = "0.6"
+actix-web = "0.7"
+actix-net = "0.2"
+actix = "0.7"
+futures = "0.1"
+
 uuid = {version = "0.5", features=["use_std","v4","serde"]} # required by Postgres
 postgres = {features=["with-uuid","with-serde_json"], version="0.15"}
+postgres-shared = "0.4"
 r2d2 = "0.8"
 r2d2_postgres = "0.14"
 serde = "1.0"
@@ -15,11 +20,8 @@ serde_derive = "1.0"
 serde_json = "1.0"
 log = "*"
 hybrid-clocks = { version = "^0.3.4", features = ["serde"] }
-router = "0.6"
-error-chain = "0.12"
 regex = "*"
-persistent = "0.4"
-reqwest = "*"
+failure = "0.1"
 
 [lib]
 name = "potboiler_common"

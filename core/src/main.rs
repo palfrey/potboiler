@@ -8,42 +8,21 @@
     future_incompatible
 )]
 
-use error_chain::{
-    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
-    error_chain,
-    error_chain_processing,
-    impl_error_chain_kind,
-    impl_error_chain_processed,
-    impl_extract_backtrace,
-    quick_main,
-};
-use iron::{self, Iron};
+use actix_web::server;
+use failure::Error;
 use log::info;
 use log4rs;
-use persistent::{self, Read as PRead};
 use potboiler;
-use potboiler_common::{self, server_id};
+use potboiler_common::server_id;
 
-error_chain! {
-    errors {
-        IronError
-    }
-    links {
-        PotboilerError(potboiler::Error, potboiler::ErrorKind);
-    }
-    foreign_links {
-        LogError(log4rs::Error);
-    }
-}
-
-quick_main!(|| -> Result<()> {
+pub fn main() -> Result<(), Error> {
     log4rs::init_file("log.yaml", Default::default())?;
     let pool = potboiler::db_setup()?;
-    let mut chain = potboiler::app_router(pool)?;
-    chain.link_before(PRead::<server_id::ServerId>::one(server_id::setup()));
+    let app_state = potboiler::AppState::new(pool, server_id::setup())?;
+    server::new(move || potboiler::app_router(app_state.clone()).unwrap().finish())
+        .bind("0.0.0.0:8000")
+        .unwrap()
+        .run();
     info!("Potboiler booted");
-    Iron::new(chain)
-        .http("0.0.0.0:8000")
-        .map_err(|e| Error::with_chain(e, ErrorKind::IronError))?;
     Ok(())
-});
+}

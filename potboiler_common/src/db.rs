@@ -1,13 +1,6 @@
-use error_chain::{
-    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
-    error_chain,
-    error_chain_processing,
-    impl_error_chain_kind,
-    impl_error_chain_processed,
-    impl_extract_backtrace,
-};
-use iron::typemap::Key;
+use failure::Fail;
 use postgres;
+use postgres_shared;
 use r2d2;
 use r2d2_postgres;
 use regex;
@@ -15,30 +8,21 @@ use serde_json;
 use std::{collections::HashMap, convert::From, fmt, iter};
 use uuid::Uuid;
 
-error_chain! {
-    errors {
-        UniqueViolation
-        NoTestQuery(cmd: String)
-        NoTestExecute(cmd: String)
-        PostgresError(cmd: String)
-        NoSuchTable
-    }
-    foreign_links {
-        R2D2Error(r2d2::Error);
-    }
+#[derive(Debug, Fail, Clone)]
+pub enum Error {
+    #[fail(display = "UniqueViolation")]
+    UniqueViolation,
+    #[fail(display = "NoTestQuery")]
+    NoTestQuery { cmd: String },
+    #[fail(display = "NoTestExecute")]
+    NoTestExecute { cmd: String },
+    #[fail(display = "PostgresError")]
+    PostgresError { query: String, cause: String },
+    #[fail(display = "R2D2Error")]
+    R2D2Error { cause: String },
+    #[fail(display = "NoSuchTable")]
+    NoSuchTable,
 }
-
-impl Clone for Error {
-    fn clone(&self) -> Error {
-        match self {
-            Error(ErrorKind::PostgresError(cmd), _) => Error::from(ErrorKind::PostgresError(cmd.clone())),
-            Error(ErrorKind::NoSuchTable, _) => Error::from(ErrorKind::NoSuchTable),
-            _ => unimplemented!(),
-        }
-    }
-}
-
-unsafe impl Sync for Error {}
 
 #[derive(Debug)]
 pub struct HexSlice(Vec<u8>);
@@ -203,7 +187,7 @@ impl<'a> Row<'a> {
         }
     }
     #[allow(clippy::needless_pass_by_value)]
-    pub fn get_opt<T, R>(&self, _id: R) -> Option<Result<T>>
+    pub fn get_opt<T, R>(&self, _id: R) -> Option<Result<T, Error>>
     where
         T: FromSql,
         R: RowIndex,
@@ -301,8 +285,8 @@ impl<'a> iter::IntoIterator for &'a Rows {
 
 #[derive(Debug, Clone, Default)]
 pub struct TestConnection {
-    query_results: Vec<(regex::Regex, Result<Vec<TestRow>>)>,
-    execute_results: Vec<(regex::Regex, Result<u64>)>,
+    query_results: Vec<(regex::Regex, Result<Vec<TestRow>, Error>)>,
+    execute_results: Vec<(regex::Regex, Result<u64, Error>)>,
 }
 
 impl TestConnection {
@@ -317,31 +301,31 @@ impl TestConnection {
         self.query_results.push((regex::Regex::new(cmd).unwrap(), Ok(results)));
     }
 
-    pub fn add_failed_query(&mut self, cmd: &str, err: ErrorKind) {
-        self.query_results
-            .push((regex::Regex::new(cmd).unwrap(), Err(Error::from(err))));
-    }
+    // pub fn add_failed_query(&mut self, cmd: &str, err: ErrorKind) {
+    //     self.query_results
+    //         .push((regex::Regex::new(cmd).unwrap(), Err(Error::from(err))));
+    // }
 
     pub fn add_test_execute(&mut self, cmd: &str, results: u64) {
         self.execute_results
             .push((regex::Regex::new(cmd).unwrap(), Ok(results)));
     }
 
-    fn get_rows(&self, cmd: &str) -> Result<Vec<TestRow>> {
+    fn get_rows(&self, cmd: &str) -> Result<Vec<TestRow>, Error> {
         for &(ref patt, ref res) in self.query_results.iter() {
             if patt.is_match(cmd) {
                 return res.clone();
             }
         }
-        Err(Error::from(ErrorKind::NoTestQuery(String::from(cmd))))
+        Err(Error::NoTestQuery { cmd: String::from(cmd) })
     }
-    fn execute(&self, cmd: &str) -> Result<u64> {
+    fn execute(&self, cmd: &str) -> Result<u64, Error> {
         for &(ref patt, ref res) in self.execute_results.iter() {
             if patt.is_match(cmd) {
                 return res.clone();
             }
         }
-        Err(Error::from(ErrorKind::NoTestExecute(String::from(cmd))))
+        Err(Error::NoTestExecute { cmd: String::from(cmd) })
     }
 }
 
@@ -352,22 +336,29 @@ pub enum Connection {
     Test(TestConnection),
 }
 
+fn convert_postgres_error(e: postgres_shared::error::Error, query: &str) -> Error {
+    if *e.code().unwrap() == postgres_shared::error::UNIQUE_VIOLATION {
+        Error::UniqueViolation
+    } else {
+        Error::PostgresError {
+            query: query.to_string(),
+            cause: e.to_string(),
+        }
+    }
+}
+
 impl<'conn> Connection {
-    pub fn query(&'conn self, query: &str) -> Result<Rows> {
+    pub fn query(&'conn self, query: &str) -> Result<Rows, Error> {
         match *self {
-            Connection::Postgres(ref conn) => {
-                Ok(Rows::Postgres(conn.query(query, &[]).map_err(|e| {
-                    Error::with_chain(e, ErrorKind::PostgresError(query.to_string()))
-                })?))
-            }
+            Connection::Postgres(ref conn) => Ok(Rows::Postgres(
+                conn.query(query, &[]).map_err(|e| convert_postgres_error(e, query))?,
+            )),
             Connection::Test(ref conn) => Ok(Rows::Test(conn.get_rows(query)?)),
         }
     }
-    pub fn execute(&self, equery: &str) -> Result<u64> {
+    pub fn execute(&self, equery: &str) -> Result<u64, Error> {
         match *self {
-            Connection::Postgres(ref conn) => conn
-                .execute(equery, &[])
-                .map_err(|e| Error::with_chain(e, ErrorKind::PostgresError(equery.to_string()))),
+            Connection::Postgres(ref conn) => conn.execute(equery, &[]).map_err(|e| convert_postgres_error(e, equery)),
             Connection::Test(ref conn) => conn.execute(equery),
         }
     }
@@ -380,40 +371,20 @@ pub enum Pool {
 }
 
 impl Pool {
-    pub fn get(&self) -> Result<Connection> {
+    pub fn get(&self) -> Result<Connection, Error> {
         match *self {
             Pool::Postgres(ref pool) => {
-                let conn = pool.get()?;
+                let conn = pool.get().map_err(|e| Error::R2D2Error { cause: e.to_string() })?;
                 Ok(Connection::Postgres(conn))
             }
             Pool::TestPool(ref conn) => Ok(Connection::Test(conn.clone())),
         }
     }
-}
 
-#[derive(Clone, Copy, Debug)]
-pub struct PoolKey;
-
-impl Key for PoolKey {
-    type Value = Pool;
-}
-
-// Gets a connection from the pool from the given request or returns a 500
-#[macro_export]
-macro_rules! get_db_connection {
-    ($req:expr) => {
-        match $req.extensions.get::<persistent::Read<db::PoolKey>>() {
-            Some(pool) => match pool.get() {
-                Ok(conn) => conn,
-                Err(_) => {
-                    println!("Couldn't get a connection to pg!");
-                    return Ok(Response::with(status::InternalServerError));
-                }
-            },
-            None => {
-                println!("Couldn't get the pg pool from the request!");
-                return Ok(Response::with(status::InternalServerError));
-            }
-        }
-    };
+    pub fn wipe_db(&self) -> Result<(), Error> {
+        let conn = self.get()?;
+        conn.execute("DROP SCHEMA public CASCADE")?;
+        conn.execute("CREATE SCHEMA public")?;
+        Ok(())
+    }
 }

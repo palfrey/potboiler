@@ -9,24 +9,9 @@
     future_incompatible
 )]
 
-use error_chain::{
-    // FIXME: Need https://github.com/rust-lang-nursery/error-chain/pull/253
-    bail,
-    error_chain,
-    error_chain_processing,
-    impl_error_chain_kind,
-    impl_error_chain_processed,
-    impl_extract_backtrace,
-};
-use iron::{self, prelude::*};
-use log4rs;
-use logger::{self, Logger};
-use persistent::{self, Read as PRead, State};
-use postgres;
+use actix_web::{http::Method, App};
+use failure::{bail, Error, Fail};
 use potboiler_common::{self, clock, db, pg};
-use r2d2;
-use router::{self, Router};
-use schemamama;
 use std::env;
 
 mod logs;
@@ -34,56 +19,57 @@ mod nodes;
 mod notifications;
 mod schema;
 
-error_chain! {
-    errors {
-        MigrationsOnNonPostgres(pool: db::Pool)
-    }
-    links {
-        NodeError(nodes::Error, nodes::ErrorKind);
-        DbError(db::Error, db::ErrorKind);
-    }
-    foreign_links {
-        PostgresError(r2d2::Error);
-        SchemammaError(schemamama::Error<postgres::Error>);
-        LogError(log4rs::Error);
+#[derive(Debug, Fail)]
+enum CoreError {
+    #[fail(display = "migration on non-postgres: {:?}", pool)]
+    MigrationsOnNonPostgres { pool: db::Pool },
+}
+
+#[derive(Debug, Clone)]
+pub struct AppState {
+    server_id: uuid::Uuid,
+    clock: clock::SyncClock,
+    pool: db::Pool,
+    nodes: nodes::NodeList,
+    notifications: notifications::Notifications,
+}
+
+impl AppState {
+    pub fn new(pool: db::Pool, server: uuid::Uuid) -> Result<AppState, Error> {
+        let clock = clock::SyncClock::new();
+        Ok(AppState {
+            server_id: server,
+            clock: clock.clone(),
+            pool: pool.clone(),
+            nodes: nodes::initial_nodes(pool.clone(), clock.clone())?,
+            notifications: notifications::Notifications::new(&pool.get().unwrap()),
+        })
     }
 }
 
-pub fn app_router(pool: db::Pool) -> Result<Chain> {
-    let (logger_before, logger_after) = Logger::new(None);
-    let mut router = Router::new();
-    router.get("/log", logs::log_lasts, "last logs");
-    router.post("/log", logs::new_log, "new log");
-    router.post("/log/other", logs::other_log, "add from other");
-    router.get("/log/first", logs::log_firsts, "get first logs");
-    router.get("/log/:entry_id", logs::get_log, "get specific log");
-    router.post("/log/register", notifications::log_register, "register log listener");
-    router.post(
-        "/log/deregister",
-        notifications::log_deregister,
-        "deregister log listener",
-    );
-    router.get("/nodes", nodes::node_list, "list other nodes");
-    router.post("/nodes", nodes::node_add, "add new node");
-    router.delete("/nodes", nodes::node_remove, "remove node");
-    let mut chain = Chain::new(router);
-    chain.link_before(logger_before);
-    chain.link_after(logger_after);
-    let conn = pool.get()?;
-    chain.link_before(State::<notifications::Notifications>::one(
-        notifications::init_notifiers(&conn),
-    ));
-    let clock_state = clock::init_clock();
-    chain.link_before(State::<nodes::Nodes>::one(nodes::initial_nodes(
-        pool.clone(),
-        clock_state.clock_state.clone(),
-    )?));
-    chain.link_before(clock_state);
-    chain.link(PRead::<db::PoolKey>::both(pool));
-    Ok(chain)
+pub fn app_router(state: AppState) -> Result<App<AppState>, Error> {
+    Ok(App::with_state(state)
+        .resource("/log", |r| {
+            r.method(Method::GET).with(logs::log_lasts);
+            r.method(Method::POST).with(logs::new_log);
+        })
+        .resource("/log/other", |r| r.method(Method::POST).with(logs::other_log))
+        .resource("/log/first", |r| r.method(Method::GET).with(logs::log_firsts))
+        .resource("/log/register", |r| {
+            r.method(Method::POST).with(notifications::log_register)
+        })
+        .resource("/log/deregister", |r| {
+            r.method(Method::POST).with(notifications::log_deregister)
+        })
+        .resource("/log/{entry_id}", |r| r.method(Method::GET).with(logs::get_log))
+        .resource("/nodes", |r| {
+            r.method(Method::GET).with(nodes::node_list);
+            r.method(Method::POST).with(nodes::node_add);
+            r.method(Method::DELETE).with(nodes::node_remove);
+        }))
 }
 
-pub fn db_setup() -> Result<db::Pool> {
+pub fn db_setup() -> Result<db::Pool, Error> {
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = pg::get_pool(db_url)?;
     if let db::Pool::Postgres(pg_pool) = pool {
@@ -91,57 +77,55 @@ pub fn db_setup() -> Result<db::Pool> {
         schema::up(&conn)?;
         Ok(db::Pool::Postgres(pg_pool))
     } else {
-        bail!(ErrorKind::MigrationsOnNonPostgres(pool));
+        bail!(CoreError::MigrationsOnNonPostgres { pool });
     }
 }
 
 #[cfg(test)]
 mod test {
-    use iron_test::{request, response::extract_body_to_string};
-
-    use iron::{headers, status::Status, Headers};
-    use serde_json;
-
-    use regex::Regex;
-
-    use super::{app_router, PRead};
+    use super::app_router;
+    use actix_web::{http::header, http::Method, http::StatusCode, test, HttpMessage};
     use potboiler_common::server_id;
+    use regex::Regex;
+    use serde_json;
+    use std::str;
 
     fn test_route(path: &str, expected: &str) {
+        let _ = env_logger::try_init();
         let mut conn = super::db::TestConnection::new();
         conn.add_test_query("select url from notifications", vec![]);
         conn.add_test_query("select url from nodes", vec![]);
         conn.add_test_query("select id, owner from log where next is null", vec![]);
         conn.add_test_query("select id, owner from log where prev is null", vec![]);
         let pool = super::db::Pool::TestPool(conn);
-        let response = request::get(
-            &format!("http://localhost:8000/{}", path),
-            Headers::new(),
-            &app_router(pool).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(response.status.unwrap(), Status::Ok);
-        let result = extract_body_to_string(response);
-        assert_eq!(result, expected);
+        let app_state = super::AppState::new(pool, server_id::test()).unwrap();
+        let mut server = test::TestServer::with_factory(move || app_router(app_state.clone()).unwrap());
+        let request = server.client(Method::GET, path).finish().unwrap();
+        let response = server.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = server.execute(response.body()).unwrap();
+        let body = str::from_utf8(&bytes).unwrap();
+        assert_eq!(body, expected);
     }
 
     #[test]
     fn test_log() {
-        test_route("log", "{}");
+        test_route("/log", "{}");
     }
 
     #[test]
     fn test_nodes() {
-        test_route("nodes", "[]");
+        test_route("/nodes", "[]");
     }
 
     #[test]
     fn test_log_first() {
-        test_route("log/first", "{}");
+        test_route("/log/first", "{}");
     }
 
     #[test]
     fn test_new_log() {
+        let _ = env_logger::try_init();
         let mut conn = super::db::TestConnection::new();
         conn.add_test_query("select url from notifications", vec![]);
         conn.add_test_query("select url from nodes", vec![]);
@@ -161,18 +145,23 @@ mod test {
             1,
         );
         let pool = super::db::Pool::TestPool(conn);
-        let mut router = app_router(pool).unwrap();
-        router.link_before(PRead::<server_id::ServerId>::one(server_id::test()));
-        let response = request::post("http://localhost:8000/log", Headers::new(), "{}", &router).unwrap();
-        assert_eq!(response.status.unwrap(), Status::Created);
+        let app_state = super::AppState::new(pool, server_id::test()).unwrap();
+        let mut server = test::TestServer::with_factory(move || app_router(app_state.clone()).unwrap());
+        let request = server
+            .client(Method::POST, "/log")
+            .content_type("application/json")
+            .body("{}")
+            .unwrap();
+        let response = server.execute(request.send()).unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let v: serde_json::Value = server.execute(response.json()).unwrap();
+
         let uuid = {
-            let re = Regex::new(r"http://localhost:8000/log/([a-z0-9-]+)").unwrap();
-            let url = String::from(response.headers.get::<headers::Location>().unwrap().as_str());
-            assert!(url.starts_with("http://localhost:8000/log/"));
+            let re = Regex::new(r"/log/([a-z0-9-]+)").unwrap();
+            let url = dbg!(response.headers()[header::LOCATION].to_str().unwrap());
+            assert!(url.starts_with("/log/"));
             String::from(re.captures(&url).unwrap().get(1).unwrap().as_str())
         };
-        let result = extract_body_to_string(response);
-        let v: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(v.is_object());
         assert_eq!(v["id"].as_str().unwrap(), uuid);
     }
