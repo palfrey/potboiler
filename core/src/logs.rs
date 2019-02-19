@@ -129,6 +129,12 @@ pub fn get_log(query: Path<String>, state: State<AppState>) -> HttpResponse {
         let row = results.get(0);
         let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
         let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).unwrap();
+        let deps = conn
+            .query(&format!("select depends_on from dependency where id = '{}'", query_id))
+            .unwrap()
+            .iter()
+            .map(|r| r.get("depends_on"))
+            .collect();
         let log = Log {
             id: query_id,
             owner: row.get("owner"),
@@ -136,7 +142,7 @@ pub fn get_log(query: Path<String>, state: State<AppState>) -> HttpResponse {
             next: row.get_with_null("next"),
             data: row.get("data"),
             when,
-            dependencies: Vec::new(),
+            dependencies: deps,
         };
         HttpResponse::Ok().json(log)
     }

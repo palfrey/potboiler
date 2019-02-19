@@ -13,6 +13,7 @@ fn test_setup() -> TestServer {
     let _ = env_logger::try_init();
     let pool = potboiler::db_setup().unwrap();
     let conn = pool.get().unwrap();
+    conn.execute("delete from dependency").unwrap();
     conn.execute("delete from log").unwrap();
     conn.execute("delete from nodes").unwrap();
     let app_state = potboiler::AppState::new(pool, server_id::test()).unwrap();
@@ -57,9 +58,7 @@ fn test_create_dependency() {
     let test_server = test_setup();
     let client = Client::new();
     let mut response = client
-        .post(&test_server.url(
-            "/log?dependency=feedface-dead-feed-face-deadfacedead&dependency=feedface-dead-feed-face-deadfacedead",
-        ))
+        .post(&test_server.url("/log?dependency=feedface-dead-feed-face-deadfacedead"))
         .json(&{})
         .send()
         .unwrap();
@@ -71,10 +70,10 @@ fn test_create_dependency() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let v: Value = dbg!(serde_json::from_str(&response.text().unwrap()).unwrap());
-    assert!(v
-        .as_object()
-        .unwrap()
-        .contains_key("feedface-dead-feed-face-deadfacedead"));
+    assert!(
+        dbg!(v.as_object().unwrap().get("dependencies").unwrap().as_array().unwrap())
+            .contains(&json!("feedface-dead-feed-face-deadfacedead"))
+    );
 }
 
 #[test]

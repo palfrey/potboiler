@@ -238,6 +238,12 @@ pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<(), Error> {
             .unwrap_or_else(|| String::from("NULL")),
         &raw_timestamp.sql()
     ))?;
+    for dep in &log.dependencies {
+        conn.execute(&format!(
+            "insert into dependency (id, depends_on) VALUES ('{}', '{}')",
+            &log.id, dep
+        ))?;
+    }
     Ok(())
 }
 
