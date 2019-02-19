@@ -1,4 +1,5 @@
 use failure::Fail;
+use log::warn;
 use postgres;
 use postgres_shared;
 use r2d2;
@@ -186,13 +187,34 @@ impl<'a> Row<'a> {
             Row::Test(ref rows) => rows.get(id),
         }
     }
-    #[allow(clippy::needless_pass_by_value)]
-    pub fn get_opt<T, R>(&self, _id: R) -> Option<Result<T, Error>>
+
+    pub fn get_opt<T, R>(&self, id: R) -> Option<Result<T, Error>>
     where
-        T: FromSql,
-        R: RowIndex,
+        T: FromSql + postgres::types::FromSql,
+        R: RowIndex + postgres::rows::RowIndex + fmt::Display + fmt::Debug,
+        TestRow: GetRow<T>,
     {
-        unimplemented!();
+        match *self {
+            Row::Postgres(ref rows) => match rows.get_opt(id) {
+                None => None,
+                Some(val) => Some(val.map_err(|e| convert_postgres_error(e, ""))),
+            },
+            Row::Test(ref rows) => Some(Ok(rows.get(id))),
+        }
+    }
+
+    pub fn get_with_null<T>(&self, index: &str) -> Option<T>
+    where
+        T: FromSql + postgres::types::FromSql,
+        TestRow: GetRow<T>,
+    {
+        match self.get_opt(index) {
+            Some(val) => match val {
+                Ok(val) => Some(val),
+                Err(_) => None,
+            },
+            None => None,
+        }
     }
 }
 
@@ -337,13 +359,15 @@ pub enum Connection {
 }
 
 fn convert_postgres_error(e: postgres_shared::error::Error, query: &str) -> Error {
-    if *e.code().unwrap() == postgres_shared::error::UNIQUE_VIOLATION {
-        Error::UniqueViolation
-    } else {
-        Error::PostgresError {
-            query: query.to_string(),
-            cause: e.to_string(),
+    warn!("Error: {:?}", &e);
+    if let Some(dberror) = e.as_db() {
+        if dberror.code == postgres_shared::error::UNIQUE_VIOLATION {
+            return Error::UniqueViolation;
         }
+    }
+    Error::PostgresError {
+        query: query.to_string(),
+        cause: e.to_string(),
     }
 }
 

@@ -3,7 +3,7 @@ use actix_web::{HttpRequest, HttpResponse, Json, Path, State};
 use failure::{bail, Error, Fail};
 use hybrid_clocks;
 use log::info;
-use potboiler_common::{db, types::Log};
+use potboiler_common::types::Log;
 use serde_derive::Serialize;
 use serde_json::{self, Map, Value};
 use std::{io::Cursor, sync::Arc};
@@ -111,19 +111,6 @@ pub fn other_log(log: Json<Log>, state: State<AppState>) -> HttpResponse {
     HttpResponse::Ok().body("Added")
 }
 
-fn get_with_null<T>(row: &db::Row, index: &str) -> Option<T>
-where
-    T: db::FromSql,
-{
-    match row.get_opt(index) {
-        Some(val) => match val {
-            Ok(val) => Some(val),
-            Err(_) => None,
-        },
-        None => None,
-    }
-}
-
 pub fn get_log(query: Path<String>, state: State<AppState>) -> HttpResponse {
     let query_id = match Uuid::parse_str(&query) {
         Ok(val) => val,
@@ -132,7 +119,7 @@ pub fn get_log(query: Path<String>, state: State<AppState>) -> HttpResponse {
     let conn = state.pool.get().unwrap();
     let results = conn
         .query(&format!(
-            "select owner, next, prev, data from log where id = '{}'",
+            "select owner, next, prev, data, hlc_tstamp from log where id = '{}'",
             query_id
         ))
         .unwrap();
@@ -145,8 +132,8 @@ pub fn get_log(query: Path<String>, state: State<AppState>) -> HttpResponse {
         let log = Log {
             id: query_id,
             owner: row.get("owner"),
-            prev: get_with_null(&row, "prev"),
-            next: get_with_null(&row, "next"),
+            prev: row.get_with_null("prev"),
+            next: row.get_with_null("next"),
             data: row.get("data"),
             when,
             dependencies: Vec::new(),

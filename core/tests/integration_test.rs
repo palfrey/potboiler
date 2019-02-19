@@ -65,7 +65,10 @@ fn test_create_dependency() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let new_log: NewLogResponse = response.json().unwrap();
-    response = client.get(&test_server.url("/log")).send().unwrap();
+    response = client
+        .get(&test_server.url(&format!("/log/{}", new_log.id)))
+        .send()
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let v: Value = dbg!(serde_json::from_str(&response.text().unwrap()).unwrap());
     assert!(v
