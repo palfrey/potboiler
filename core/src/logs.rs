@@ -73,7 +73,7 @@ pub fn new_log(state: State<AppState>, json: Json<serde_json::Value>) -> HttpRes
 pub fn other_log(log: Json<Log>, state: State<AppState>) -> HttpResponse {
     let conn = state.pool.get().unwrap();
     let existing = conn
-        .query(&format!("select id from log where id = {} limit 1", &log.id))
+        .query(&format!("select id from log where id = '{}' limit 1", &log.id))
         .expect("bad existing query");
     if existing.is_empty() {
         nodes::insert_log(&conn, &log).unwrap();

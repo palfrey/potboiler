@@ -1,5 +1,6 @@
 use actix_web::test::TestServer;
 use env_logger;
+use hybrid_clocks::Clock;
 use potboiler;
 use potboiler_common::server_id;
 use pretty_assertions::assert_eq;
@@ -42,6 +43,32 @@ fn test_create() {
         .as_object()
         .unwrap()
         .contains_key("feedface-dead-feed-face-deadfacedead"));
+}
+
+#[test]
+#[serial]
+fn test_other_log() {
+    let test_server = test_setup();
+    let client = Client::new();
+    let timestamp = Clock::wall().now();
+    let id = uuid::Uuid::new_v4();
+    let owner = uuid::Uuid::new_v4();
+    let log = json!({
+        "id": &id,
+        "owner": &owner,
+        "prev": null,
+        "next": null,
+        "when": timestamp,
+        "data": {}
+    });
+    let mut response = client.post(&test_server.url("/log/other")).json(&log).send().unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    response = client.get(&test_server.url("/log")).send().unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let v: Value = dbg!(serde_json::from_str(&response.text().unwrap()).unwrap());
+    let objv = v.as_object().unwrap();
+    assert!(objv.contains_key(&owner.to_string()));
+    assert_eq!(objv[&owner.to_string()], id.to_string());
 }
 
 #[test]
