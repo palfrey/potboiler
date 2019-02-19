@@ -67,4 +67,5 @@ pub struct Log {
     pub next: Option<Uuid>,
     pub when: Timestamp<WallT>,
     pub data: serde_json::Value,
+    pub dependencies: Vec<Uuid>,
 }

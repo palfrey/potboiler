@@ -1,12 +1,25 @@
 use crate::{nodes, AppState};
 use actix_web::{HttpRequest, HttpResponse, Json, Path, State};
+use failure::{bail, Error, Fail};
 use hybrid_clocks;
 use log::info;
 use potboiler_common::{db, types::Log};
 use serde_derive::Serialize;
 use serde_json::{self, Map, Value};
 use std::{io::Cursor, sync::Arc};
-use uuid::Uuid;
+use url::form_urlencoded;
+use uuid::{self, Uuid};
+
+#[derive(Debug, Fail)]
+enum LogsError {
+    #[fail(display = "Bad query key: {}", name)]
+    BadQueryKey { name: String },
+    #[fail(display = "Bad dependency uuid")]
+    BadDepUuid {
+        #[cause]
+        cause: uuid::ParseError,
+    },
+}
 
 fn log_status<S: Into<String>>(req: HttpRequest<AppState>, stmt: S) -> HttpResponse {
     let conn = req.state().pool.get().unwrap();
@@ -33,12 +46,23 @@ struct NewLogResponse {
     id: Uuid,
 }
 
-pub fn new_log(state: State<AppState>, json: Json<serde_json::Value>) -> HttpResponse {
+pub fn new_log(
+    state: State<AppState>,
+    json: Json<serde_json::Value>,
+    req: HttpRequest<AppState>,
+) -> Result<HttpResponse, Error> {
     let conn = state.pool.get().unwrap();
     let id = Uuid::new_v4();
     let hyphenated = id.hyphenated().to_string();
     let when = state.clock.get_timestamp();
     let server_id = state.server_id;
+    let mut dependencies: Vec<Uuid> = Vec::new();
+    for (name, value) in form_urlencoded::parse(req.query_string().as_bytes()) {
+        if name != "dependency" {
+            bail!(LogsError::BadQueryKey { name: name.to_string() });
+        }
+        dependencies.push(Uuid::parse_str(&value).map_err(|e| LogsError::BadDepUuid { cause: e })?);
+    }
     let results = conn
         .query(&format!(
             "select id from log where next is null and owner = '{}' limit 1",
@@ -59,15 +83,16 @@ pub fn new_log(state: State<AppState>, json: Json<serde_json::Value>) -> HttpRes
         next: None,
         when,
         data: json.clone(),
+        dependencies,
     };
     nodes::insert_log(&conn, &log).unwrap();
     let log_arc = Arc::new(log);
     state.notifications.notify_everyone(&log_arc);
     nodes::notify_everyone(state, &log_arc);
     let new_url = format!("/log/{}", &hyphenated);
-    HttpResponse::Created()
+    Ok(HttpResponse::Created()
         .header(actix_web::http::header::LOCATION, new_url.to_string())
-        .json(NewLogResponse { id })
+        .json(NewLogResponse { id }))
 }
 
 pub fn other_log(log: Json<Log>, state: State<AppState>) -> HttpResponse {
@@ -124,6 +149,7 @@ pub fn get_log(query: Path<String>, state: State<AppState>) -> HttpResponse {
             next: get_with_null(&row, "next"),
             data: row.get("data"),
             when,
+            dependencies: Vec::new(),
         };
         HttpResponse::Ok().json(log)
     }

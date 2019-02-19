@@ -4,8 +4,10 @@ use potboiler;
 use potboiler_common::server_id;
 use pretty_assertions::assert_eq;
 use reqwest::{Client, StatusCode};
+use serde_derive::Deserialize;
 use serde_json::{json, Value};
 use serial_test_derive::serial;
+use uuid::Uuid;
 
 fn test_setup() -> TestServer {
     let _ = env_logger::try_init();
@@ -27,6 +29,11 @@ fn test_empty_log() {
     assert_eq!(response.text().unwrap(), "{}");
 }
 
+#[derive(Deserialize)]
+struct NewLogResponse {
+    id: Uuid,
+}
+
 #[test]
 #[serial]
 fn test_create() {
@@ -35,6 +42,29 @@ fn test_create() {
     let mut response = client.post(&test_server.url("/log")).json(&{}).send().unwrap();
     println!("{:?}", &response);
     assert_eq!(response.status(), StatusCode::CREATED);
+    response = client.get(&test_server.url("/log")).send().unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let v: Value = dbg!(serde_json::from_str(&response.text().unwrap()).unwrap());
+    assert!(v
+        .as_object()
+        .unwrap()
+        .contains_key("feedface-dead-feed-face-deadfacedead"));
+}
+
+#[test]
+#[serial]
+fn test_create_dependency() {
+    let test_server = test_setup();
+    let client = Client::new();
+    let mut response = client
+        .post(&test_server.url(
+            "/log?dependency=feedface-dead-feed-face-deadfacedead&dependency=feedface-dead-feed-face-deadfacedead",
+        ))
+        .json(&{})
+        .send()
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let new_log: NewLogResponse = response.json().unwrap();
     response = client.get(&test_server.url("/log")).send().unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let v: Value = dbg!(serde_json::from_str(&response.text().unwrap()).unwrap());

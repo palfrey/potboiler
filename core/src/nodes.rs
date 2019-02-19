@@ -191,6 +191,7 @@ fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncCloc
                 prev: get_uuid_from_map(&current_entry, "prev"),
                 data: current_entry.get("data").ok_or(NodesError::NoDataKey)?.clone(),
                 when: clock_state.get_timestamp(),
+                dependencies: Vec::new(),
             };
             insert_log(conn, &log)?;
             if next.is_null() {
