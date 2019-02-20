@@ -23,6 +23,8 @@ pub enum Error {
     R2D2Error { cause: String },
     #[fail(display = "NoSuchTable")]
     NoSuchTable,
+    #[fail(display = "Value was NULL")]
+    NullValue,
 }
 
 #[derive(Debug)]
@@ -211,7 +213,8 @@ impl<'a> Row<'a> {
         match self.get_opt(index) {
             Some(val) => match val {
                 Ok(val) => Some(val),
-                Err(_) => None,
+                Err(Error::NullValue) => None,
+                Err(err) => panic!("{:?}", err),
             },
             None => None,
         }
@@ -359,12 +362,16 @@ pub enum Connection {
 }
 
 fn convert_postgres_error(e: postgres_shared::error::Error, query: &str) -> Error {
-    warn!("Error: {:?}", &e);
     if let Some(dberror) = e.as_db() {
         if dberror.code == postgres_shared::error::UNIQUE_VIOLATION {
             return Error::UniqueViolation;
         }
+    } else if let Some(converror) = e.as_conversion() {
+        if converror.is::<postgres::types::WasNull>() {
+            return Error::NullValue;
+        }
     }
+    warn!("Error: {:?}", &e);
     Error::PostgresError {
         query: query.to_string(),
         cause: e.to_string(),
