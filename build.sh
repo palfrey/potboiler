@@ -10,10 +10,12 @@ if [ "$PROJECT" = "docker" ]; then
 	python3 wait-for-http.py http://localhost:8000/log
 	python3 wait-for-http.py http://localhost:8001/kv/_config
 	docker-compose stop
-	docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
-	docker push potboiler/core
-	docker push potboiler/kv
-	docker push potboiler/pigtail
+	if [ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
+		docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+		docker push potboiler/core
+		docker push potboiler/kv
+		docker push potboiler/pigtail
+	fi
 	exit 0
 elif [ "$PROJECT" = "check" ]; then
 	rustup component add rustfmt-preview
