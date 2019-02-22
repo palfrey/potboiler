@@ -191,7 +191,13 @@ fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncCloc
                 prev: get_uuid_from_map(&current_entry, "prev"),
                 data: current_entry.get("data").ok_or(NodesError::NoDataKey)?.clone(),
                 when: clock_state.get_timestamp(),
-                dependencies: Vec::new(),
+                dependencies: current_entry.get("dependencies").map_or_else(Vec::new, |v| {
+                    v.as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|a| Uuid::parse_str(a.as_str().unwrap()).unwrap())
+                        .collect()
+                }),
             };
             insert_log(conn, &log)?;
             if next.is_null() {

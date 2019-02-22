@@ -217,7 +217,7 @@ fn test_create_blocked_dependency() {
     let new_log: NewLogResponse = response.json().unwrap();
 
     // Pause to do things
-    thread::sleep(time::Duration::from_millis(100));
+    thread::sleep(time::Duration::from_millis(500));
 
     assert_eq!(rs.requests.read().unwrap().len(), 0, "{:?} {:?}", new_log, rs.requests);
     make_log(&test_server, &log, StatusCode::OK);
