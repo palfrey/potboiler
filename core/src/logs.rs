@@ -47,7 +47,8 @@ struct NewLogResponse {
 }
 
 fn notify_everyone(state: &State<AppState>, log_arc: &Arc<Log>) {
-    nodes::notify_everyone(state, &log_arc); // always notify all nodes
+    // always notify all nodes
+    nodes::notify_everyone(state, log_arc);
 
     // notifiers however require dependencies
     for dep in &log_arc.dependencies {
@@ -56,7 +57,27 @@ fn notify_everyone(state: &State<AppState>, log_arc: &Arc<Log>) {
             return;
         }
     }
-    state.notifications.notify_everyone(&log_arc);
+    state.notifications.notify_everyone(log_arc);
+
+    // Now get the logs that depend on this log entry
+    let conn = state.pool.get().unwrap();
+    let deps: Vec<Uuid> = conn
+        .query(&format!(
+            "select id from dependency where depends_on = '{}'",
+            &log_arc.id
+        ))
+        .unwrap()
+        .iter()
+        .map(|r| r.get("id"))
+        .collect();
+    for dep in &deps {
+        if let Some(other_log) = read_log(&state, dep) {
+            // i.e. `log` is a dep of `other_log`, so start telling others about other_log
+            let other_log_arc = Arc::new(other_log);
+            // note we only need to tell notifiers, as nodes already know
+            state.notifications.notify_everyone(&other_log_arc);
+        }
+    }
 }
 
 pub fn new_log(

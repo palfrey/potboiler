@@ -239,6 +239,7 @@ pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<(), Error> {
         &raw_timestamp.sql()
     ))?;
     for dep in &log.dependencies {
+        debug!("Insert dependency {:?} for {:?}", &dep, &log.id);
         conn.execute(&format!(
             "insert into dependency (id, depends_on) VALUES ('{}', '{}')",
             &log.id, dep

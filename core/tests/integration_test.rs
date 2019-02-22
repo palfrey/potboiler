@@ -84,7 +84,7 @@ fn test_create() {
     assert_eq!(response.status(), StatusCode::CREATED);
     response = client.get(&test_server.url("/log")).send().unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let v: Value = dbg!(serde_json::from_str(&response.text().unwrap()).unwrap());
+    let v: Value = serde_json::from_str(&response.text().unwrap()).unwrap();
     assert!(v
         .as_object()
         .unwrap()
@@ -108,11 +108,15 @@ fn test_create_dependency() {
         .send()
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let v: Value = dbg!(serde_json::from_str(&response.text().unwrap()).unwrap());
-    assert!(
-        dbg!(v.as_object().unwrap().get("dependencies").unwrap().as_array().unwrap())
-            .contains(&json!("feedface-dead-feed-face-deadfacedead"))
-    );
+    let v: Value = serde_json::from_str(&response.text().unwrap()).unwrap();
+    assert!(v
+        .as_object()
+        .unwrap()
+        .get("dependencies")
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .contains(&json!("feedface-dead-feed-face-deadfacedead")));
 }
 
 fn create_log(dependencies: Option<Vec<Uuid>>) -> Value {
@@ -125,7 +129,9 @@ fn create_log(dependencies: Option<Vec<Uuid>>) -> Value {
         "prev": null,
         "next": null,
         "when": timestamp,
-        "data": {}
+        "data": json!({
+            "type": "create log item"
+        })
     });
     if let Some(deps) = dependencies {
         log.as_object_mut()
@@ -153,7 +159,7 @@ fn test_other_log() {
     make_log(&test_server, &log, StatusCode::OK);
     let mut response = reqwest::get(&test_server.url("/log")).unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let v: Value = dbg!(serde_json::from_str(&response.text().unwrap()).unwrap());
+    let v: Value = serde_json::from_str(&response.text().unwrap()).unwrap();
     let objv = v.as_object().unwrap();
     let owner = get_json_key(&log, "owner");
     assert!(objv.contains_key(&owner));
@@ -202,7 +208,9 @@ fn test_create_blocked_dependency() {
     register(&test_server, &rs.server.url("/"));
     let mut response = client
         .post(&test_server.url(&format!("/log?dependency={}", &block_id)))
-        .json(&{})
+        .json(&json!({
+            "type": "blocked"
+        }))
         .send()
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -212,6 +220,19 @@ fn test_create_blocked_dependency() {
     thread::sleep(time::Duration::from_millis(100));
 
     assert_eq!(rs.requests.read().unwrap().len(), 0, "{:?} {:?}", new_log, rs.requests);
+    make_log(&test_server, &log, StatusCode::OK);
+
+    // Pause to do things
+    thread::sleep(time::Duration::from_millis(100));
+
+    assert_eq!(
+        rs.requests.read().unwrap().len(),
+        2,
+        "{:?} {:?} {:?}",
+        log,
+        new_log,
+        rs.requests
+    );
 }
 
 #[test]
