@@ -135,10 +135,10 @@ fn create_log(dependencies: Option<Vec<Uuid>>) -> Value {
     log
 }
 
-fn make_log(test_server: &TestServer, log: &Value) {
+fn make_log(test_server: &TestServer, log: &Value, expected_status: StatusCode) {
     let client = Client::new();
     let response = client.post(&test_server.url("/log/other")).json(log).send().unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), expected_status);
 }
 
 fn get_json_key(json: &Value, key: &str) -> String {
@@ -150,7 +150,7 @@ fn get_json_key(json: &Value, key: &str) -> String {
 fn test_other_log() {
     let test_server = test_setup();
     let log = create_log(None);
-    make_log(&test_server, &log);
+    make_log(&test_server, &log, StatusCode::OK);
     let mut response = reqwest::get(&test_server.url("/log")).unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let v: Value = dbg!(serde_json::from_str(&response.text().unwrap()).unwrap());
@@ -158,6 +158,17 @@ fn test_other_log() {
     let owner = get_json_key(&log, "owner");
     assert!(objv.contains_key(&owner));
     assert_eq!(objv[&owner], get_json_key(&log, "id"));
+}
+
+#[test]
+#[serial]
+fn test_other_log_with_local_owner() {
+    let test_server = test_setup();
+    let mut log = create_log(None);
+    log.as_object_mut()
+        .unwrap()
+        .insert("owner".to_string(), json!(server_id::test()));
+    make_log(&test_server, &log, StatusCode::BAD_REQUEST);
 }
 
 fn register(test_server: &TestServer, url: &str) {

@@ -46,6 +46,19 @@ struct NewLogResponse {
     id: Uuid,
 }
 
+fn notify_everyone(state: &State<AppState>, log_arc: &Arc<Log>) {
+    nodes::notify_everyone(state, &log_arc); // always notify all nodes
+
+    // notifiers however require dependencies
+    for dep in &log_arc.dependencies {
+        if read_log(&state, dep).is_none() {
+            info!("Missing dependency {} for {}", dep, log_arc.id);
+            return;
+        }
+    }
+    state.notifications.notify_everyone(&log_arc);
+}
+
 pub fn new_log(
     state: State<AppState>,
     json: Json<serde_json::Value>,
@@ -87,8 +100,7 @@ pub fn new_log(
     };
     nodes::insert_log(&conn, &log).unwrap();
     let log_arc = Arc::new(log);
-    state.notifications.notify_everyone(&log_arc);
-    nodes::notify_everyone(state, &log_arc);
+    notify_everyone(&state, &log_arc);
     let new_url = format!("/log/{}", &hyphenated);
     Ok(HttpResponse::Created()
         .header(actix_web::http::header::LOCATION, new_url.to_string())
@@ -96,6 +108,9 @@ pub fn new_log(
 }
 
 pub fn other_log(log: Json<Log>, state: State<AppState>) -> HttpResponse {
+    if log.owner == state.server_id {
+        return HttpResponse::BadRequest().body("Attempted new log entry with local owner id");
+    }
     let conn = state.pool.get().unwrap();
     let existing = conn
         .query(&format!("select id from log where id = '{}' limit 1", &log.id))
@@ -103,12 +118,43 @@ pub fn other_log(log: Json<Log>, state: State<AppState>) -> HttpResponse {
     if existing.is_empty() {
         nodes::insert_log(&conn, &log).unwrap();
         let log_arc = Arc::new(log.into_inner());
-        state.notifications.notify_everyone(&log_arc);
-        nodes::notify_everyone(state, &log_arc);
+        notify_everyone(&state, &log_arc);
     } else {
         info!("Told about new log item ({}) I already have", log.id);
     }
     HttpResponse::Ok().body("Added")
+}
+
+fn read_log(state: &State<AppState>, id: &Uuid) -> Option<Log> {
+    let conn = state.pool.get().unwrap();
+    let results = conn
+        .query(&format!(
+            "select owner, next, prev, data, hlc_tstamp from log where id = '{}'",
+            id
+        ))
+        .unwrap();
+    if results.is_empty() {
+        None
+    } else {
+        let row = results.get(0);
+        let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
+        let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).unwrap();
+        let deps = conn
+            .query(&format!("select depends_on from dependency where id = '{}'", id))
+            .unwrap()
+            .iter()
+            .map(|r| r.get("depends_on"))
+            .collect();
+        Some(Log {
+            id: *id,
+            owner: row.get("owner"),
+            prev: row.get_with_null("prev"),
+            next: row.get_with_null("next"),
+            data: row.get("data"),
+            when,
+            dependencies: deps,
+        })
+    }
 }
 
 pub fn get_log(query: Path<String>, state: State<AppState>) -> HttpResponse {
@@ -116,34 +162,8 @@ pub fn get_log(query: Path<String>, state: State<AppState>) -> HttpResponse {
         Ok(val) => val,
         Err(_) => return HttpResponse::NotFound().body(&format!("No log {}", query)),
     };
-    let conn = state.pool.get().unwrap();
-    let results = conn
-        .query(&format!(
-            "select owner, next, prev, data, hlc_tstamp from log where id = '{}'",
-            query_id
-        ))
-        .unwrap();
-    if results.is_empty() {
-        HttpResponse::NotFound().body(&format!("No log {}", query))
-    } else {
-        let row = results.get(0);
-        let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
-        let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).unwrap();
-        let deps = conn
-            .query(&format!("select depends_on from dependency where id = '{}'", query_id))
-            .unwrap()
-            .iter()
-            .map(|r| r.get("depends_on"))
-            .collect();
-        let log = Log {
-            id: query_id,
-            owner: row.get("owner"),
-            prev: row.get_with_null("prev"),
-            next: row.get_with_null("next"),
-            data: row.get("data"),
-            when,
-            dependencies: deps,
-        };
-        HttpResponse::Ok().json(log)
+    match read_log(&state, &query_id) {
+        None => HttpResponse::NotFound().body(&format!("No log {}", query)),
+        Some(log) => HttpResponse::Ok().json(log),
     }
 }

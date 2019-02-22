@@ -348,7 +348,7 @@ pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList,
     })
 }
 
-fn get_nodes_list(state: State<AppState>) -> Vec<String> {
+fn get_nodes_list(state: &State<AppState>) -> Vec<String> {
     let nodes = state.nodes.nodes.read().unwrap();
     let mut vec = Vec::with_capacity(nodes.len());
     for key in nodes.keys() {
@@ -377,7 +377,7 @@ fn insert_node(state: &AppState, to_notify: &str) {
     thread::spawn(move || check_host(&url, &nodelist, &recv));
 }
 
-pub fn notify_everyone(state: State<AppState>, log_arc: &Arc<Log>) {
+pub fn notify_everyone(state: &State<AppState>, log_arc: &Arc<Log>) {
     let nodes = get_nodes_list(state);
     for node in nodes {
         let local_log = log_arc.clone();
