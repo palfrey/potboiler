@@ -191,6 +191,13 @@ fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncCloc
                 prev: get_uuid_from_map(&current_entry, "prev"),
                 data: current_entry.get("data").ok_or(NodesError::NoDataKey)?.clone(),
                 when: clock_state.get_timestamp(),
+                dependencies: current_entry.get("dependencies").map_or_else(Vec::new, |v| {
+                    v.as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|a| Uuid::parse_str(a.as_str().unwrap()).unwrap())
+                        .collect()
+                }),
             };
             insert_log(conn, &log)?;
             if next.is_null() {
@@ -237,6 +244,13 @@ pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<(), Error> {
             .unwrap_or_else(|| String::from("NULL")),
         &raw_timestamp.sql()
     ))?;
+    for dep in &log.dependencies {
+        debug!("Insert dependency {:?} for {:?}", &dep, &log.id);
+        conn.execute(&format!(
+            "insert into dependency (id, depends_on) VALUES ('{}', '{}')",
+            &log.id, dep
+        ))?;
+    }
     Ok(())
 }
 
@@ -341,7 +355,7 @@ pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList,
     })
 }
 
-fn get_nodes_list(state: State<AppState>) -> Vec<String> {
+fn get_nodes_list(state: &State<AppState>) -> Vec<String> {
     let nodes = state.nodes.nodes.read().unwrap();
     let mut vec = Vec::with_capacity(nodes.len());
     for key in nodes.keys() {
@@ -370,7 +384,7 @@ fn insert_node(state: &AppState, to_notify: &str) {
     thread::spawn(move || check_host(&url, &nodelist, &recv));
 }
 
-pub fn notify_everyone(state: State<AppState>, log_arc: &Arc<Log>) {
+pub fn notify_everyone(state: &State<AppState>, log_arc: &Arc<Log>) {
     let nodes = get_nodes_list(state);
     for node in nodes {
         let local_log = log_arc.clone();

@@ -78,6 +78,30 @@ impl PostgresMigration for Nodes {
     }
 }
 
+struct Dependency;
+migration!(Dependency, 2019_02_19_1730, "add event dependencies");
+
+impl PostgresMigration for Dependency {
+    fn up(&self, transaction: &Transaction) -> Result<(), postgres::error::Error> {
+        transaction
+            .execute(
+                "CREATE TABLE dependency (
+                id UUID REFERENCES log(id),
+                depends_on UUID,
+                PRIMARY KEY (id, depends_on)
+            );",
+                &[],
+            )
+            .unwrap();
+        Ok(())
+    }
+
+    fn down(&self, transaction: &Transaction) -> Result<(), postgres::error::Error> {
+        transaction.execute("DROP TABLE dependency", &[]).unwrap();
+        Ok(())
+    }
+}
+
 fn migrate(connection: &postgres::Connection) -> Migrator<PostgresAdapter> {
     let adapter = PostgresAdapter::new(connection);
     adapter.setup_schema().unwrap();
@@ -87,6 +111,7 @@ fn migrate(connection: &postgres::Connection) -> Migrator<PostgresAdapter> {
     migrator.register(Box::new(Notifications));
     migrator.register(Box::new(Timestamp));
     migrator.register(Box::new(Nodes));
+    migrator.register(Box::new(Dependency));
     migrator
 }
 

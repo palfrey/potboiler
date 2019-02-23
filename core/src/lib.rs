@@ -144,6 +144,10 @@ mod test {
             ),
             1,
         );
+        conn.add_test_query(
+            concat!(r"select id from dependency where depends_on = '[a-z0-9-]+'"),
+            vec![],
+        );
         let pool = super::db::Pool::TestPool(conn);
         let app_state = super::AppState::new(pool, server_id::test()).unwrap();
         let mut server = test::TestServer::with_factory(move || app_router(app_state.clone()).unwrap());
@@ -158,7 +162,7 @@ mod test {
 
         let uuid = {
             let re = Regex::new(r"/log/([a-z0-9-]+)").unwrap();
-            let url = dbg!(response.headers()[header::LOCATION].to_str().unwrap());
+            let url = response.headers()[header::LOCATION].to_str().unwrap();
             assert!(url.starts_with("/log/"));
             String::from(re.captures(&url).unwrap().get(1).unwrap().as_str())
         };

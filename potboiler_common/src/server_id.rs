@@ -24,5 +24,5 @@ pub fn setup() -> Uuid {
 }
 
 pub fn test() -> Uuid {
-    Uuid::parse_str("FEEDFACEDEADFEEDFACEDEADFACEDEAD").unwrap()
+    Uuid::parse_str("feedface-dead-feed-face-deadfacedead").unwrap()
 }

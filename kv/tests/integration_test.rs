@@ -34,11 +34,11 @@ fn test_setup() -> Result<(ServerThread, TestServer), Error> {
     let pool = kv::db_setup().unwrap();
     pool.wipe_db()?;
     let pb_server = boot_potboiler()?;
-    env::set_var("SERVER_URL", dbg!("http://localhost:8000/log"));
+    env::set_var("SERVER_URL", "http://localhost:8000/log");
     let client = reqwest::Client::new();
     let app_state = kv::AppState::new(pool, client.clone()).unwrap();
     let kv_server = TestServer::with_factory(move || kv::app_router(app_state.clone()).unwrap());
-    env::set_var("KV_ROOT", dbg!(kv_server.url("/")));
+    env::set_var("KV_ROOT", kv_server.url("/"));
     kv::register(&client).unwrap();
     return Ok((pb_server, kv_server));
 }

@@ -180,7 +180,7 @@ fn update_key(json: Json<serde_json::Value>, path: Path<UpdateKeyPath>, state: S
     }
     let res = state
         .client()
-        .post(dbg!(SERVER_URL.deref()))
+        .post(SERVER_URL.deref())
         .json(&send_change)
         .send()
         .expect("sender ok");
@@ -428,7 +428,7 @@ pub fn app_router(state: AppState) -> Result<App<AppState>, Error> {
 
 pub fn register(client: &reqwest::Client) -> Result<(), Error> {
     let mut map = serde_json::Map::new();
-    let root: &str = &dbg!(env::var("KV_ROOT").unwrap_or_else(|_| "http://localhost:8001/".to_string()));
+    let root: &str = &env::var("KV_ROOT").unwrap_or_else(|_| "http://localhost:8001/".to_string());
     map.insert(
         "url".to_string(),
         serde_json::Value::String(format!("{}kv/event", &root)),
