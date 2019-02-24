@@ -1,6 +1,9 @@
-use std::sync::{Arc, RwLock};
-use actix_web::{App, HttpRequest, http::Method, test::TestServer, HttpResponse};
-use std::{ops::DerefMut, fmt};
+use actix_web::{http::Method, test::TestServer, App, HttpRequest, HttpResponse};
+use std::{
+    fmt,
+    ops::DerefMut,
+    sync::{Arc, RwLock},
+};
 
 #[derive(Debug)]
 pub struct RecordRequest {

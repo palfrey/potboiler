@@ -1,5 +1,5 @@
-mod server_thread;
 mod record_server;
+mod server_thread;
 
-pub use record_server::{RecordServer, RecordRequest};
+pub use record_server::{RecordRequest, RecordServer};
 pub use server_thread::ServerThread;

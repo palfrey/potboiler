@@ -7,8 +7,7 @@ use pretty_assertions::assert_eq;
 use reqwest::{Client, StatusCode};
 use serde_json::json;
 use serial_test_derive::serial;
-use std::env;
-use std::{thread, time};
+use std::{env, thread, time};
 
 #[derive(Debug, Fail)]
 enum IntegrationError {

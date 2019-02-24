@@ -1,4 +1,8 @@
-use actix_web::{http::Method, test::TestServer, test::RecordServer, test::RecordRequest, App, HttpRequest, HttpResponse};
+use actix_web::{
+    http::Method,
+    test::{RecordRequest, RecordServer, TestServer},
+    App, HttpRequest, HttpResponse,
+};
 use env_logger;
 use hybrid_clocks::Clock;
 use potboiler;
@@ -8,8 +12,7 @@ use reqwest::{self, Client, StatusCode};
 use serde_derive::Deserialize;
 use serde_json::{json, Value};
 use serial_test_derive::serial;
-use std::ops::DerefMut;
-use std::{thread, time};
+use std::{ops::DerefMut, thread, time};
 use uuid::Uuid;
 
 fn test_setup() -> TestServer {

@@ -9,7 +9,10 @@
 )]
 
 use crate::serde_types::*;
-use actix_web::{http::Method, http::StatusCode, App, HttpResponse, Json, Path, ResponseError, State};
+use actix_web::{
+    http::{Method, StatusCode},
+    App, HttpResponse, Json, Path, ResponseError, State,
+};
 use failure::{bail, Error, Fail};
 use lazy_static::lazy_static;
 use log::{debug, error, info};
@@ -444,7 +447,10 @@ pub fn register(client: &reqwest::Client) -> Result<(), Error> {
 #[cfg(test)]
 mod test {
     use crate::{app_router, db, AppState};
-    use actix_web::{http::Method, http::StatusCode, test, HttpMessage};
+    use actix_web::{
+        http::{Method, StatusCode},
+        test, HttpMessage,
+    };
     use log4rs;
     use mockito;
     use serde_json::{json, Value};
