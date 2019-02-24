@@ -29,7 +29,7 @@ impl RecordServer {
             r.route().with(move |(req, body): (HttpRequest, String)| {
                 requests.clone().write().unwrap().deref_mut().push(RecordRequest {
                     path: req.path().to_string(),
-                    body: body,
+                    body,
                     method: req.method().clone(),
                 });
                 HttpResponse::MethodNotAllowed()
@@ -43,5 +43,11 @@ impl RecordServer {
             requests: requests.clone(),
             server: TestServer::with_factory(move || RecordServer::recording_server(requests.clone())),
         }
+    }
+}
+
+impl Default for RecordServer {
+    fn default() -> Self {
+        Self::new()
     }
 }

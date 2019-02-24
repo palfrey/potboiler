@@ -24,7 +24,7 @@ pub fn get_raw_timestamp(timestamp: &Timestamp<WallT>) -> Result<db::HexSlice, :
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     #[test]
     fn test_select() {
         let mut conn = super::db::TestConnection::new();
