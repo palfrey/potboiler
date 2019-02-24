@@ -13,7 +13,7 @@ use actix_web::{
     http::{Method, StatusCode},
     App, HttpResponse, Json, Path, ResponseError, State,
 };
-use failure::{bail, Error, Fail};
+use failure::{bail, err_msg, Error, Fail};
 use lazy_static::lazy_static;
 use log::{debug, error, info};
 use potboiler_common::{
@@ -154,41 +154,34 @@ pub struct UpdateKeyPath {
     key: String,
 }
 
-fn update_key(json: Json<serde_json::Value>, path: Path<UpdateKeyPath>, state: State<AppState>) -> HttpResponse {
+fn update_key(
+    json: Json<serde_json::Value>,
+    path: Path<UpdateKeyPath>,
+    state: State<AppState>,
+) -> Result<HttpResponse, Error> {
     let mut json_mut = json.clone();
-    let map = json_mut.as_object_mut().unwrap();
-    map.insert("table".to_string(), serde_json::to_value(path.table.clone()).unwrap());
-    map.insert("key".to_string(), serde_json::to_value(path.key.clone()).unwrap());
+    let map = json_mut.as_object_mut().ok_or_else(|| err_msg("Bad json object"))?;
+    map.insert("table".to_string(), serde_json::to_value(path.table.clone())?);
+    map.insert("key".to_string(), serde_json::to_value(path.key.clone())?);
 
-    let change: Change = serde_json::from_value(json_mut).map_err(Error::from).unwrap();
+    let change: Change = serde_json::from_value(json_mut)?;
     let send_change = change.clone();
     match change.op {
         Operation::Add | Operation::Remove => {
-            serde_json::from_value::<ORSetOp>(change.change)
-                .map_err(Error::from)
-                .unwrap();
+            serde_json::from_value::<ORSetOp>(change.change)?;
         }
         Operation::Create => {
-            serde_json::from_value::<ORCreateOp>(change.change)
-                .map_err(Error::from)
-                .unwrap();
+            serde_json::from_value::<ORCreateOp>(change.change)?;
         }
         Operation::Set => {
             if change.table == tables::CONFIG_TABLE {
-                serde_json::from_value::<LWWConfigOp>(change.change)
-                    .map_err(Error::from)
-                    .unwrap();
+                serde_json::from_value::<LWWConfigOp>(change.change)?;
             }
         }
     }
-    let res = state
-        .client()
-        .post(SERVER_URL.deref())
-        .json(&send_change)
-        .send()
-        .expect("sender ok");
+    let res = state.client().post(SERVER_URL.deref()).json(&send_change).send()?;
     assert_eq!(res.status(), reqwest::StatusCode::CREATED);
-    HttpResponse::Ok().finish()
+    Ok(HttpResponse::Ok().finish())
 }
 
 fn get_crdt(conn: &db::Connection, table: &str, key: &str) -> Result<Option<serde_json::Value>, Error> {
