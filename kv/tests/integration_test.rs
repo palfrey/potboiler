@@ -90,3 +90,39 @@ fn test_create_table() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert_eq!(response.text().unwrap(), "No such key 'foo'");
 }
+
+#[test]
+#[serial]
+fn test_create_orset_table() {
+    let (_pb_server, kv_server) = test_setup().unwrap();
+    let client = Client::new();
+    let args = json!({
+        "op": "set",
+        "change": {"crdt": "ORSET"}
+    });
+    let mut response = client
+        .post(&kv_server.url("/kv/_config/test"))
+        .json(&args)
+        .send()
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // give it some time to build the table
+    thread::sleep(time::Duration::from_millis(100));
+
+    let new_key = json!({
+        "op": "add",
+        "change": {
+            "key": "[key]",
+            "item":"[item]",
+            "metadata": "[metadata]"
+        }
+    });
+
+    response = client
+        .post(&kv_server.url("/kv/test/foo"))
+        .json(&new_key)
+        .send()
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
