@@ -61,8 +61,8 @@ Update operations:
   - "set": "[item]"
 - OR-Set:
   - "create": {} // makes an empty OR-Set if it doesn't exist
-  - "add": {"item":"[item]", "key":"[key]", "metadata": "[metadata]"}
-  - "remove": {"item":"[item]", "key":"[key]"}
+  - "add": {"key":"[key]", "item":"[item]", "metadata": "[metadata]"}
+  - "remove": {"key":"[key]", "item":"[item]"}
 
 - Update key
   - `curl http://localhost:8001/kv/[table]/[key] -d "{\"op\": \"[operation]\", \"change\": \"[data]\"}"` => Always 200 if data format is correct, regardless of whether the table has been seen

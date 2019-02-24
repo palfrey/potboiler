@@ -2,7 +2,7 @@ use actix_web::{http::StatusCode, server};
 use env_logger;
 use failure::{Error, Fail};
 use potboiler;
-use potboiler_common::{pg, server_id, ServerThread};
+use potboiler_common::{pg, server_id, test::ServerThread};
 use regex::Regex;
 use reqwest::{header, Client};
 use serde_json::json;

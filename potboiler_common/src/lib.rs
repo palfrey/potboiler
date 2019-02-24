@@ -12,10 +12,8 @@ pub mod clock;
 pub mod db;
 pub mod pg;
 pub mod server_id;
-pub mod server_thread;
+pub mod test;
 pub mod types;
-
-pub use server_thread::ServerThread;
 
 use hybrid_clocks::{Timestamp, WallT};
 
@@ -26,7 +24,7 @@ pub fn get_raw_timestamp(timestamp: &Timestamp<WallT>) -> Result<db::HexSlice, :
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     #[test]
     fn test_select() {
         let mut conn = super::db::TestConnection::new();

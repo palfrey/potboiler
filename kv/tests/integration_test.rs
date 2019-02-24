@@ -1,14 +1,13 @@
 use actix_web::{server, test::TestServer};
-use failure::{Error, Fail};
+use failure::{ensure, Error, Fail};
 use kv;
 use potboiler;
-use potboiler_common::{server_id, ServerThread};
+use potboiler_common::{server_id, test::wait_for_action, test::ServerThread};
 use pretty_assertions::assert_eq;
 use reqwest::{Client, StatusCode};
 use serde_json::json;
 use serial_test_derive::serial;
 use std::env;
-use std::{thread, time};
 
 #[derive(Debug, Fail)]
 enum IntegrationError {
@@ -83,10 +82,51 @@ fn test_create_table() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    // give it some time to build the table
-    thread::sleep(time::Duration::from_millis(100));
+    wait_for_action(|| {
+        let mut r = client.get(&kv_server.url("/kv/test/foo")).send()?;
+        ensure!(r.status() == StatusCode::NOT_FOUND, "Not found");
+        ensure!(r.text().unwrap() == "No such key 'foo'", "No foo key");
+        Ok(r)
+    })
+    .unwrap();
+}
 
-    response = client.get(&kv_server.url("/kv/test/foo")).send().unwrap();
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    assert_eq!(response.text().unwrap(), "No such key 'foo'");
+#[test]
+#[serial]
+fn test_create_orset_table() {
+    let (_pb_server, kv_server) = test_setup().unwrap();
+    let client = Client::new();
+    let args = json!({
+        "op": "set",
+        "change": {"crdt": "ORSET"}
+    });
+    let response = client
+        .post(&kv_server.url("/kv/_config/test"))
+        .json(&args)
+        .send()
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let new_key = json!({
+        "op": "add",
+        "change": {
+            "key": "[key]",
+            "item":"[item]",
+            "metadata": "[metadata]"
+        }
+    });
+
+    wait_for_action(|| {
+        let mut response = client.post(&kv_server.url("/kv/test/foo")).json(&new_key).send()?;
+        ensure!(response.status() == StatusCode::OK, "Not ok");
+        response = client.get(&kv_server.url("/kv/test/foo")).send()?;
+        ensure!(response.status() == StatusCode::OK, "Not ok");
+        let text = response.text().unwrap();
+        ensure!(
+            text == "[{\"item\":\"[item]\",\"key\":\"[key]\",\"metadata\":\"[metadata]\"}]",
+            text
+        );
+        Ok(response)
+    })
+    .unwrap();
 }

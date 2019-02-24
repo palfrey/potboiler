@@ -9,7 +9,10 @@
 )]
 
 use crate::serde_types::*;
-use actix_web::{http::Method, http::StatusCode, App, HttpResponse, Json, Path, ResponseError, State};
+use actix_web::{
+    http::{Method, StatusCode},
+    App, HttpResponse, Json, Path, ResponseError, State,
+};
 use failure::{bail, Error, Fail};
 use lazy_static::lazy_static;
 use log::{debug, error, info};
@@ -294,14 +297,25 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Err
                     if !crdt.removes.contains_key(&unwrap_op.key) {
                         let metadata = unwrap_op.metadata;
                         if crdt.adds.contains_key(&unwrap_op.key) {
-                            trans
+                            debug!("Updating '{}' in '{}/{}'", &unwrap_op.key, &change.table, &change.key);
+                            let count = trans
                                 .execute(&format!(
                                     "UPDATE {}_items set metadata='{}' where collection='{}' \
                                      and key='{}'",
                                     &change.table, &metadata, &change.key, &unwrap_op.key
                                 ))
                                 .unwrap();
+                            if count != 1 {
+                                error!(
+                                    "Expected count 1 when updating '{}' in '{}', but got {}",
+                                    &change.key, &change.table, count
+                                );
+                            }
                         } else {
+                            debug!(
+                                "Creating '{}' => '{}' in '{}/{}'",
+                                &unwrap_op.key, &unwrap_op.item, &change.table, &change.key
+                            );
                             trans
                                 .execute(&format!(
                                     "INSERT INTO {}_items (collection, key, item, metadata) \
@@ -331,7 +345,7 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Err
                     bail!(KvError::UnsupportedORSETOp { name: change.op });
                 }
             }
-            debug!("OR-Set for {}: {:?}", &change.table, &crdt);
+            debug!("OR-Set for {} and {}: {:?}", &change.table, &change.key, &crdt);
             if existing {
                 trans
                     .execute(&format!(
@@ -346,8 +360,8 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Err
                     .execute(&format!(
                         "INSERT INTO {} (key, crdt) VALUES ('{}', '{}')",
                         &change.table,
+                        &change.key,
                         &serde_json::to_value(&crdt).unwrap(),
-                        &change.key
                     ))
                     .unwrap();
             }
@@ -444,7 +458,10 @@ pub fn register(client: &reqwest::Client) -> Result<(), Error> {
 #[cfg(test)]
 mod test {
     use crate::{app_router, db, AppState};
-    use actix_web::{http::Method, http::StatusCode, test, HttpMessage};
+    use actix_web::{
+        http::{Method, StatusCode},
+        test, HttpMessage,
+    };
     use log4rs;
     use mockito;
     use serde_json::{json, Value};

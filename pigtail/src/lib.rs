@@ -1,5 +1,8 @@
 use crate::types::QueueOperation;
-use actix_web::{http::header, http::Method, App, HttpResponse, Json, Path, State};
+use actix_web::{
+    http::{header, Method},
+    App, HttpResponse, Json, Path, State,
+};
 use failure::{bail, Error};
 use hybrid_clocks::{Timestamp, WallT};
 use lazy_static::lazy_static;

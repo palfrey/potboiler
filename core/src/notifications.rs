@@ -4,8 +4,7 @@ use log::{debug, warn};
 use potboiler_common::{db, types::Log};
 use serde_derive::Deserialize;
 use std::{
-    ops::Deref,
-    ops::DerefMut,
+    ops::{Deref, DerefMut},
     sync::{Arc, RwLock},
     thread,
 };

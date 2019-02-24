@@ -84,7 +84,10 @@ pub fn db_setup() -> Result<db::Pool, Error> {
 #[cfg(test)]
 mod test {
     use super::app_router;
-    use actix_web::{http::header, http::Method, http::StatusCode, test, HttpMessage};
+    use actix_web::{
+        http::{header, Method, StatusCode},
+        test, HttpMessage,
+    };
     use potboiler_common::server_id;
     use regex::Regex;
     use serde_json;
