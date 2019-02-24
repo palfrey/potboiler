@@ -117,13 +117,16 @@ fn test_create_orset_table() {
     });
 
     wait_for_action(|| {
-        let response = client
-            .post(&kv_server.url("/kv/test/foo"))
-            .json(&new_key)
-            .send()
-            .unwrap();
+        let mut response = client.post(&kv_server.url("/kv/test/foo")).json(&new_key).send()?;
         ensure!(response.status() == StatusCode::OK, "Not ok");
-        Ok(())
+        response = client.get(&kv_server.url("/kv/test/foo")).send()?;
+        ensure!(response.status() == StatusCode::OK, "Not ok");
+        let text = response.text().unwrap();
+        ensure!(
+            text == "[{\"item\":\"[item]\",\"key\":\"[key]\",\"metadata\":\"[metadata]\"}]",
+            text
+        );
+        Ok(response)
     })
     .unwrap();
 }

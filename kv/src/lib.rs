@@ -297,14 +297,25 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Err
                     if !crdt.removes.contains_key(&unwrap_op.key) {
                         let metadata = unwrap_op.metadata;
                         if crdt.adds.contains_key(&unwrap_op.key) {
-                            trans
+                            debug!("Updating '{}' in '{}/{}'", &unwrap_op.key, &change.table, &change.key);
+                            let count = trans
                                 .execute(&format!(
                                     "UPDATE {}_items set metadata='{}' where collection='{}' \
                                      and key='{}'",
                                     &change.table, &metadata, &change.key, &unwrap_op.key
                                 ))
                                 .unwrap();
+                            if count != 1 {
+                                error!(
+                                    "Expected count 1 when updating '{}' in '{}', but got {}",
+                                    &change.key, &change.table, count
+                                );
+                            }
                         } else {
+                            debug!(
+                                "Creating '{}' => '{}' in '{}/{}'",
+                                &unwrap_op.key, &unwrap_op.item, &change.table, &change.key
+                            );
                             trans
                                 .execute(&format!(
                                     "INSERT INTO {}_items (collection, key, item, metadata) \
