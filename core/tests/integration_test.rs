@@ -1,4 +1,4 @@
-use actix_web::{http::Method, test::TestServer, App, HttpRequest, HttpResponse};
+use actix_web::{http::Method, test::TestServer, test::RecordServer, test::RecordRequest, App, HttpRequest, HttpResponse};
 use env_logger;
 use hybrid_clocks::Clock;
 use potboiler;
@@ -9,7 +9,6 @@ use serde_derive::Deserialize;
 use serde_json::{json, Value};
 use serial_test_derive::serial;
 use std::ops::DerefMut;
-use std::sync::{Arc, RwLock};
 use std::{thread, time};
 use uuid::Uuid;
 
@@ -22,41 +21,6 @@ fn test_setup() -> TestServer {
     conn.execute("delete from nodes").unwrap();
     let app_state = potboiler::AppState::new(pool, server_id::test()).unwrap();
     return TestServer::with_factory(move || potboiler::app_router(app_state.clone()).unwrap());
-}
-
-#[derive(Debug)]
-struct RecordRequest {
-    pub path: String,
-    pub body: String,
-    pub method: Method,
-}
-
-struct RecordServer {
-    requests: Arc<RwLock<Vec<RecordRequest>>>,
-    server: TestServer,
-}
-
-impl RecordServer {
-    fn recording_server(requests: Arc<RwLock<Vec<RecordRequest>>>) -> App {
-        App::new().default_resource(move |r| {
-            r.route().with(move |(req, body): (HttpRequest, String)| {
-                requests.clone().write().unwrap().deref_mut().push(RecordRequest {
-                    path: req.path().to_string(),
-                    body: body,
-                    method: req.method().clone(),
-                });
-                HttpResponse::MethodNotAllowed()
-            })
-        })
-    }
-
-    pub fn new() -> RecordServer {
-        let requests = Arc::new(RwLock::new(Vec::new()));
-        RecordServer {
-            requests: requests.clone(),
-            server: TestServer::with_factory(move || RecordServer::recording_server(requests.clone())),
-        }
-    }
 }
 
 #[test]
