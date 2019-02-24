@@ -331,7 +331,7 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Err
                     bail!(KvError::UnsupportedORSETOp { name: change.op });
                 }
             }
-            debug!("OR-Set for {}: {:?}", &change.table, &crdt);
+            debug!("OR-Set for {} and {}: {:?}", &change.table, &change.key, &crdt);
             if existing {
                 trans
                     .execute(&format!(
@@ -346,8 +346,8 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Err
                     .execute(&format!(
                         "INSERT INTO {} (key, crdt) VALUES ('{}', '{}')",
                         &change.table,
+                        &change.key,
                         &serde_json::to_value(&crdt).unwrap(),
-                        &change.key
                     ))
                     .unwrap();
             }
