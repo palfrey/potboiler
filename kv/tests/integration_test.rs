@@ -1,13 +1,13 @@
 use actix_web::{server, test::TestServer};
-use failure::{Error, Fail};
+use failure::{ensure, Error, Fail};
 use kv;
 use potboiler;
-use potboiler_common::{server_id, test::ServerThread};
+use potboiler_common::{server_id, test::wait_for_action, test::ServerThread};
 use pretty_assertions::assert_eq;
 use reqwest::{Client, StatusCode};
 use serde_json::json;
 use serial_test_derive::serial;
-use std::{env, thread, time};
+use std::env;
 
 #[derive(Debug, Fail)]
 enum IntegrationError {
@@ -82,12 +82,13 @@ fn test_create_table() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    // give it some time to build the table
-    thread::sleep(time::Duration::from_millis(100));
-
-    response = client.get(&kv_server.url("/kv/test/foo")).send().unwrap();
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    assert_eq!(response.text().unwrap(), "No such key 'foo'");
+    wait_for_action(|| {
+        let mut r = client.get(&kv_server.url("/kv/test/foo")).send()?;
+        ensure!(r.status() == StatusCode::NOT_FOUND, "Not found");
+        ensure!(r.text().unwrap() == "No such key 'foo'", "No foo key");
+        Ok(r)
+    })
+    .unwrap();
 }
 
 #[test]
@@ -99,15 +100,12 @@ fn test_create_orset_table() {
         "op": "set",
         "change": {"crdt": "ORSET"}
     });
-    let mut response = client
+    let response = client
         .post(&kv_server.url("/kv/_config/test"))
         .json(&args)
         .send()
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-
-    // give it some time to build the table
-    thread::sleep(time::Duration::from_millis(100));
 
     let new_key = json!({
         "op": "add",
@@ -118,10 +116,14 @@ fn test_create_orset_table() {
         }
     });
 
-    response = client
-        .post(&kv_server.url("/kv/test/foo"))
-        .json(&new_key)
-        .send()
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
+    wait_for_action(|| {
+        let response = client
+            .post(&kv_server.url("/kv/test/foo"))
+            .json(&new_key)
+            .send()
+            .unwrap();
+        ensure!(response.status() == StatusCode::OK, "Not ok");
+        Ok(())
+    })
+    .unwrap();
 }
