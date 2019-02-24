@@ -2,7 +2,7 @@ use actix_web::{server, test::TestServer};
 use failure::{Error, Fail};
 use kv;
 use potboiler;
-use potboiler_common::{server_id, ServerThread};
+use potboiler_common::{server_id, test::ServerThread};
 use pretty_assertions::assert_eq;
 use reqwest::{Client, StatusCode};
 use serde_json::json;
