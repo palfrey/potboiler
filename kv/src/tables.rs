@@ -1,4 +1,5 @@
-use failure::{bail, err_msg, Error, Fail};
+use crate::KvError;
+use failure::Fail;
 use potboiler_common::{db, types::CRDT};
 use serde_json::{self, Value};
 use std::{
@@ -19,11 +20,11 @@ pub enum TableError {
     #[fail(display = "ConfigTableCreation")]
     ConfigTableCreation {
         #[cause]
-        cause: Error,
+        cause: KvError,
     },
 }
 
-pub fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result<(), Error> {
+pub fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result<(), KvError> {
     match kind {
         CRDT::LWW => {
             conn.execute(&format!(
@@ -49,7 +50,17 @@ pub fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result
             ))?;
         }
         CRDT::STRUCTURE => {
-            bail!(err_msg("No STRUCTURE make table yet"));
+            conn.execute(&format!(
+                "CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, crdt \
+                 JSONB NOT NULL)",
+                &table_name
+            ))?;
+            conn.execute(&format!(
+                "CREATE TABLE IF NOT EXISTS {}_items (\
+                 key VARCHAR(1024) PRIMARY KEY, \
+                 data JSONB NOT NULL)",
+                &table_name
+            ))?;
         }
     }
     Ok(())
