@@ -1,6 +1,6 @@
 # Potboiler
 
-[![Build Status](https://travis-ci.org/palfrey/potboiler.svg?branch=master)](https://travis-ci.org/palfrey/potboiler)
+[![Build Status](https://travis-ci.com/palfrey/potboiler.svg?branch=master)](https://travis-ci.com/palfrey/potboiler)
 [![dependency status](https://deps.rs/repo/github/palfrey/potboiler/status.svg)](https://deps.rs/repo/github/palfrey/potboiler)
 
 Potboiler is an AP Event Sourcing system. More specifically, it's an MVP/research prototype of said, with known issues and is not even slightly suitable for production use. However, patches welcomed!
