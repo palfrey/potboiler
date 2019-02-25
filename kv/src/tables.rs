@@ -1,4 +1,4 @@
-use failure::{err_msg, Error, Fail};
+use failure::{bail, err_msg, Error, Fail};
 use potboiler_common::{db, types::CRDT};
 use serde_json::{self, Value};
 use std::{
@@ -30,16 +30,14 @@ pub fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result
                 "CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, value \
                  JSONB NOT NULL, crdt JSONB NOT NULL)",
                 &table_name
-            ))
-            .map_err(Error::from)?;
+            ))?;
         }
         CRDT::ORSET => {
             conn.execute(&format!(
                 "CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, crdt \
                  JSONB NOT NULL)",
                 &table_name
-            ))
-            .map_err(Error::from)?;
+            ))?;
             conn.execute(&format!(
                 "CREATE TABLE IF NOT EXISTS {}_items (\
                                    collection VARCHAR(1024) NOT NULL,
@@ -48,11 +46,10 @@ pub fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result
                                    metadata JSONB NOT NULL, \
                                    PRIMARY KEY(collection, key, item))",
                 &table_name
-            ))
-            .map_err(Error::from)?;
+            ))?;
         }
-        CRDT::GSET => {
-            err_msg("No G-Set make table yet");
+        CRDT::STRUCTURE => {
+            bail!(err_msg("No STRUCTURE make table yet"));
         }
     }
     Ok(())

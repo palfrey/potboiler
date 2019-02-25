@@ -36,24 +36,27 @@ mod tables;
 enum KvError {
     #[fail(display = "WrongResultsCount")]
     WrongResultsCount { key: String, count: usize },
-    #[fail(display = "UnsupportedCRDT")]
+    #[fail(display = "UnsupportedCRDT: {:?}", name)]
     UnsupportedCRDT { name: CRDT },
-    #[fail(display = "UnsupportedORSETOp")]
+    #[fail(display = "UnsupportedORSETOp: {:?}", name)]
     UnsupportedORSETOp { name: Operation },
-    #[fail(display = "UnsupportedLWWOp")]
+    #[fail(display = "UnsupportedLWWOp: {:?}", name)]
     UnsupportedLWWOp { name: Operation },
-    #[fail(display = "NoTable")]
-    NoTable { name: String },
     #[fail(display = "No such table '{}'", name)]
     NoSuchTable { name: String },
     #[fail(display = "No such key '{}'", name)]
     NoSuchKey { name: String },
     #[fail(display = "No key getter for {:?}", kind)]
     NoKeyGetter { kind: CRDT },
-    #[fail(display = "DbError")]
+    #[fail(display = "DbError: {}", cause)]
     DbError {
         #[cause]
-        cause: db::Error,
+        cause: Error,
+    },
+    #[fail(display = "Bad Request: {}", cause)]
+    BadRequest {
+        #[cause]
+        cause: Error,
     },
 }
 
@@ -61,6 +64,7 @@ impl ResponseError for KvError {
     fn error_response(&self) -> HttpResponse {
         let code = match *self {
             KvError::NoSuchKey { .. } | KvError::NoSuchTable { .. } => StatusCode::NOT_FOUND,
+            KvError::BadRequest { .. } | KvError::UnsupportedCRDT { .. } => StatusCode::BAD_REQUEST,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
         HttpResponse::build(code).body(format!("{}", self))
@@ -120,7 +124,7 @@ fn get_key(path: Path<GetKeyPath>, state: State<AppState>) -> Result<HttpRespons
                         "Error while getting key {} from table {}: {:?}",
                         path.key, path.table, err
                     );
-                    Err(KvError::DbError { cause: err })
+                    Err(KvError::DbError { cause: err.into() })
                 }
             }
         }
@@ -141,7 +145,7 @@ fn get_key(path: Path<GetKeyPath>, state: State<AppState>) -> Result<HttpRespons
                     "Error while getting key {} from table {}: {:?}",
                     path.key, path.table, err
                 );
-                Err(KvError::DbError { cause: err })
+                Err(KvError::DbError { cause: err.into() })
             }
         },
         _ => Err(KvError::NoKeyGetter { kind }),
@@ -154,32 +158,52 @@ pub struct UpdateKeyPath {
     key: String,
 }
 
+fn wrap_bad_request<E>(err: E) -> KvError
+where
+    E: Into<Error>,
+{
+    KvError::BadRequest { cause: err.into() }
+}
+
 fn update_key(
     json: Json<serde_json::Value>,
     path: Path<UpdateKeyPath>,
     state: State<AppState>,
-) -> Result<HttpResponse, Error> {
+) -> Result<HttpResponse, KvError> {
     let mut json_mut = json.clone();
-    let map = json_mut.as_object_mut().ok_or_else(|| err_msg("Bad json object"))?;
-    map.insert("table".to_string(), serde_json::to_value(path.table.clone())?);
-    map.insert("key".to_string(), serde_json::to_value(path.key.clone())?);
+    let map = json_mut.as_object_mut().ok_or_else(|| KvError::BadRequest {
+        cause: err_msg("Bad JSON object").into(),
+    })?;
+    map.insert(
+        "table".to_string(),
+        serde_json::to_value(path.table.clone()).map_err(wrap_bad_request)?,
+    );
+    map.insert(
+        "key".to_string(),
+        serde_json::to_value(path.key.clone()).map_err(wrap_bad_request)?,
+    );
 
-    let change: Change = serde_json::from_value(json_mut)?;
+    let change: Change = serde_json::from_value(json_mut).map_err(wrap_bad_request)?;
     let send_change = change.clone();
     match change.op {
         Operation::Add | Operation::Remove => {
-            serde_json::from_value::<ORSetOp>(change.change)?;
+            serde_json::from_value::<ORSetOp>(change.change).map_err(wrap_bad_request)?;
         }
         Operation::Create => {
-            serde_json::from_value::<ORCreateOp>(change.change)?;
+            serde_json::from_value::<ORCreateOp>(change.change).map_err(wrap_bad_request)?;
         }
         Operation::Set => {
             if change.table == tables::CONFIG_TABLE {
-                serde_json::from_value::<LWWConfigOp>(change.change)?;
+                serde_json::from_value::<LWWConfigOp>(change.change).map_err(wrap_bad_request)?;
             }
         }
     }
-    let res = state.client().post(SERVER_URL.deref()).json(&send_change).send()?;
+    let res = state
+        .client()
+        .post(SERVER_URL.deref())
+        .json(&send_change)
+        .send()
+        .map_err(wrap_bad_request)?;
     assert_eq!(res.status(), reqwest::StatusCode::CREATED);
     Ok(HttpResponse::Ok().finish())
 }
@@ -206,17 +230,17 @@ fn get_crdt(conn: &db::Connection, table: &str, key: &str) -> Result<Option<serd
 #[allow(clippy::map_entry)] // FIXME do maps better
 fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Error> {
     info!("log: {:?}", log);
-    let change: Change = serde_json::from_value(log.data.clone()).unwrap();
+    let change: Change = serde_json::from_value(log.data.clone())?;
     info!("change: {:?}", change);
     let table_type = match state.tables.get(&change.table) {
-        None => bail!(KvError::NoTable { name: change.table }),
+        None => bail!(KvError::NoSuchTable { name: change.table }),
         Some(val) => val,
     };
     match table_type {
         CRDT::LWW => match change.op {
             Operation::Set => {
-                let conn = state.pool.get().unwrap();
-                let raw_crdt = get_crdt(&conn, &change.table, &change.key).unwrap();
+                let conn = state.pool.get()?;
+                let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
                 match raw_crdt {
                     None => {
                         let lww = LWW {
@@ -228,20 +252,16 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Err
                             &change.table,
                             &change.key,
                             &change.change,
-                            &serde_json::to_value(&lww).map_err(Error::from).unwrap()
-                        ))
-                        .map_err(Error::from)
-                        .unwrap();
+                            &serde_json::to_value(&lww)?
+                        ))?;
                         if change.table == tables::CONFIG_TABLE {
-                            let config_op: LWWConfigOp = serde_json::from_value(change.change.clone())
-                                .map_err(Error::from)
-                                .unwrap();
-                            tables::make_table(&conn, &change.key, config_op.crdt).unwrap();
+                            let config_op: LWWConfigOp = serde_json::from_value(change.change.clone())?;
+                            tables::make_table(&conn, &change.key, config_op.crdt)?;
                             state.tables.add(&change.key, config_op.crdt);
                         }
                     }
                     Some(raw_crdt) => {
-                        let mut lww: LWW = serde_json::from_value(raw_crdt).map_err(Error::from).unwrap();
+                        let mut lww: LWW = serde_json::from_value(raw_crdt)?;
                         if lww.when < log.when {
                             lww.when = log.when;
                             lww.data = change.change.clone();
@@ -250,9 +270,8 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Err
                                 &change.table,
                                 &change.change,
                                 &change.key,
-                                &serde_json::to_value(&lww).map_err(Error::from).unwrap()
-                            ))
-                            .unwrap();
+                                &serde_json::to_value(&lww)?
+                            ))?;
                         } else {
                             info!("Earlier event, skipping");
                         }
@@ -265,15 +284,13 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Err
         },
         CRDT::ORSET => {
             let op: Option<ORSetOp> = match change.op {
-                Operation::Add | Operation::Remove => {
-                    Some(serde_json::from_value(change.change).map_err(Error::from).unwrap())
-                }
+                Operation::Add | Operation::Remove => Some(serde_json::from_value(change.change)?),
                 Operation::Create | Operation::Set => None,
             };
-            let conn = state.pool.get().unwrap();
-            let raw_crdt = get_crdt(&conn, &change.table, &change.key).unwrap();
+            let conn = state.pool.get()?;
+            let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
             let (mut crdt, existing) = match raw_crdt {
-                Some(val) => (serde_json::from_value(val).map_err(Error::from).unwrap(), true),
+                Some(val) => (serde_json::from_value(val)?, true),
                 None => (
                     ORSet {
                         adds: HashMap::new(),
@@ -286,18 +303,16 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Err
             let trans = conn;
             match change.op {
                 Operation::Add => {
-                    let unwrap_op = op.unwrap();
+                    let unwrap_op = op.ok_or_else(|| err_msg("bad op"))?;
                     if !crdt.removes.contains_key(&unwrap_op.key) {
                         let metadata = unwrap_op.metadata;
                         if crdt.adds.contains_key(&unwrap_op.key) {
                             debug!("Updating '{}' in '{}/{}'", &unwrap_op.key, &change.table, &change.key);
-                            let count = trans
-                                .execute(&format!(
-                                    "UPDATE {}_items set metadata='{}' where collection='{}' \
-                                     and key='{}'",
-                                    &change.table, &metadata, &change.key, &unwrap_op.key
-                                ))
-                                .unwrap();
+                            let count = trans.execute(&format!(
+                                "UPDATE {}_items set metadata='{}' where collection='{}' \
+                                 and key='{}'",
+                                &change.table, &metadata, &change.key, &unwrap_op.key
+                            ))?;
                             if count != 1 {
                                 error!(
                                     "Expected count 1 when updating '{}' in '{}', but got {}",
@@ -309,25 +324,21 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Err
                                 "Creating '{}' => '{}' in '{}/{}'",
                                 &unwrap_op.key, &unwrap_op.item, &change.table, &change.key
                             );
-                            trans
-                                .execute(&format!(
-                                    "INSERT INTO {}_items (collection, key, item, metadata) \
-                                     VALUES ('{}', '{}', '{}', '{}')",
-                                    &change.table, &change.key, &unwrap_op.key, &unwrap_op.item, &metadata
-                                ))
-                                .unwrap();
+                            trans.execute(&format!(
+                                "INSERT INTO {}_items (collection, key, item, metadata) \
+                                 VALUES ('{}', '{}', '{}', '{}')",
+                                &change.table, &change.key, &unwrap_op.key, &unwrap_op.item, &metadata
+                            ))?;
                             crdt.adds.insert(unwrap_op.key, unwrap_op.item);
                         }
                     }
                 }
                 Operation::Remove => {
-                    let unwrap_op = op.unwrap();
-                    trans
-                        .execute(&format!(
-                            "DELETE FROM {}_items where collection='{}' and key='{}'",
-                            &change.table, &change.key, &unwrap_op.key
-                        ))
-                        .unwrap();
+                    let unwrap_op = op.ok_or_else(|| err_msg("Bad op"))?;
+                    trans.execute(&format!(
+                        "DELETE FROM {}_items where collection='{}' and key='{}'",
+                        &change.table, &change.key, &unwrap_op.key
+                    ))?;
                     crdt.adds.remove(&unwrap_op.key);
                     crdt.removes.insert(unwrap_op.key, unwrap_op.item);
                 }
@@ -340,23 +351,19 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, Err
             }
             debug!("OR-Set for {} and {}: {:?}", &change.table, &change.key, &crdt);
             if existing {
-                trans
-                    .execute(&format!(
-                        "UPDATE {} set crdt='{}' where key='{}'",
-                        &change.table,
-                        &serde_json::to_value(&crdt).unwrap(),
-                        &change.key
-                    ))
-                    .unwrap();
+                trans.execute(&format!(
+                    "UPDATE {} set crdt='{}' where key='{}'",
+                    &change.table,
+                    &serde_json::to_value(&crdt)?,
+                    &change.key
+                ))?;
             } else {
-                trans
-                    .execute(&format!(
-                        "INSERT INTO {} (key, crdt) VALUES ('{}', '{}')",
-                        &change.table,
-                        &change.key,
-                        &serde_json::to_value(&crdt).unwrap(),
-                    ))
-                    .unwrap();
+                trans.execute(&format!(
+                    "INSERT INTO {} (key, crdt) VALUES ('{}', '{}')",
+                    &change.table,
+                    &change.key,
+                    &serde_json::to_value(&crdt)?,
+                ))?;
             }
             let mut items: Vec<&str> = Vec::new();
             for key in crdt.adds.keys() {
@@ -396,7 +403,7 @@ fn list_keys(req: Path<ListKeysReq>, state: State<AppState>) -> HttpResponse {
 
 pub fn db_setup() -> Result<db::Pool, Error> {
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
-    pg::get_pool(db_url).map_err(Error::from)
+    pg::get_pool(db_url).map_err(|e| KvError::DbError { cause: e.into() }.into())
 }
 
 #[derive(Debug, Clone)]
