@@ -12,7 +12,7 @@ pub fn wait_for_action<F, R>(action: F) -> Result<R, Error>
 where
     F: Fn() -> Result<R, Error>,
 {
-    let max = 10;
+    let max = 4;
     for x in 0..max {
         let res = action();
         if res.is_ok() {

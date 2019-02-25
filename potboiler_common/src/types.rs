@@ -55,8 +55,8 @@ macro_rules! enum_str {
 #[derive(Debug, Serialize, Deserialize, Copy, Clone)]
 pub enum CRDT {
     LWW,
-    GSET,
     ORSET,
+    STRUCTURE,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

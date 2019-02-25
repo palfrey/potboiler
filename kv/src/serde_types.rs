@@ -35,8 +35,9 @@ pub struct ORCreateOp {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ORSetOp {
-    pub item: String,
     pub key: String,
+    pub item: String,
+    #[serde(default)]
     pub metadata: serde_json::Value,
 }
 

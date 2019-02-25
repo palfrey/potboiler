@@ -118,13 +118,19 @@ fn test_create_orset_table() {
 
     wait_for_action(|| {
         let mut response = client.post(&kv_server.url("/kv/test/foo")).json(&new_key).send()?;
-        ensure!(response.status() == StatusCode::OK, "Not ok");
+        ensure!(response.status() == StatusCode::OK, response.text()?);
         response = client.get(&kv_server.url("/kv/test/foo")).send()?;
-        ensure!(response.status() == StatusCode::OK, "Not ok");
-        let text = response.text().unwrap();
+        ensure!(response.status() == StatusCode::OK, response.text()?);
+        let json: serde_json::Value = response.json()?;
         ensure!(
-            text == "[{\"item\":\"[item]\",\"key\":\"[key]\",\"metadata\":\"[metadata]\"}]",
-            text
+            json == json!([{
+                "item":"[item]",
+                "key":"[key]",
+                "metadata":
+                "[metadata]"
+            }]),
+            "Returned value: {:#?}",
+            json
         );
         Ok(response)
     })
