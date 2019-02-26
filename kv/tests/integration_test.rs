@@ -136,3 +136,42 @@ fn test_create_orset_table() {
     })
     .unwrap();
 }
+
+#[test]
+#[serial]
+fn test_create_config_table() {
+    let (_pb_server, kv_server) = test_setup().unwrap();
+    let client = Client::new();
+    let mut response = client
+        .post(&kv_server.url("/kv/_config/test"))
+        .json(&json!({
+            "op": "set",
+            "change": {"crdt": "STRUCTURE", "data": {
+                "name": {"crdt": "LWW"},
+                "members": {"crdt": "ORSET"}
+            }}
+        }))
+        .send()
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK, "{}", response.text().unwrap());
+
+    wait_for_action(|| {
+        let mut response = client
+            .post(&kv_server.url("/kv/test/foo"))
+            .json(&json!({
+                "op": "add",
+                "change": {
+                    "key": "members/bar",
+                    "item": "foo@bar.com"
+                }
+            }))
+            .send()?;
+        ensure!(response.status() == StatusCode::OK, response.text()?);
+        response = client.get(&kv_server.url("/kv/test/foo/members")).send()?;
+        ensure!(response.status() == StatusCode::OK, response.text()?);
+        let text = response.text()?;
+        ensure!(text == "bar", "resp: {}", text);
+        Ok(response)
+    })
+    .unwrap();
+}
