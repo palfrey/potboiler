@@ -172,13 +172,6 @@ pub struct UpdateKeyPath {
     key: String,
 }
 
-fn wrap_bad_request<E>(err: E) -> KvError
-where
-    E: Into<Error>,
-{
-    KvError::BadRequest { cause: err.into() }
-}
-
 fn update_key(
     json: Json<serde_json::Value>,
     path: Path<UpdateKeyPath>,
@@ -186,16 +179,10 @@ fn update_key(
 ) -> Result<HttpResponse, KvError> {
     let mut json_mut = json.clone();
     let map = json_mut.as_object_mut().ok_or_else(|| KvError::BadRequest {
-        cause: err_msg("Bad JSON object").into(),
+        cause: err_msg("Bad JSON object"),
     })?;
-    map.insert(
-        "table".to_string(),
-        serde_json::to_value(path.table.clone())?,
-    );
-    map.insert(
-        "key".to_string(),
-        serde_json::to_value(path.key.clone())?,
-    );
+    map.insert("table".to_string(), serde_json::to_value(path.table.clone())?);
+    map.insert("key".to_string(), serde_json::to_value(path.key.clone())?);
 
     let change: Change = serde_json::from_value(json_mut)?;
     let send_change = change.clone();
@@ -217,7 +204,7 @@ fn update_key(
         .post(SERVER_URL.deref())
         .json(&send_change)
         .send()
-        .map_err(wrap_bad_request)?;
+        .map_err(|e| KvError::BadRequest { cause: e.into() })?;
     assert_eq!(res.status(), reqwest::StatusCode::CREATED);
     Ok(HttpResponse::Ok().finish())
 }
@@ -234,8 +221,7 @@ fn get_crdt(conn: &db::Connection, table: &str, key: &str) -> Result<Option<serd
         Err(KvError::WrongResultsCount {
             key: key.to_string(),
             count: results.len(),
-        }
-        .into())
+        })
     }
 }
 
