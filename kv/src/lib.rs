@@ -281,9 +281,9 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, KvE
             }
         },
         CRDT::ORSET => {
-            let op: Option<ORSetOp> = match change.op {
-                Operation::Add | Operation::Remove => Some(serde_json::from_value(change.change)?),
-                Operation::Create | Operation::Set => None,
+            let op: ORSetOp = match change.op {
+                Operation::Add | Operation::Remove => serde_json::from_value(change.change)?,
+                Operation::Create | Operation::Set => return Err(KvError::BadOp),
             };
             let conn = state.pool.get()?;
             let raw_crdt = get_crdt(&conn, &change.table, &change.key)?;
@@ -301,15 +301,14 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, KvE
             let trans = conn;
             match change.op {
                 Operation::Add => {
-                    let unwrap_op = op.ok_or_else(|| KvError::BadOp)?;
-                    if !crdt.removes.contains_key(&unwrap_op.key) {
-                        let metadata = unwrap_op.metadata;
-                        if crdt.adds.contains_key(&unwrap_op.key) {
-                            debug!("Updating '{}' in '{}/{}'", &unwrap_op.key, &change.table, &change.key);
+                    if !crdt.removes.contains_key(&op.key) {
+                        let metadata = op.metadata;
+                        if crdt.adds.contains_key(&op.key) {
+                            debug!("Updating '{}' in '{}/{}'", &op.key, &change.table, &change.key);
                             let count = trans.execute(&format!(
                                 "UPDATE {}_items set metadata='{}' where collection='{}' \
                                  and key='{}'",
-                                &change.table, &metadata, &change.key, &unwrap_op.key
+                                &change.table, &metadata, &change.key, &op.key
                             ))?;
                             if count != 1 {
                                 error!(
@@ -320,25 +319,24 @@ fn new_event(state: State<AppState>, log: Json<Log>) -> Result<HttpResponse, KvE
                         } else {
                             debug!(
                                 "Creating '{}' => '{}' in '{}/{}'",
-                                &unwrap_op.key, &unwrap_op.item, &change.table, &change.key
+                                &op.key, &op.item, &change.table, &change.key
                             );
                             trans.execute(&format!(
                                 "INSERT INTO {}_items (collection, key, item, metadata) \
                                  VALUES ('{}', '{}', '{}', '{}')",
-                                &change.table, &change.key, &unwrap_op.key, &unwrap_op.item, &metadata
+                                &change.table, &change.key, &op.key, &op.item, &metadata
                             ))?;
-                            crdt.adds.insert(unwrap_op.key, unwrap_op.item);
+                            crdt.adds.insert(op.key, op.item);
                         }
                     }
                 }
                 Operation::Remove => {
-                    let unwrap_op = op.ok_or_else(|| KvError::BadOp)?;
                     trans.execute(&format!(
                         "DELETE FROM {}_items where collection='{}' and key='{}'",
-                        &change.table, &change.key, &unwrap_op.key
+                        &change.table, &change.key, &op.key
                     ))?;
-                    crdt.adds.remove(&unwrap_op.key);
-                    crdt.removes.insert(unwrap_op.key, unwrap_op.item);
+                    crdt.adds.remove(&op.key);
+                    crdt.removes.insert(op.key, op.item);
                 }
                 Operation::Create => {
                     // Don't need to actually do anything to the item lists
