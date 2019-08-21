@@ -14,4 +14,4 @@ pip-tools==3.1.0
 psycopg2==2.7.6.1
 six==1.11.0               # via pip-tools
 sqlalchemy==1.2.14        # via flask-sqlalchemy
-werkzeug==0.14.1          # via flask
+werkzeug==0.15.3          # via flask
