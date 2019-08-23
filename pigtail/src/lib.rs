@@ -90,9 +90,9 @@ where
                 &progress.id
             ))
             .map_err(Error::from)?;
-            return Ok(HttpResponse::NoContent().finish());
+            Ok(HttpResponse::NoContent().finish())
         } else {
-            return Ok(HttpResponse::Conflict().body("Out of date change"));
+            Ok(HttpResponse::Conflict().body("Out of date change"))
         }
     }
 }

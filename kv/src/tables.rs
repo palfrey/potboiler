@@ -12,7 +12,7 @@ pub struct Tables {
     tables: Arc<RwLock<HashMap<String, CRDT>>>,
 }
 
-pub static CONFIG_TABLE: &'static str = "_config";
+pub static CONFIG_TABLE: &str = "_config";
 
 #[derive(Debug, Fail)]
 pub enum TableError {
