@@ -24,11 +24,11 @@ log = "0.4"
 log4rs = {version = "0.8", features=["yaml_format"]}
 
 reqwest = "*"
-mockito = "0.14"
 
 lazy_static = "1"
 
 [dev-dependencies]
+mockito = "0.14"
 actix = "0.7"
 pretty_assertions = "0.5"
 serial_test = "*"
