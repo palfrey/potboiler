@@ -313,10 +313,7 @@ impl AppState {
         let clock = clock::SyncClock::new();
         let conn = pool.get().unwrap();
         make_queue_table(&conn);
-        Ok(AppState {
-            clock,
-            pool: pool.clone(),
-        })
+        Ok(AppState { clock, pool })
     }
 }
 
@@ -341,7 +338,7 @@ pub fn register() {
     let mut map = serde_json::Map::new();
     map.insert(
         "url".to_string(),
-        serde_json::Value::String(format!("http://{}:{}/event", HOST.deref(), PORT.deref()).to_string()),
+        serde_json::Value::String(format!("http://{}:{}/event", HOST.deref(), PORT.deref())),
     );
     let res = client
         .post(&format!("{}/register", SERVER_URL.deref()))

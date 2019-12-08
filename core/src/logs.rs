@@ -124,7 +124,7 @@ pub fn new_log(
     notify_everyone(&state, &log_arc);
     let new_url = format!("/log/{}", &hyphenated);
     Ok(HttpResponse::Created()
-        .header(actix_web::http::header::LOCATION, new_url.to_string())
+        .header(actix_web::http::header::LOCATION, new_url)
         .json(NewLogResponse { id }))
 }
 
