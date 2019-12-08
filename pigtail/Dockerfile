@@ -1,4 +1,4 @@
-FROM rust:1.32-slim
+FROM rust:1.39-slim
 RUN cargo install cargo-watch
 RUN apt-get update && apt-get install -y libssl-dev pkg-config
 WORKDIR /code/pigtail
