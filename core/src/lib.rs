@@ -41,7 +41,7 @@ impl AppState {
             server_id: server,
             clock: clock.clone(),
             pool: pool.clone(),
-            nodes: nodes::initial_nodes(pool.clone(), clock.clone())?,
+            nodes: nodes::initial_nodes(pool.clone(), clock)?,
             notifications: notifications::Notifications::new(&pool.get().unwrap()),
         })
     }
