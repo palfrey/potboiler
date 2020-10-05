@@ -21,7 +21,6 @@ use potboiler_common::{
     types::{Log, CRDT},
 };
 use serde_derive::Deserialize;
-use serde_json;
 use std::{
     collections::HashMap,
     env,
@@ -462,8 +461,6 @@ mod test {
         http::{Method, StatusCode},
         test, HttpMessage,
     };
-    use log4rs;
-    use mockito;
     use serde_json::{json, Value};
     use std::str;
 
@@ -505,7 +502,7 @@ mod test {
             0,
         );
         conn.add_test_query("select key, value from _config", tables);
-        return conn;
+        conn
     }
 
     fn setup_server(conn: db::TestConnection) -> test::TestServer {

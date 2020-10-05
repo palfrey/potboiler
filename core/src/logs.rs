@@ -1,7 +1,6 @@
 use crate::{nodes, AppState};
 use actix_web::{HttpRequest, HttpResponse, Json, Path, State};
 use failure::{bail, Error, Fail};
-use hybrid_clocks;
 use log::info;
 use potboiler_common::types::Log;
 use serde_derive::Serialize;

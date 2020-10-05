@@ -4,9 +4,7 @@ use failure::{bail, format_err, Error, Fail};
 use hybrid_clocks::{Timestamp, WallT};
 use log::{debug, info, warn};
 use potboiler_common::{db, get_raw_timestamp, types::Log};
-use resolve;
 use serde_derive::Deserialize;
-use serde_json;
 use std::{
     borrow::Borrow,
     collections::{HashMap, HashSet},

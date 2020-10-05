@@ -11,8 +11,6 @@
 use actix_web::server;
 use failure::Error;
 use log::info;
-use log4rs;
-use potboiler;
 use potboiler_common::server_id;
 
 pub fn main() -> Result<(), Error> {

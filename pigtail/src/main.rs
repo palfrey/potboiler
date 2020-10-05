@@ -11,8 +11,6 @@
 use actix_web::server;
 use failure::Error;
 use log::info;
-use log4rs;
-use pigtail;
 use potboiler_common::pg;
 use std::env;
 

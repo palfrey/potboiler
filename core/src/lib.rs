@@ -90,7 +90,6 @@ mod test {
     };
     use potboiler_common::server_id;
     use regex::Regex;
-    use serde_json;
     use std::str;
 
     fn test_route(path: &str, expected: &str) {

@@ -10,7 +10,6 @@
 
 use actix_web::server;
 use failure::Error;
-use kv;
 use log::info;
 
 pub fn main() -> Result<(), Error> {

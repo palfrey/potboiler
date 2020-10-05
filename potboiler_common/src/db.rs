@@ -1,11 +1,5 @@
 use failure::Fail;
 use log::warn;
-use postgres;
-use postgres_shared;
-use r2d2;
-use r2d2_postgres;
-use regex;
-use serde_json;
 use std::{collections::HashMap, convert::From, fmt, iter};
 use uuid::Uuid;
 

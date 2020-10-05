@@ -1,5 +1,4 @@
 use crate::db;
-use r2d2;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 
 pub type PostgresPool = r2d2::Pool<PostgresConnectionManager>;
