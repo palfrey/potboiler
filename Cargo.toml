@@ -1,2 +1,7 @@
 [workspace]
 members = ["core", "kv", "potboiler_common", "pigtail"]
+
+[workspace.metadata.raze]
+genmode = "Remote"
+workspace_path = "//bazel"
+package_aliases_dir = "bazel"

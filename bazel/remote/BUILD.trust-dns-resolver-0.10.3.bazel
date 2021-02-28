@@ -1,0 +1,78 @@
+"""
+@generated
+cargo-raze crate build file.
+
+DO NOT EDIT! Replaced on runs of cargo-raze
+"""
+
+# buildifier: disable=load
+load("@bazel_skylib//lib:selects.bzl", "selects")
+
+# buildifier: disable=load
+load(
+    "@rules_rust//rust:rust.bzl",
+    "rust_binary",
+    "rust_library",
+    "rust_test",
+)
+
+package(default_visibility = [
+    # Public for visibility by "@raze__crate__version//" targets.
+    #
+    # Prefer access through "//bazel", which limits external
+    # visibility to explicit Cargo.toml dependencies.
+    "//visibility:public",
+])
+
+licenses([
+    "notice",  # MIT from expression "MIT OR Apache-2.0"
+])
+
+# Generated Targets
+
+# Unsupported target "global_resolver" with type "example" omitted
+
+# Unsupported target "multithreaded_runtime" with type "example" omitted
+
+rust_library(
+    name = "trust_dns_resolver",
+    srcs = glob(["**/*.rs"]),
+    aliases = {
+    },
+    crate_features = [
+    ],
+    crate_root = "src/lib.rs",
+    crate_type = "lib",
+    data = [],
+    edition = "2015",
+    rustc_flags = [
+        "--cap-lints=allow",
+    ],
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+    version = "0.10.3",
+    # buildifier: leave-alone
+    deps = [
+        "@raze__cfg_if__0_1_6//:cfg_if",
+        "@raze__failure__0_1_5//:failure",
+        "@raze__futures__0_1_25//:futures",
+        "@raze__lazy_static__1_2_0//:lazy_static",
+        "@raze__log__0_4_6//:log",
+        "@raze__lru_cache__0_1_1//:lru_cache",
+        "@raze__resolv_conf__0_6_2//:resolv_conf",
+        "@raze__smallvec__0_6_10//:smallvec",
+        "@raze__tokio__0_1_15//:tokio",
+        "@raze__trust_dns_proto__0_6_3//:trust_dns_proto",
+    ] + selects.with_or({
+        # cfg(windows)
+        (
+            "@rules_rust//rust/platform:i686-pc-windows-msvc",
+            "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
+        ): [
+            "@raze__ipconfig__0_1_9//:ipconfig",
+        ],
+        "//conditions:default": [],
+    }),
+)

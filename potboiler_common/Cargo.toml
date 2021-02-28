@@ -27,3 +27,9 @@ anyhow = "1"
 [lib]
 name = "potboiler_common"
 path = "src/lib.rs"
+
+[package.metadata.raze.crates.actix-web.'0.7.18']
+data_attr = """glob(["**"], exclude=["tests/test space.binary"])"""
+
+[package.metadata.raze.crates.ring.'*']
+compile_data_attr = "glob([\"**/*.der\"])"

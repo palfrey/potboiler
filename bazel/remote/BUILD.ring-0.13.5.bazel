@@ -1,0 +1,178 @@
+"""
+@generated
+cargo-raze crate build file.
+
+DO NOT EDIT! Replaced on runs of cargo-raze
+"""
+
+# buildifier: disable=load
+load("@bazel_skylib//lib:selects.bzl", "selects")
+
+# buildifier: disable=load
+load(
+    "@rules_rust//rust:rust.bzl",
+    "rust_binary",
+    "rust_library",
+    "rust_test",
+)
+
+package(default_visibility = [
+    # Public for visibility by "@raze__crate__version//" targets.
+    #
+    # Prefer access through "//bazel", which limits external
+    # visibility to explicit Cargo.toml dependencies.
+    "//visibility:public",
+])
+
+licenses([
+    "restricted",  # no license
+])
+
+# Generated Targets
+# buildifier: disable=out-of-order-load
+# buildifier: disable=load-on-top
+load(
+    "@rules_rust//cargo:cargo_build_script.bzl",
+    "cargo_build_script",
+)
+
+cargo_build_script(
+    name = "ring_build_script",
+    srcs = glob(["**/*.rs"]),
+    build_script_env = {
+        "CARGO_CFG_TARGET_ARCH": "x86_64",
+        "CARGO_CFG_TARGET_OS": "linux",
+        "CARGO_CFG_TARGET_ENV": "",
+        "DEBUG": "false"
+    },
+    crate_features = [
+        "default",
+        "dev_urandom_fallback",
+        "use_heap",
+    ],
+    crate_root = "build.rs",
+    data = glob(["**"]),
+    edition = "2015",
+    rustc_flags = [
+        "--cap-lints=allow",
+    ],
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+    version = "0.13.5",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@raze__cc__1_0_29//:cc",
+    ] + selects.with_or({
+        # cfg(any(target_os = "redox", all(unix, not(any(target_os = "macos", target_os = "ios")))))
+        (
+            "@rules_rust//rust/platform:aarch64-linux-android",
+            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
+            "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
+            "@rules_rust//rust/platform:i686-linux-android",
+            "@rules_rust//rust/platform:i686-unknown-freebsd",
+            "@rules_rust//rust/platform:i686-unknown-linux-gnu",
+            "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
+            "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
+            "@rules_rust//rust/platform:x86_64-linux-android",
+            "@rules_rust//rust/platform:x86_64-unknown-freebsd",
+            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+        ): [
+        ],
+        "//conditions:default": [],
+    }) + selects.with_or({
+        # cfg(target_os = "linux")
+        (
+            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
+            "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
+            "@rules_rust//rust/platform:i686-unknown-linux-gnu",
+            "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
+            "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
+            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+        ): [
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+rust_library(
+    name = "ring",
+    srcs = glob(["**/*.rs"]),
+    aliases = {
+    },
+    crate_features = [
+        "default",
+        "dev_urandom_fallback",
+        "use_heap",
+    ],
+    crate_root = "src/lib.rs",
+    crate_type = "lib",
+    data = [],
+    compile_data = glob(["**/*.der"]),
+    edition = "2015",
+    rustc_flags = [
+        "--cap-lints=allow",
+    ],
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+    version = "0.13.5",
+    # buildifier: leave-alone
+    deps = [
+        ":ring_build_script",
+        "@raze__untrusted__0_6_2//:untrusted",
+    ] + selects.with_or({
+        # cfg(any(target_os = "redox", all(unix, not(any(target_os = "macos", target_os = "ios")))))
+        (
+            "@rules_rust//rust/platform:aarch64-linux-android",
+            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
+            "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
+            "@rules_rust//rust/platform:i686-linux-android",
+            "@rules_rust//rust/platform:i686-unknown-freebsd",
+            "@rules_rust//rust/platform:i686-unknown-linux-gnu",
+            "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
+            "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
+            "@rules_rust//rust/platform:x86_64-linux-android",
+            "@rules_rust//rust/platform:x86_64-unknown-freebsd",
+            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+        ): [
+            "@raze__lazy_static__1_2_0//:lazy_static",
+        ],
+        "//conditions:default": [],
+    }) + selects.with_or({
+        # cfg(target_os = "linux")
+        (
+            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
+            "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
+            "@rules_rust//rust/platform:i686-unknown-linux-gnu",
+            "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
+            "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
+            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+        ): [
+            "@raze__libc__0_2_48//:libc",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# Unsupported target "aead_tests" with type "test" omitted
+
+# Unsupported target "agreement_tests" with type "test" omitted
+
+# Unsupported target "digest_tests" with type "test" omitted
+
+# Unsupported target "ecdsa_tests" with type "test" omitted
+
+# Unsupported target "ed25519_tests" with type "test" omitted
+
+# Unsupported target "hkdf_tests" with type "test" omitted
+
+# Unsupported target "hmac_tests" with type "test" omitted
+
+# Unsupported target "pbkdf2_tests" with type "test" omitted
+
+# Unsupported target "rsa_tests" with type "test" omitted
+
+# Unsupported target "signature_tests" with type "test" omitted
