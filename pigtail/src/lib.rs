@@ -1,3 +1,4 @@
+#[allow(clippy::unnecessary_wraps)] // FIXME: Should get redone with better errors
 use crate::types::QueueOperation;
 use actix_web::{
     http::{header, Method},
