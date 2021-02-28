@@ -1,4 +1,5 @@
 use actix_web::{http::StatusCode, server};
+use anyhow::Result;
 use env_logger;
 use potboiler;
 use potboiler_common::{pg, server_id, test::ServerThread};
