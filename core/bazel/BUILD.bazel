@@ -22,8 +22,8 @@ alias(
 )
 
 alias(
-    name = "env_logger",
-    actual = "@raze__env_logger__0_6_0//:env_logger",
+    name = "anyhow",
+    actual = "@raze__anyhow__1_0_38//:anyhow",
     tags = [
         "cargo-raze",
         "manual",
@@ -31,8 +31,8 @@ alias(
 )
 
 alias(
-    name = "failure",
-    actual = "@raze__failure__0_1_5//:failure",
+    name = "env_logger",
+    actual = "@raze__env_logger__0_6_0//:env_logger",
     tags = [
         "cargo-raze",
         "manual",
@@ -186,6 +186,15 @@ alias(
 alias(
     name = "serial_test_derive",
     actual = "@raze__serial_test_derive__0_2_0//:serial_test_derive",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "thiserror",
+    actual = "@raze__thiserror__1_0_24//:thiserror",
     tags = [
         "cargo-raze",
         "manual",

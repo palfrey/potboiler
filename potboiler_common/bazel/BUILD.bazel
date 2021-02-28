@@ -40,8 +40,8 @@ alias(
 )
 
 alias(
-    name = "failure",
-    actual = "@raze__failure__0_1_5//:failure",
+    name = "anyhow",
+    actual = "@raze__anyhow__1_0_38//:anyhow",
     tags = [
         "cargo-raze",
         "manual",
@@ -141,6 +141,15 @@ alias(
 alias(
     name = "serde_json",
     actual = "@raze__serde_json__1_0_38//:serde_json",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "thiserror",
+    actual = "@raze__thiserror__1_0_24//:thiserror",
     tags = [
         "cargo-raze",
         "manual",
