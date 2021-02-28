@@ -265,7 +265,7 @@ fn check_new_nodes(host_url: &str, conn: &db::Connection, nodelist: &NodeList) -
     };
     let remote_node_set: HashSet<String> = HashSet::from_iter(remote_nodes);
     let existing_nodes = conn.query("select url from nodes")?;
-    let existing_nodes_set: HashSet<String> = HashSet::from_iter(existing_nodes.iter().map(|x| x.get("url")));
+    let existing_nodes_set: HashSet<String> = existing_nodes.iter().map(|x| x.get("url")).collect();
     let extra_nodes = remote_node_set.difference(&existing_nodes_set).cloned();
     debug!("From {} remote nodes: {:?}", check_url, remote_node_set);
     info!("Extra nodes from {}: {:?}", check_url, extra_nodes);
