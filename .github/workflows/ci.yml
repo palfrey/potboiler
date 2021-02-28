@@ -29,6 +29,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5          
+        ports:
+          - 5432:5432          
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -40,7 +42,7 @@ jobs:
       - name: Build and test
         uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
         env:
-          DATABASE_URL: postgresql://postgres:postgres@postgres:5432
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432
         with:
           command: test
           working-directory: "${{ matrix.project }}"          
