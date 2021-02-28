@@ -1,0 +1,154 @@
+"""
+@generated
+cargo-raze crate build file.
+
+DO NOT EDIT! Replaced on runs of cargo-raze
+"""
+
+# buildifier: disable=load
+load("@bazel_skylib//lib:selects.bzl", "selects")
+
+# buildifier: disable=load
+load(
+    "@rules_rust//rust:rust.bzl",
+    "rust_binary",
+    "rust_library",
+    "rust_test",
+)
+
+package(default_visibility = [
+    # Public for visibility by "@raze__crate__version//" targets.
+    #
+    # Prefer access through "//bazel", which limits external
+    # visibility to explicit Cargo.toml dependencies.
+    "//visibility:public",
+])
+
+licenses([
+    "notice",  # MIT from expression "MIT OR Apache-2.0"
+])
+
+# Generated Targets
+# buildifier: disable=out-of-order-load
+# buildifier: disable=load-on-top
+load(
+    "@rules_rust//cargo:cargo_build_script.bzl",
+    "cargo_build_script",
+)
+
+cargo_build_script(
+    name = "actix_web_build_script",
+    srcs = glob(["**/*.rs"]),
+    build_script_env = {
+    },
+    crate_features = [
+        "brotli",
+        "brotli2",
+        "cell",
+        "default",
+        "flate2",
+        "flate2-c",
+        "session",
+    ],
+    crate_root = "build.rs",
+    data = glob(["**"]),
+    edition = "2015",
+    rustc_flags = [
+        "--cap-lints=allow",
+    ],
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+    version = "0.7.18",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@raze__version_check__0_1_5//:version_check",
+    ],
+)
+
+rust_library(
+    name = "actix_web",
+    srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "brotli",
+        "brotli2",
+        "cell",
+        "default",
+        "flate2",
+        "flate2-c",
+        "session",
+    ],
+    crate_root = "src/lib.rs",
+    crate_type = "lib",
+    data = [],
+    edition = "2015",
+    rustc_flags = [
+        "--cap-lints=allow",
+    ],
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+    version = "0.7.18",
+    # buildifier: leave-alone
+    deps = [
+        ":actix_web_build_script",
+        "@raze__actix__0_7_9//:actix",
+        "@raze__actix_net__0_2_6//:actix_net",
+        "@raze__base64__0_10_1//:base64",
+        "@raze__bitflags__1_0_4//:bitflags",
+        "@raze__brotli2__0_3_2//:brotli2",
+        "@raze__byteorder__1_3_1//:byteorder",
+        "@raze__bytes__0_4_11//:bytes",
+        "@raze__cookie__0_11_0//:cookie",
+        "@raze__encoding__0_2_33//:encoding",
+        "@raze__failure__0_1_5//:failure",
+        "@raze__flate2__1_0_6//:flate2",
+        "@raze__futures__0_1_25//:futures",
+        "@raze__futures_cpupool__0_1_8//:futures_cpupool",
+        "@raze__h2__0_1_16//:h2",
+        "@raze__http__0_1_21//:http",
+        "@raze__httparse__1_3_3//:httparse",
+        "@raze__language_tags__0_2_2//:language_tags",
+        "@raze__lazy_static__1_2_0//:lazy_static",
+        "@raze__lazycell__1_2_1//:lazycell",
+        "@raze__log__0_4_6//:log",
+        "@raze__mime__0_3_13//:mime",
+        "@raze__mime_guess__2_0_0_alpha_6//:mime_guess",
+        "@raze__mio__0_6_16//:mio",
+        "@raze__net2__0_2_33//:net2",
+        "@raze__num_cpus__1_10_0//:num_cpus",
+        "@raze__parking_lot__0_7_1//:parking_lot",
+        "@raze__percent_encoding__1_0_1//:percent_encoding",
+        "@raze__rand__0_6_5//:rand",
+        "@raze__regex__1_1_0//:regex",
+        "@raze__serde__1_0_88//:serde",
+        "@raze__serde_json__1_0_38//:serde_json",
+        "@raze__serde_urlencoded__0_5_4//:serde_urlencoded",
+        "@raze__sha1__0_6_0//:sha1",
+        "@raze__slab__0_4_2//:slab",
+        "@raze__smallvec__0_6_10//:smallvec",
+        "@raze__time__0_1_42//:time",
+        "@raze__tokio__0_1_15//:tokio",
+        "@raze__tokio_current_thread__0_1_4//:tokio_current_thread",
+        "@raze__tokio_io__0_1_11//:tokio_io",
+        "@raze__tokio_reactor__0_1_8//:tokio_reactor",
+        "@raze__tokio_tcp__0_1_3//:tokio_tcp",
+        "@raze__tokio_timer__0_2_10//:tokio_timer",
+        "@raze__url__1_7_2//:url",
+        "@raze__v_htmlescape__0_3_2//:v_htmlescape",
+    ],
+)
+
+# Unsupported target "test_client" with type "test" omitted
+
+# Unsupported target "test_custom_pipeline" with type "test" omitted
+
+# Unsupported target "test_handlers" with type "test" omitted
+
+# Unsupported target "test_middleware" with type "test" omitted
+
+# Unsupported target "test_server" with type "test" omitted
+
+# Unsupported target "test_ws" with type "test" omitted

@@ -1,16 +1,7 @@
 [workspace]
 members = ["core", "kv", "potboiler_common", "pigtail"]
 
-[raze]
+[workspace.metadata.raze]
 genmode = "Remote"
-workspace_path = "//cargo"
-#target = "x86_64-apple-darwin"
-
-[raze.crates.conduit-mime-types.'0.7.3']
-data_attr = "[\"data/mime.json\"]"
-
-[raze.crates.typenum.'1.9.0']
-gen_buildrs = true
-
-[raze.crates.mime_guess.'1.8.4']
-gen_buildrs = true
+workspace_path = "//bazel"
+package_aliases_dir = "bazel"

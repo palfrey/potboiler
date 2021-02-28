@@ -1,27 +1,21 @@
 load("@io_bazel_rules_docker//rust:image.bzl", "rust_image")
-load("@io_bazel_rules_rust//rust:rust.bzl", "rust_binary")
+load("@rules_rust//rust:rust.bzl", "rust_binary")
 
 rust_binary(
     name = "potboiler",
     srcs = glob(["src/*.rs"]),
     deps = [
-        "//cargo:schemamama",
-        "//cargo:schemamama_postgres",
-        "//cargo:postgres",
-        "//cargo:log4rs",
-        "//cargo:iron",
-        "//cargo:router",
-        "//cargo:logger",
-        "//cargo:serde",
-        "//cargo:serde_json",
-        "//cargo:urlencoded",
-        "//cargo:url",
-        "//cargo:hyper",
-        "//cargo:uuid",
-        "//cargo:hybrid_clocks",
-        "//cargo:r2d2",
-        "//cargo:r2d2_postgres",
-        "//cargo:persistent",
+        "//core/bazel:schemamama",
+        "//core/bazel:schemamama_postgres",
+        "//core/bazel:postgres",
+        "//core/bazel:log4rs",
+        "//core/bazel:serde",
+        "//core/bazel:serde_json",
+        "//core/bazel:url",
+        "//core/bazel:uuid",
+        "//core/bazel:hybrid_clocks",
+        "//core/bazel:r2d2",
+        "//core/bazel:r2d2_postgres",    
         "//potboiler_common"
     ]
 )

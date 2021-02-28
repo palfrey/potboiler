@@ -1,0 +1,108 @@
+"""
+@generated
+cargo-raze crate build file.
+
+DO NOT EDIT! Replaced on runs of cargo-raze
+"""
+
+# buildifier: disable=load
+load("@bazel_skylib//lib:selects.bzl", "selects")
+
+# buildifier: disable=load
+load(
+    "@rules_rust//rust:rust.bzl",
+    "rust_binary",
+    "rust_library",
+    "rust_test",
+)
+
+package(default_visibility = [
+    # Public for visibility by "@raze__crate__version//" targets.
+    #
+    # Prefer access through "//bazel", which limits external
+    # visibility to explicit Cargo.toml dependencies.
+    "//visibility:public",
+])
+
+licenses([
+    "notice",  # MIT from expression "MIT OR Apache-2.0"
+])
+
+# Generated Targets
+
+# Unsupported target "async" with type "example" omitted
+
+# Unsupported target "async_multiple_requests" with type "example" omitted
+
+# Unsupported target "form" with type "example" omitted
+
+# Unsupported target "json_dynamic" with type "example" omitted
+
+# Unsupported target "json_typed" with type "example" omitted
+
+# Unsupported target "simple" with type "example" omitted
+
+rust_library(
+    name = "reqwest",
+    srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "default",
+        "default-tls",
+        "hyper-tls",
+        "native-tls",
+        "tls",
+    ],
+    crate_root = "src/lib.rs",
+    crate_type = "lib",
+    data = [],
+    edition = "2015",
+    rustc_flags = [
+        "--cap-lints=allow",
+    ],
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+    version = "0.9.9",
+    # buildifier: leave-alone
+    deps = [
+        "@raze__base64__0_10_1//:base64",
+        "@raze__bytes__0_4_11//:bytes",
+        "@raze__encoding_rs__0_8_16//:encoding_rs",
+        "@raze__futures__0_1_25//:futures",
+        "@raze__http__0_1_21//:http",
+        "@raze__hyper__0_12_24//:hyper",
+        "@raze__hyper_tls__0_3_1//:hyper_tls",
+        "@raze__libflate__0_1_25//:libflate",
+        "@raze__log__0_4_6//:log",
+        "@raze__mime__0_3_13//:mime",
+        "@raze__mime_guess__2_0_0_alpha_6//:mime_guess",
+        "@raze__native_tls__0_2_2//:native_tls",
+        "@raze__serde__1_0_88//:serde",
+        "@raze__serde_json__1_0_38//:serde_json",
+        "@raze__serde_urlencoded__0_5_4//:serde_urlencoded",
+        "@raze__tokio__0_1_15//:tokio",
+        "@raze__tokio_executor__0_1_6//:tokio_executor",
+        "@raze__tokio_io__0_1_11//:tokio_io",
+        "@raze__tokio_threadpool__0_1_11//:tokio_threadpool",
+        "@raze__tokio_timer__0_2_10//:tokio_timer",
+        "@raze__url__1_7_2//:url",
+        "@raze__uuid__0_7_2//:uuid",
+    ],
+)
+
+# Unsupported target "async" with type "test" omitted
+
+# Unsupported target "badssl" with type "test" omitted
+
+# Unsupported target "client" with type "test" omitted
+
+# Unsupported target "gzip" with type "test" omitted
+
+# Unsupported target "multipart" with type "test" omitted
+
+# Unsupported target "proxy" with type "test" omitted
+
+# Unsupported target "redirect" with type "test" omitted
+
+# Unsupported target "timeouts" with type "test" omitted

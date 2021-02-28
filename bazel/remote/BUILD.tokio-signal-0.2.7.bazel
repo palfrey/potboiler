@@ -1,0 +1,118 @@
+"""
+@generated
+cargo-raze crate build file.
+
+DO NOT EDIT! Replaced on runs of cargo-raze
+"""
+
+# buildifier: disable=load
+load("@bazel_skylib//lib:selects.bzl", "selects")
+
+# buildifier: disable=load
+load(
+    "@rules_rust//rust:rust.bzl",
+    "rust_binary",
+    "rust_library",
+    "rust_test",
+)
+
+package(default_visibility = [
+    # Public for visibility by "@raze__crate__version//" targets.
+    #
+    # Prefer access through "//bazel", which limits external
+    # visibility to explicit Cargo.toml dependencies.
+    "//visibility:public",
+])
+
+licenses([
+    "notice",  # MIT from expression "MIT"
+])
+
+# Generated Targets
+
+# Unsupported target "ctrl-c" with type "example" omitted
+
+# Unsupported target "multiple" with type "example" omitted
+
+# Unsupported target "sighup-example" with type "example" omitted
+
+rust_library(
+    name = "tokio_signal",
+    srcs = glob(["**/*.rs"]),
+    aliases = {
+    },
+    crate_features = [
+    ],
+    crate_root = "src/lib.rs",
+    crate_type = "lib",
+    data = [],
+    edition = "2015",
+    rustc_flags = [
+        "--cap-lints=allow",
+    ],
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+    version = "0.2.7",
+    # buildifier: leave-alone
+    deps = [
+        "@raze__futures__0_1_25//:futures",
+        "@raze__mio__0_6_16//:mio",
+        "@raze__tokio_executor__0_1_6//:tokio_executor",
+        "@raze__tokio_io__0_1_11//:tokio_io",
+        "@raze__tokio_reactor__0_1_8//:tokio_reactor",
+    ] + selects.with_or({
+        # cfg(unix)
+        (
+            "@rules_rust//rust/platform:aarch64-apple-darwin",
+            "@rules_rust//rust/platform:aarch64-apple-ios",
+            "@rules_rust//rust/platform:aarch64-linux-android",
+            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
+            "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
+            "@rules_rust//rust/platform:i686-apple-darwin",
+            "@rules_rust//rust/platform:i686-linux-android",
+            "@rules_rust//rust/platform:i686-unknown-freebsd",
+            "@rules_rust//rust/platform:i686-unknown-linux-gnu",
+            "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
+            "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
+            "@rules_rust//rust/platform:x86_64-apple-darwin",
+            "@rules_rust//rust/platform:x86_64-apple-ios",
+            "@rules_rust//rust/platform:x86_64-linux-android",
+            "@rules_rust//rust/platform:x86_64-unknown-freebsd",
+            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+        ): [
+            "@raze__libc__0_2_48//:libc",
+            "@raze__mio_uds__0_6_7//:mio_uds",
+            "@raze__signal_hook__0_1_7//:signal_hook",
+        ],
+        "//conditions:default": [],
+    }) + selects.with_or({
+        # cfg(windows)
+        (
+            "@rules_rust//rust/platform:i686-pc-windows-msvc",
+            "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
+        ): [
+            "@raze__winapi__0_3_6//:winapi",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# Unsupported target "drop_multi_loop" with type "test" omitted
+
+# Unsupported target "drop_then_get_a_signal" with type "test" omitted
+
+# Unsupported target "dropping_does_not_deregister_other_instances" with type "test" omitted
+
+# Unsupported target "multi_loop" with type "test" omitted
+
+# Unsupported target "notify_both" with type "test" omitted
+
+# Unsupported target "signal" with type "test" omitted
+
+# Unsupported target "simple" with type "test" omitted
+
+# Unsupported target "support" with type "test" omitted
+
+# Unsupported target "twice" with type "test" omitted
