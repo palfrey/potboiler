@@ -1,8 +1,7 @@
 use hybrid_clocks::{Timestamp, WallT};
-use potboiler_common::types::CRDT;
-use serde_json;
-use std::collections::HashMap;
-use std::fmt;
+use potboiler_common::{enum_str, types::CRDT};
+use serde_derive::{Deserialize, Serialize};
+use std::{collections::HashMap, fmt};
 
 enum_str!(Operation {
     Set("set"),
@@ -31,8 +30,7 @@ pub struct LWW {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ORCreateOp {
-}
+pub struct ORCreateOp {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ORSetOp {

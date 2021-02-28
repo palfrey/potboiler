@@ -2,33 +2,34 @@
 name = "pigtail"
 version = "0.1.0"
 authors = ["Tom Parker <palfrey@tevp.net>"]
+edition = "2018"
 
 [[bin]]
 name = "pigtail"
+path = "src/main.rs"
 
 [dependencies]
-iron = "*"
-router = "*"
-logger = "*"
-serde = ">=0.8"
-serde_json = ">=0.8"
-serde_derive = "*"
-hybrid-clocks = { git = "https://github.com/palfrey/hybrid-clocks.git", branch = "serde-0.9", features = ["serde"] }
-uuid = {version = "*", features=["use_std","v4","serde"]}
-
+actix-web = "0.7"
+serde = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+hybrid-clocks = { version = "^0.3.4", features = ["serde"] }
+uuid = {version = "0.5", features=["use_std","v4","serde"]}
 url = "*"
-postgres = {features=["with-uuid","with-serde_json"], version=">=0.13.5"}
+reqwest ="*"
 
 potboiler_common = { path = "../potboiler_common" }
 
-r2d2 = "*"
-r2d2_postgres = "*"
-persistent = "*"
-
 log = "*"
-log4rs = {version = ">= 0.4", features=["yaml_format"]}
+log4rs = {version = "0.8", features=["yaml_format"]}
 
-hyper = "*"
-
-lazy_static = "0.1.*"
+lazy_static = "1"
 time = "0.1"
+failure = "0.1"
+
+[dev-dependencies]
+serial_test = "*"
+serial_test_derive = "*"
+env_logger = "0.6"
+potboiler = { path = "../core" }
+regex = "1.0"

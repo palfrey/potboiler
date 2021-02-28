@@ -7,7 +7,11 @@ root:
     appenders:
         - stdout
 loggers:
-    hyper::server:
+    tokio_reactor:
+        level: info
+    hyper:
+        level: info
+    reqwest:
         level: info
     postgres:
         level: warn

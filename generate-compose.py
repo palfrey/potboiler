@@ -34,7 +34,7 @@ class LocallyBuilt:
             "dockerfile": "%s/Dockerfile" % kind
         }
         ret["image"] = "potboiler/%s:latest" % kind
-        ret["volumes"] = [".:/code"]
+        ret["volumes"] = [".:/code:cached"]
         return ret
 
 class Core(LocallyBuilt):
@@ -62,7 +62,7 @@ class KV(LocallyBuilt):
         ret["environment"] = {
             "DATABASE_URL": self.postgres.db_url(),
             "SERVER_URL": self.core.log_url(),
-            "HOST": self.name
+            "KV_ROOT": "http://%s:8001" % self.name
         }
         ret["ports"] = ["%d:8001"%self.base_port]
         ret["links"] = ["%s:postgres"%self.postgres.name, "%s:core"%self.core.name]
@@ -96,7 +96,7 @@ class KVBrowser:
         ret = OrderedDict()
         ret["build"] = "kv-browser"
         ret["image"] = "potboiler/kv-browser:latest"
-        ret["volumes"] = ["./kv-browser/:/code"]
+        ret["volumes"] = ["./kv-browser/:/code:cached"]
         ret["environment"] = {"DATABASE_URL": self.postgres.db_url()}
         ret["ports"] = ["%d:5000"%self.base_port]
         ret["links"] = ["%s:postgres"%self.postgres.name]
@@ -111,11 +111,11 @@ class Correspondence:
         ret = OrderedDict()
         ret["build"] = "../correspondence"
         ret["image"] = "potboiler/correspondence:latest"
-        ret["volumes"] = ["../correspondence/:/code"]
+        ret["volumes"] = ["../correspondence/:/code:cached"]
         ret["environment"] = {"SERVER_URL": self.kv.base_url()}
         ret["ports"] = ["%d:5000"%self.base_port]
         ret["links"] = ["%s:kv"%self.kv.name]
-        ret["command"] = "bash -c \"./wait-for-port.sh kv 8001 && flask run --host=0.0.0.0\""
+        ret["command"] = "bash -c \"./wait-for-it.sh --timeout=0 kv:8001 -s -- flask run --host=0.0.0.0\""
         return ret
 
 parser = argparse.ArgumentParser()

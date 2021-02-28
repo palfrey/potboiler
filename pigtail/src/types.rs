@@ -1,4 +1,5 @@
-use serde_json;
+use potboiler_common::enum_str;
+use serde_derive::{Deserialize, Serialize};
 use std::fmt;
 use uuid::Uuid;
 

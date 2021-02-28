@@ -1,69 +1,107 @@
-use hybrid_clocks;
-use iron;
-use iron::modifiers::Redirect;
-use iron::prelude::{IronError, IronResult, Request, Response};
-use iron::status;
-use nodes;
-use notifications;
-use persistent;
-use postgres::rows::{Row, RowIndex};
-use postgres::types::FromSql;
-use potboiler_common::{clock, db, server_id};
+use crate::{nodes, AppState};
+use actix_web::{HttpRequest, HttpResponse, Json, Path, State};
+use failure::{bail, Error, Fail};
+use log::info;
 use potboiler_common::types::Log;
-use router::Router;
+use serde_derive::Serialize;
 use serde_json::{self, Map, Value};
-use std::io::{Cursor, Read};
-use std::ops::Deref;
-use std::sync::Arc;
-use url::Url;
-use uuid::Uuid;
+use std::{io::Cursor, sync::Arc};
+use url::form_urlencoded;
+use uuid::{self, Uuid};
 
-fn log_status<T: Into<String>>(req: &mut Request, stmt: T) -> IronResult<Response> {
-    let conn = get_pg_connection!(&req);
-    let stmt = conn.prepare(&stmt.into()).expect("prepare failure");
+#[derive(Debug, Fail)]
+enum LogsError {
+    #[fail(display = "Bad query key: {}", name)]
+    BadQueryKey { name: String },
+    #[fail(display = "Bad dependency uuid")]
+    BadDepUuid {
+        #[cause]
+        cause: uuid::ParseError,
+    },
+}
+
+fn log_status<S: Into<String>>(req: HttpRequest<AppState>, stmt: S) -> HttpResponse {
+    let conn = req.state().pool.get().unwrap();
     let mut logs = Map::new();
-    for row in &stmt.query(&[]).expect("last select works") {
+    for row in conn.query(&stmt.into()).expect("last select works").iter() {
         let id: Uuid = row.get("id");
         let owner: Uuid = row.get("owner");
-        logs.insert(owner.to_string(),
-                    serde_json::to_value(&id.to_string()).unwrap());
+        logs.insert(owner.to_string(), serde_json::to_value(&id.to_string()).unwrap());
     }
     let value = Value::Object(logs);
-    Ok(Response::with((status::Ok, serde_json::ser::to_string(&value).unwrap())))
+    HttpResponse::Ok().json(value)
 }
 
-pub fn log_lasts(req: &mut Request) -> IronResult<Response> {
-    log_status(req, "SELECT id, owner from log WHERE next is null")
+pub fn log_lasts(req: HttpRequest<AppState>) -> HttpResponse {
+    log_status(req, "select id, owner from log where next is null")
 }
 
-pub fn log_firsts(req: &mut Request) -> IronResult<Response> {
-    log_status(req, "SELECT id, owner from log WHERE prev is null")
+pub fn log_firsts(req: HttpRequest<AppState>) -> HttpResponse {
+    log_status(req, "select id, owner from log where prev is null")
 }
 
-fn json_from_body(mut req: &mut Request) -> Result<serde_json::Value, serde_json::Error> {
-    let body_string = {
-        let mut body = String::new();
-        req.body.read_to_string(&mut body).expect("could read from body");
-        body
-    };
-    return match serde_json::de::from_str(&body_string) {
-        Ok(val) => Ok(val),
-        Err(err) => Err(err),
-    };
+#[derive(Serialize)]
+struct NewLogResponse {
+    id: Uuid,
 }
 
-pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
-    let conn = get_pg_connection!(&req);
-    let json: Value = match json_from_body(req) {
-        Ok(val) => val,
-        Err(err) => return Err(IronError::new(err, (status::BadRequest, "Bad JSON"))),
-    };
+fn notify_everyone(state: &State<AppState>, log_arc: &Arc<Log>) {
+    // always notify all nodes
+    nodes::notify_everyone(state, log_arc);
+
+    // notifiers however require dependencies
+    for dep in &log_arc.dependencies {
+        if read_log(&state, dep).is_none() {
+            info!("Missing dependency {} for {}", dep, log_arc.id);
+            return;
+        }
+    }
+    state.notifications.notify_everyone(log_arc);
+
+    // Now get the logs that depend on this log entry
+    let conn = state.pool.get().unwrap();
+    let deps: Vec<Uuid> = conn
+        .query(&format!(
+            "select id from dependency where depends_on = '{}'",
+            &log_arc.id
+        ))
+        .unwrap()
+        .iter()
+        .map(|r| r.get("id"))
+        .collect();
+    for dep in &deps {
+        if let Some(other_log) = read_log(&state, dep) {
+            // i.e. `log` is a dep of `other_log`, so start telling others about other_log
+            let other_log_arc = Arc::new(other_log);
+            // note we only need to tell notifiers, as nodes already know
+            state.notifications.notify_everyone(&other_log_arc);
+        }
+    }
+}
+
+pub fn new_log(
+    state: State<AppState>,
+    json: Json<serde_json::Value>,
+    req: HttpRequest<AppState>,
+) -> Result<HttpResponse, Error> {
+    let conn = state.pool.get().unwrap();
     let id = Uuid::new_v4();
     let hyphenated = id.hyphenated().to_string();
-    let server_id = get_server_id!(&req).deref().clone();
-    let stmt = conn.prepare("SELECT id from log WHERE next is null and owner = $1 LIMIT 1")
-        .expect("prepare failure");
-    let results = stmt.query(&[&server_id]).expect("last select works");
+    let when = state.clock.get_timestamp();
+    let server_id = state.server_id;
+    let mut dependencies: Vec<Uuid> = Vec::new();
+    for (name, value) in form_urlencoded::parse(req.query_string().as_bytes()) {
+        if name != "dependency" {
+            bail!(LogsError::BadQueryKey { name: name.to_string() });
+        }
+        dependencies.push(Uuid::parse_str(&value).map_err(|e| LogsError::BadDepUuid { cause: e })?);
+    }
+    let results = conn
+        .query(&format!(
+            "select id from log where next is null and owner = '{}' limit 1",
+            &server_id
+        ))
+        .expect("last select works");
     let previous = if results.is_empty() {
         None
     } else {
@@ -71,92 +109,81 @@ pub fn new_log(mut req: &mut Request) -> IronResult<Response> {
         let id: Uuid = row.get("id");
         Some(id)
     };
-    let when = clock::get_timestamp(&mut req);
     let log = Log {
-        id: id,
-        owner: server_id.clone(),
+        id,
+        owner: server_id,
         prev: previous,
         next: None,
-        when: when,
+        when,
         data: json.clone(),
+        dependencies,
     };
-    nodes::insert_log(&conn, &log);
+    nodes::insert_log(&conn, &log).unwrap();
     let log_arc = Arc::new(log);
-    notifications::notify_everyone(req, log_arc.clone());
-    nodes::notify_everyone(req, log_arc.clone());
-    let new_url = {
-        let req_url = req.url.clone();
-        let base_url: Url = req_url.into();
-        base_url.join(&format!("/log/{}", &hyphenated)).expect("join url works")
-    };
-    Ok(Response::with((status::Created,
-                       hyphenated,
-                       Redirect(iron::Url::from_generic_url(new_url).expect("URL parsed ok")))))
+    notify_everyone(&state, &log_arc);
+    let new_url = format!("/log/{}", &hyphenated);
+    Ok(HttpResponse::Created()
+        .header(actix_web::http::header::LOCATION, new_url)
+        .json(NewLogResponse { id }))
 }
 
-pub fn other_log(mut req: &mut Request) -> IronResult<Response> {
-    let json = json_from_body(req).unwrap();
-    let log: Log = serde_json::from_value(json).unwrap();
-    let conn = get_pg_connection!(&req);
-    let existing = conn.query("SELECT id from log WHERE id=$1 limit 1", &[&log.id])
+pub fn other_log(log: Json<Log>, state: State<AppState>) -> HttpResponse {
+    if log.owner == state.server_id {
+        return HttpResponse::BadRequest().body("Attempted new log entry with local owner id");
+    }
+    let conn = state.pool.get().unwrap();
+    let existing = conn
+        .query(&format!("select id from log where id = '{}' limit 1", &log.id))
         .expect("bad existing query");
     if existing.is_empty() {
-        nodes::insert_log(&conn, &log);
-        let log_arc = Arc::new(log);
-        notifications::notify_everyone(req, log_arc.clone());
-        nodes::notify_everyone(req, log_arc.clone());
+        nodes::insert_log(&conn, &log).unwrap();
+        let log_arc = Arc::new(log.into_inner());
+        notify_everyone(&state, &log_arc);
     } else {
         info!("Told about new log item ({}) I already have", log.id);
     }
-    Ok(Response::with((status::Ok, "Added")))
+    HttpResponse::Ok().body("Added")
 }
 
-fn get_with_null<I, T>(row: &Row, index: I) -> Option<T>
-    where I: RowIndex,
-          T: FromSql
-{
-    match row.get_opt(index) {
-        Some(val) => {
-            match val {
-                Ok(val) => Some(val),
-                Err(_) => None,
-            }
-        }
-        None => None,
-    }
-}
-
-pub fn get_log(req: &mut Request) -> IronResult<Response> {
-    let query = req.extensions
-        .get::<Router>()
-        .unwrap()
-        .find("entry_id")
-        .unwrap_or("/")
-        .to_string();
-    let query_id = match Uuid::parse_str(&query) {
-        Ok(val) => val,
-        Err(_) => {
-            return Ok(Response::with((status::NotFound, format!("No log {}", query))));
-        }
-    };
-    let conn = get_pg_connection!(&req);
-    let stmt = conn.prepare("SELECT owner, next, prev, data, hlc_tstamp from log where id=$1")
-        .expect("prepare failure");
-    let results = stmt.query(&[&query_id]).expect("bad query");
+fn read_log(state: &State<AppState>, id: &Uuid) -> Option<Log> {
+    let conn = state.pool.get().unwrap();
+    let results = conn
+        .query(&format!(
+            "select owner, next, prev, data, hlc_tstamp from log where id = '{}'",
+            id
+        ))
+        .unwrap();
     if results.is_empty() {
-        Ok(Response::with((status::NotFound, format!("No log {}", query))))
+        None
     } else {
         let row = results.get(0);
         let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
         let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).unwrap();
-        let log = Log {
-            id: query_id,
+        let deps = conn
+            .query(&format!("select depends_on from dependency where id = '{}'", id))
+            .unwrap()
+            .iter()
+            .map(|r| r.get("depends_on"))
+            .collect();
+        Some(Log {
+            id: *id,
             owner: row.get("owner"),
-            prev: get_with_null(&row, "prev"),
-            next: get_with_null(&row, "next"),
+            prev: row.get_with_null("prev"),
+            next: row.get_with_null("next"),
             data: row.get("data"),
-            when: when,
-        };
-        Ok(Response::with((status::Ok, serde_json::to_string(&log).unwrap())))
+            when,
+            dependencies: deps,
+        })
+    }
+}
+
+pub fn get_log(query: Path<String>, state: State<AppState>) -> HttpResponse {
+    let query_id = match Uuid::parse_str(&query) {
+        Ok(val) => val,
+        Err(_) => return HttpResponse::NotFound().body(&format!("No log {}", query)),
+    };
+    match read_log(&state, &query_id) {
+        None => HttpResponse::NotFound().body(&format!("No log {}", query)),
+        Some(log) => HttpResponse::Ok().json(log),
     }
 }

@@ -1,15 +1,37 @@
-sudo: required
+sudo: false
+
+dist: xenial
+
 services:
   - docker
+  - postgresql
 
 language: rust
 rust:
-  - 1.15.0
-cache: cargo
+  - stable
+  - beta
+  - nightly
+
+cache:
+  cargo: true
+
 env:
-  - PROJECT=potboiler_common
-  - PROJECT=core
-  - PROJECT=kv
-  - PROJECT=pigtail
-  - PROJECT=docker
+  matrix:
+    - PROJECT=potboiler_common
+    - PROJECT=core
+    - PROJECT=kv
+    - PROJECT=pigtail
+    - PROJECT=docker
+    - PROJECT=check
 script: ./build.sh
+
+matrix:
+  allow_failures:
+    - rust: nightly
+    - rust: beta
+  fast_finish: true
+  exclude:
+  - rust: beta
+    env: PROJECT=docker
+  - rust: nightly
+    env: PROJECT=docker

@@ -1,5 +1,8 @@
 # Potboiler
 
+[![Build Status](https://travis-ci.com/palfrey/potboiler.svg?branch=master)](https://travis-ci.com/palfrey/potboiler)
+[![dependency status](https://deps.rs/repo/github/palfrey/potboiler/status.svg)](https://deps.rs/repo/github/palfrey/potboiler)
+
 Potboiler is an AP Event Sourcing system. More specifically, it's an MVP/research prototype of said, with known issues and is not even slightly suitable for production use. However, patches welcomed!
 
 ## Getting started
@@ -34,7 +37,7 @@ For subsequent nodes, add 100 to the port numbers (e.g. 8100-2 for the second, 8
    - `curl http://localhost:8000/log -d "{\"foo\":\"bar\", \"dfdsf\":\"sdfdsfs\"}"` => redirect to "get log item"
 
 - Register for log updates
-  - `curl http://localhost:8000/log/register -d "{\"url\": \"[URL to send msgs to]\"}"` => 204
+  - `curl http://localhost:8000/log/register -d "{\"url\": \"[URL to send msgs to]\"}"` => 201
 
 - Deregister for log updates
   - `curl http://localhost:8000/log/deregister -d "{\"url\": \"[URL to send msgs to]\"}"` => 204 if existed, otherwise 404
@@ -43,7 +46,7 @@ For subsequent nodes, add 100 to the port numbers (e.g. 8100-2 for the second, 8
   - `curl http://localhost:8000/nodes` => `["http://core1:8000","http://core0:8000"]`
 
 - Add new other node
-  - `curl http://localhost:8000/nodes -d "{\"url\": \"[Potboiler node root]\"}"` => 204
+  - `curl http://localhost:8000/nodes -d "{\"url\": \"[Potboiler node root]\"}"` => 201
 
 ### KV
 
@@ -58,8 +61,8 @@ Update operations:
   - "set": "[item]"
 - OR-Set:
   - "create": {} // makes an empty OR-Set if it doesn't exist
-  - "add": {"item":"[item]", "key":"[key]", "metadata": "[metadata]"}
-  - "remove": {"item":"[item]", "key":"[key]"}
+  - "add": {"key":"[key]", "item":"[item]", "metadata": "[metadata]"}
+  - "remove": {"key":"[key]", "item":"[item]"}
 
 - Update key
   - `curl http://localhost:8001/kv/[table]/[key] -d "{\"op\": \"[operation]\", \"change\": \"[data]\"}"` => Always 200 if data format is correct, regardless of whether the table has been seen
@@ -71,3 +74,8 @@ Update operations:
 ### Pigtail
 
 Pigtail is a task queue implementation. Best docs for it at the moment are the example worker and provider in pigtail/example
+
+### Testing
+
+* `cargo test` does most of it
+* `cargo test -- --ignored` will also run the tests that need `DATABASE_URL` set

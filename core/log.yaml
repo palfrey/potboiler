@@ -17,3 +17,5 @@ loggers:
         level: error
     resolve:
         level: warn
+    tokio_reactor:
+        level: warn

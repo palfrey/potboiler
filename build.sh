@@ -5,17 +5,28 @@ if [ "$PROJECT" = "docker" ]; then
 	pip install PyYAML
 	python generate-compose.py 1 > docker-compose.yml
 	docker-compose build
-	docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
-	docker push potboiler/core
-	docker push potboiler/kv
-	docker push potboiler/pigtail
+	docker-compose up &
+	pip install requests
+	python3 wait-for-http.py http://localhost:8000/log
+	python3 wait-for-http.py http://localhost:8001/kv/_config
+	docker-compose stop
+	if [ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ]; then
+		docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+		docker push potboiler/core
+		docker push potboiler/kv
+		docker push potboiler/pigtail
+	fi
+	exit 0
+elif [ "$PROJECT" = "check" ]; then
+	rustup component add rustfmt-preview
+	rustup component add clippy-preview
+	cargo fmt -- --check
+	cargo clippy
 	exit 0
 fi
 
-cargo install --force rustfmt --vers 0.6
-
 export PATH=$PATH:~/.cargo/bin &&
-cd $PROJECT
-cargo fmt -- --write-mode=diff
+export DATABASE_URL=${DATABASE_URL:-postgresql://postgres:@localhost:5432} # Default works on Travis
+cd "$PROJECT"
 cargo build
 cargo test
