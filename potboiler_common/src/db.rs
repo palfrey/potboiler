@@ -336,22 +336,22 @@ impl TestConnection {
             if patt.is_match(cmd) {
                 return match res {
                     Ok(val) => Ok(val.clone()),
-                    Err(err) => Err(err.clone().into()),
+                    Err(err) => Err(err.clone()),
                 };
             }
         }
-        Err(Error::NoTestQuery { cmd: String::from(cmd) }.into())
+        Err(Error::NoTestQuery { cmd: String::from(cmd) })
     }
     fn execute(&self, cmd: &str) -> Result<u64, Error> {
         for &(ref patt, ref res) in self.execute_results.iter() {
             if patt.is_match(cmd) {
                 return match res {
-                    Ok(val) => Ok(val.clone()),
-                    Err(err) => Err(err.clone().into()),
+                    Ok(val) => Ok(*val),
+                    Err(err) => Err(err.clone()),
                 };
             }
         }
-        Err(Error::NoTestExecute { cmd: String::from(cmd) }.into())
+        Err(Error::NoTestExecute { cmd: String::from(cmd) })
     }
 }
 
@@ -390,9 +390,7 @@ impl<'conn> Connection {
     }
     pub fn execute(&self, equery: &str) -> Result<u64, Error> {
         match *self {
-            Connection::Postgres(ref conn) => conn
-                .execute(equery, &[])
-                .map_err(|e| convert_postgres_error(e, equery).into()),
+            Connection::Postgres(ref conn) => conn.execute(equery, &[]).map_err(|e| convert_postgres_error(e, equery)),
             Connection::Test(ref conn) => conn.execute(equery),
         }
     }
