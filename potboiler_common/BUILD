@@ -22,6 +22,7 @@ rust_library(
         "//potboiler_common/bazel:actix",
         "//potboiler_common/bazel:regex",
         "//potboiler_common/bazel:actix_web",
+        "//potboiler_common/bazel:actix_net",
     ],
     proc_macro_deps = [
         "//potboiler_common/bazel:serde_derive",
