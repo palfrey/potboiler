@@ -133,7 +133,7 @@ macro_rules! get_row {
                 R: RowIndex + fmt::Display,
             {
                 if !self.data.contains_key(&id.val()) {
-                    panic!(format!("Can't find key {} in row", id));
+                    panic!("Can't find key {} in row", id);
                 }
                 match self.data[&id.val()] {
                     $kind(ref val) => val.clone(),
@@ -148,7 +148,7 @@ macro_rules! get_row {
                 R: RowIndex + fmt::Display,
             {
                 if !self.data.contains_key(&id.val()) {
-                    panic!(format!("Can't find key {} in row", id));
+                    panic!("Can't find key {} in row", id);
                 }
                 match self.data[&id.val()] {
                     $kind(ref val) => Some(val.clone()),
