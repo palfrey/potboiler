@@ -10,18 +10,19 @@
 )]
 
 use actix_web::{http::Method, App};
-use failure::{bail, Error, Fail};
+use anyhow::Result;
 use potboiler_common::{self, clock, db, pg};
 use std::env;
+use thiserror::Error;
 
 mod logs;
 mod nodes;
 mod notifications;
 mod schema;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 enum CoreError {
-    #[fail(display = "migration on non-postgres: {:?}", pool)]
+    #[error("migration on non-postgres: {:?}", pool)]
     MigrationsOnNonPostgres { pool: db::Pool },
 }
 
@@ -35,7 +36,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(pool: db::Pool, server: uuid::Uuid) -> Result<AppState, Error> {
+    pub fn new(pool: db::Pool, server: uuid::Uuid) -> Result<AppState> {
         let clock = clock::SyncClock::new();
         Ok(AppState {
             server_id: server,
@@ -47,7 +48,7 @@ impl AppState {
     }
 }
 
-pub fn app_router(state: AppState) -> Result<App<AppState>, Error> {
+pub fn app_router(state: AppState) -> Result<App<AppState>> {
     Ok(App::with_state(state)
         .resource("/log", |r| {
             r.method(Method::GET).with(logs::log_lasts);
@@ -69,7 +70,7 @@ pub fn app_router(state: AppState) -> Result<App<AppState>, Error> {
         }))
 }
 
-pub fn db_setup() -> Result<db::Pool, Error> {
+pub fn db_setup() -> Result<db::Pool> {
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = pg::get_pool(db_url)?;
     if let db::Pool::Postgres(pg_pool) = pool {
@@ -77,7 +78,7 @@ pub fn db_setup() -> Result<db::Pool, Error> {
         schema::up(&conn)?;
         Ok(db::Pool::Postgres(pg_pool))
     } else {
-        bail!(CoreError::MigrationsOnNonPostgres { pool });
+        Err(CoreError::MigrationsOnNonPostgres { pool }.into())
     }
 }
 

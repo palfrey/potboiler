@@ -1,4 +1,4 @@
-use failure::Error;
+use anyhow::Result;
 use log::debug;
 use std::{thread, time};
 
@@ -8,9 +8,9 @@ mod server_thread;
 pub use record_server::{RecordRequest, RecordServer};
 pub use server_thread::ServerThread;
 
-pub fn wait_for_action<F, R>(action: F) -> Result<R, Error>
+pub fn wait_for_action<F, R>(action: F) -> Result<R>
 where
-    F: Fn() -> Result<R, Error>,
+    F: Fn() -> Result<R>,
 {
     let max = 10;
     for x in 0..max {

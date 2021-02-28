@@ -9,11 +9,11 @@
 )]
 
 use actix_web::server;
-use failure::Error;
+use anyhow::Result;
 use log::info;
 use potboiler_common::server_id;
 
-pub fn main() -> Result<(), Error> {
+pub fn main() -> Result<()> {
     log4rs::init_file("log.yaml", Default::default())?;
     let pool = potboiler::db_setup()?;
     let app_state = potboiler::AppState::new(pool, server_id::setup())?;

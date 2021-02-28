@@ -1,4 +1,4 @@
-use failure::{err_msg, Error, Fail};
+use anyhow::Result;
 use potboiler_common::{db, types::CRDT};
 use serde_json::{self, Value};
 use std::{
@@ -6,6 +6,7 @@ use std::{
     ops::DerefMut,
     sync::{Arc, RwLock},
 };
+use thiserror::Error;
 
 #[derive(Debug, Clone)]
 pub struct Tables {
@@ -14,32 +15,30 @@ pub struct Tables {
 
 pub static CONFIG_TABLE: &str = "_config";
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum TableError {
-    #[fail(display = "ConfigTableCreation")]
+    #[error("ConfigTableCreation")]
     ConfigTableCreation {
-        #[cause]
-        cause: Error,
+        #[source]
+        cause: anyhow::Error,
     },
 }
 
-pub fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result<(), Error> {
+pub fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result<()> {
     match kind {
         CRDT::LWW => {
             conn.execute(&format!(
                 "CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, value \
                  JSONB NOT NULL, crdt JSONB NOT NULL)",
                 &table_name
-            ))
-            .map_err(Error::from)?;
+            ))?;
         }
         CRDT::ORSET => {
             conn.execute(&format!(
                 "CREATE TABLE IF NOT EXISTS {} (key VARCHAR(1024) PRIMARY KEY, crdt \
                  JSONB NOT NULL)",
                 &table_name
-            ))
-            .map_err(Error::from)?;
+            ))?;
             conn.execute(&format!(
                 "CREATE TABLE IF NOT EXISTS {}_items (\
                                    collection VARCHAR(1024) NOT NULL,
@@ -48,11 +47,10 @@ pub fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result
                                    metadata JSONB NOT NULL, \
                                    PRIMARY KEY(collection, key, item))",
                 &table_name
-            ))
-            .map_err(Error::from)?;
+            ))?;
         }
         CRDT::GSET => {
-            err_msg("No G-Set make table yet");
+            anyhow::anyhow!("No G-Set make table yet");
         }
     }
     Ok(())

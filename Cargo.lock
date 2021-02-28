@@ -123,9 +123,9 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4300e9431455322ae393d43a2ba1ef96b8080573c0fc23b196219efedfb6ba69"
 dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "proc-macro2 0.4.27",
+ "quote 0.6.11",
+ "syn 0.15.26",
 ]
 
 [[package]]
@@ -157,6 +157,12 @@ name = "antidote"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34fde25430d87a9388dadbe6e34d7f72a462c8b43ac8d309b42b0a8505d7e2a5"
+
+[[package]]
+name = "anyhow"
+version = "1.0.38"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afddf7f520a80dbf76e6f50a35bca42a2331ef227a28b3b6dc5c2e2338d114b1"
 
 [[package]]
 name = "arc-swap"
@@ -623,9 +629,9 @@ version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea1063915fd7ef4309e222a5a07cf9c319fb9c7836b1f89b85458672dbb127e1"
 dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "proc-macro2 0.4.27",
+ "quote 0.6.11",
+ "syn 0.15.26",
  "synstructure",
 ]
 
@@ -912,8 +918,8 @@ version = "0.1.0"
 dependencies = [
  "actix",
  "actix-web",
+ "anyhow",
  "env_logger",
- "failure",
  "hybrid-clocks",
  "lazy_static",
  "log 0.4.6",
@@ -929,6 +935,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "serial_test_derive",
+ "thiserror",
  "url",
  "uuid 0.5.1",
 ]
@@ -1386,8 +1393,8 @@ name = "pigtail"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "anyhow",
  "env_logger",
- "failure",
  "hybrid-clocks",
  "lazy_static",
  "log 0.4.6",
@@ -1401,6 +1408,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "serial_test_derive",
+ "thiserror",
  "time",
  "url",
  "uuid 0.5.1",
@@ -1464,8 +1472,8 @@ name = "potboiler"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "anyhow",
  "env_logger",
- "failure",
  "hybrid-clocks",
  "log 0.4.6",
  "log4rs",
@@ -1484,6 +1492,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "serial_test_derive",
+ "thiserror",
  "url",
  "uuid 0.5.1",
 ]
@@ -1495,7 +1504,7 @@ dependencies = [
  "actix",
  "actix-net",
  "actix-web",
- "failure",
+ "anyhow",
  "futures",
  "hybrid-clocks",
  "log 0.4.6",
@@ -1507,6 +1516,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "thiserror",
  "uuid 0.5.1",
 ]
 
@@ -1526,7 +1536,16 @@ version = "0.4.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d317f9caece796be1980837fd5cb3dfec5613ebdb04ad0956deea83ce168915"
 dependencies = [
- "unicode-xid",
+ "unicode-xid 0.1.0",
+]
+
+[[package]]
+name = "proc-macro2"
+version = "1.0.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e0704ee1a7e00d7bb417d0770ea303c1bccbabf0ef1667dae92b5967f5f8a71"
+dependencies = [
+ "unicode-xid 0.2.1",
 ]
 
 [[package]]
@@ -1541,7 +1560,16 @@ version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdd8e04bd9c52e0342b406469d494fcb033be4bdbe5c606016defbb1681411e1"
 dependencies = [
- "proc-macro2",
+ "proc-macro2 0.4.27",
+]
+
+[[package]]
+name = "quote"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3d0b9745dc2debf507c8422de05d7226cc1f0644216dfdfead988f9b1ab32a7"
+dependencies = [
+ "proc-macro2 1.0.24",
 ]
 
 [[package]]
@@ -1970,9 +1998,9 @@ version = "1.0.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "beed18e6f5175aef3ba670e57c60ef3b1b74d250d962a26604bff4c80e970dd4"
 dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "proc-macro2 0.4.27",
+ "quote 0.6.11",
+ "syn 0.15.26",
 ]
 
 [[package]]
@@ -2025,8 +2053,8 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89dd85be2e2ad75b041c9df2892ac078fa6e0b90024028b2b9fb4125b7530f01"
 dependencies = [
- "quote",
- "syn",
+ "quote 0.6.11",
+ "syn 0.15.26",
 ]
 
 [[package]]
@@ -2126,9 +2154,20 @@ version = "0.15.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f92e629aa1d9c827b2bb8297046c1ccffc57c99b947a680d3ccff1f136a3bee9"
 dependencies = [
- "proc-macro2",
- "quote",
- "unicode-xid",
+ "proc-macro2 0.4.27",
+ "quote 0.6.11",
+ "unicode-xid 0.1.0",
+]
+
+[[package]]
+name = "syn"
+version = "1.0.60"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c700597eca8a5a762beb35753ef6b94df201c81cca676604f547495a0d7f0081"
+dependencies = [
+ "proc-macro2 1.0.24",
+ "quote 1.0.9",
+ "unicode-xid 0.2.1",
 ]
 
 [[package]]
@@ -2137,10 +2176,10 @@ version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73687139bf99285483c96ac0add482c3776528beac1d97d444f6e91f203a2015"
 dependencies = [
- "proc-macro2",
- "quote",
- "syn",
- "unicode-xid",
+ "proc-macro2 0.4.27",
+ "quote 0.6.11",
+ "syn 0.15.26",
+ "unicode-xid 0.1.0",
 ]
 
 [[package]]
@@ -2181,6 +2220,26 @@ dependencies = [
  "libc",
  "redox_syscall",
  "redox_termios",
+]
+
+[[package]]
+name = "thiserror"
+version = "1.0.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0f4a65597094d4483ddaed134f409b2cb7c1beccf25201a9f73c719254fa98e"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7765189610d8241a44529806d6fd1f2e0a08734313a35d5b3a556f92b381f3c0"
+dependencies = [
+ "proc-macro2 1.0.24",
+ "quote 1.0.9",
+ "syn 1.0.60",
 ]
 
 [[package]]
@@ -2564,6 +2623,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc72304796d0818e357ead4e000d19c9c174ab23dc11093ac919054d20a6a7fc"
 
 [[package]]
+name = "unicode-xid"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7fe0bb3479651439c9112f72b6c505038574c9fbb575ed1bf3b797fa39dd564"
+
+[[package]]
 name = "unsafe-any"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2632,9 +2697,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cd994c63b487fef7aad31e5394ec04b9e24de7b32ea5251c9fb499cd2cbf44c"
 dependencies = [
  "nom",
- "proc-macro2",
- "quote",
- "syn",
+ "proc-macro2 0.4.27",
+ "quote 0.6.11",
+ "syn 0.15.26",
 ]
 
 [[package]]

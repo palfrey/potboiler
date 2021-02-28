@@ -1,11 +1,11 @@
-use failure::Error;
+use anyhow::Result;
 use futures::future::Future;
 use std::fmt;
 
 /// <https://github.com/actix/actix-web/issues/638>
 
 pub struct ServerThread {
-    pub join: Option<std::thread::JoinHandle<Result<(), Error>>>,
+    pub join: Option<std::thread::JoinHandle<Result<()>>>,
     pub actix_addr: actix_web::actix::Addr<actix_net::server::Server>,
 }
 
