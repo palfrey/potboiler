@@ -303,16 +303,10 @@ impl<'a> iter::IntoIterator for &'a Rows {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct TestConnection {
     query_results: Vec<(regex::Regex, Result<Vec<TestRow>, Error>)>,
     execute_results: Vec<(regex::Regex, Result<u64, Error>)>,
-}
-
-impl Clone for TestConnection {
-    fn clone(&self) -> Self {
-        todo!()
-    }
 }
 
 impl TestConnection {
