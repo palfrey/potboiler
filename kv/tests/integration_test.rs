@@ -1,5 +1,5 @@
 use actix_web::{server, test::TestServer};
-use failure::{ensure, Error, Fail};
+use anyhow::{ensure, Result};
 use kv;
 use potboiler;
 use potboiler_common::{server_id, test::wait_for_action, test::ServerThread};
@@ -8,17 +8,18 @@ use reqwest::{Client, StatusCode};
 use serde_json::json;
 use serial_test_derive::serial;
 use std::env;
+use thiserror::Error;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 enum IntegrationError {
-    #[fail(display = "IoError")]
+    #[error("IoError")]
     IoError {
-        #[cause]
+        #[source]
         cause: std::io::Error,
     },
 }
 
-fn boot_potboiler() -> Result<ServerThread, Error> {
+fn boot_potboiler() -> Result<ServerThread> {
     let _ = env_logger::try_init();
     let pool = potboiler::db_setup()?;
     let app_state = potboiler::AppState::new(pool, server_id::test()).unwrap();
@@ -28,7 +29,7 @@ fn boot_potboiler() -> Result<ServerThread, Error> {
     .map_err(|e| IntegrationError::IoError { cause: e }.into());
 }
 
-fn test_setup() -> Result<(ServerThread, TestServer), Error> {
+fn test_setup() -> Result<(ServerThread, TestServer)> {
     let _ = env_logger::try_init();
     let pool = kv::db_setup().unwrap();
     pool.wipe_db()?;

@@ -1,6 +1,6 @@
 use actix_web::test::TestServer;
+use anyhow::ensure;
 use env_logger;
-use failure::ensure;
 use hybrid_clocks::Clock;
 use potboiler;
 use potboiler_common::{

@@ -25,7 +25,8 @@ log4rs = {version = "0.8", features=["yaml_format"]}
 
 lazy_static = "1"
 time = "0.1"
-failure = "0.1"
+thiserror = "1"
+anyhow = "1"
 
 [dev-dependencies]
 serial_test = "*"

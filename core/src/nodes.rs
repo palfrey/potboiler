@@ -1,6 +1,6 @@
 use crate::{clock::SyncClock, AppState};
 use actix_web::{HttpRequest, HttpResponse, Json, Query, State};
-use failure::{bail, format_err, Error, Fail};
+use anyhow::{anyhow, bail, Result};
 use hybrid_clocks::{Timestamp, WallT};
 use log::{debug, info, warn};
 use potboiler_common::{db, get_raw_timestamp, types::Log};
@@ -11,7 +11,6 @@ use std::{
     convert,
     iter::FromIterator,
     ops::Deref,
-    result::Result as StdResult,
     sync::{
         mpsc::{channel, Receiver, Sender},
         Arc, Mutex, RwLock,
@@ -19,6 +18,7 @@ use std::{
     thread,
     time::Duration,
 };
+use thiserror::Error;
 use url::Url;
 use uuid::Uuid;
 
@@ -36,62 +36,60 @@ pub struct NodeList {
     clock: SyncClock,
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 enum NodesError {
-    #[fail(display = "host retrieve error: {}", host_url)]
+    #[error("host retrieve error: {}", host_url)]
     HostRetrieveError {
         host_url: String,
-        #[cause]
-        cause: Error,
+        #[source]
+        cause: anyhow::Error,
     },
-    #[fail(display = "PoisonError")]
+    #[error("PoisonError")]
     PoisonError,
-    #[fail(display = "NotAMap")]
+    #[error("NotAMap")]
     NotAMap { node: String },
-    #[fail(display = "NoDataKey")]
+    #[error("NoDataKey")]
     NoDataKey,
-    #[fail(display = "NoWhenKey")]
+    #[error("NoWhenKey")]
     NoWhenKey,
-    #[fail(display = "NoNextKey")]
+    #[error("NoNextKey")]
     NoNextKey,
-    #[fail(display = "KeyMissing")]
+    #[error("KeyMissing")]
     KeyMissing { key: String },
-    #[fail(display = "BadLogUuid")]
+    #[error("BadLogUuid")]
     BadLogUuid { uuid: String },
-    #[fail(display = "BadUuid")]
+    #[error("BadUuid")]
     BadUuid { uuid: String },
-    #[fail(display = "NoLastEntry")]
+    #[error("NoLastEntry")]
     NoLastEntry { key: String },
-    #[fail(display = "NoSuchNotifier")]
+    #[error("NoSuchNotifier")]
     NoSuchNotifier { name: String },
 }
 
 fn parse_object_from_request(
-    raw_result: StdResult<reqwest::Response, reqwest::Error>,
-) -> Result<serde_json::value::Map<String, serde_json::Value>, Error> {
-    let json: serde_json::Value = match raw_result?.json() {
-        Ok(val) => val,
-        Err(err) => bail!(err),
-    };
+    raw_result: Result<reqwest::Response, reqwest::Error>,
+) -> Result<serde_json::value::Map<String, serde_json::Value>> {
+    let json: serde_json::Value = raw_result?.json()?;
     match json.as_object() {
         Some(val) => Ok(val.clone()),
-        None => bail!(NodesError::NotAMap {
-            node: serde_json::to_string(&json).unwrap()
-        }),
+        None => Err(NodesError::NotAMap {
+            node: serde_json::to_string(&json).unwrap(),
+        }
+        .into()),
     }
 }
 
-fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncClock) -> Result<(), Error> {
+fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncClock) -> Result<()> {
     let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build()?;
     let check_url = format!("{}/log", &host_url);
     info!("Checking {} ({})", host_url, check_url);
     let raw_result = client.get(&check_url).send();
     let kv = match parse_object_from_request(raw_result) {
         Ok(val) => val,
-        Err(err) => bail!(NodesError::HostRetrieveError {
+        Err(err) => bail!(anyhow::Error::new(NodesError::HostRetrieveError {
             host_url: host_url.to_string(),
-            cause: err
-        }),
+            cause: err,
+        })),
     };
     for (key, value) in kv.iter() {
         let value_uuid = match Uuid::parse_str(value.as_str().ok_or_else(|| NodesError::BadUuid {
@@ -128,13 +126,13 @@ fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncCloc
                 Ok(val) => val,
                 Err(err) => bail!(NodesError::HostRetrieveError {
                     host_url: host_url.to_string(),
-                    cause: err
+                    cause: err,
                 }),
             };
             info!("First entry: {:?}", &first_entry);
             first_entry
                 .get(key)
-                .ok_or_else(|| NodesError::KeyMissing { key: key.clone() })?
+                .ok_or_else(|| NodesError::KeyMissing { key: key.to_string() })?
                 .clone()
         } else {
             info!("Already have an entry from the list with server id {:?}", key);
@@ -143,7 +141,7 @@ fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncCloc
                 &key_uuid
             ))?;
             if last_items.is_empty() {
-                bail!(NodesError::NoLastEntry { key: key.clone() });
+                bail!(NodesError::NoLastEntry { key: key.to_string() });
             }
             let last_item = last_items.get(0);
             let last_item_id: Uuid = last_item.get("id");
@@ -153,10 +151,10 @@ fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncCloc
             let res = client.get(&last_url).send();
             let last_entry = match parse_object_from_request(res) {
                 Ok(val) => val,
-                Err(err) => bail!(NodesError::HostRetrieveError {
+                Err(err) => bail!(anyhow::Error::new(NodesError::HostRetrieveError {
                     host_url: host_url.to_string(),
-                    cause: err
-                }),
+                    cause: err,
+                })),
             };
             info!("Last entry: {:?}", last_entry);
             last_entry.get("next").ok_or(NodesError::NoNextKey)?.clone()
@@ -165,17 +163,17 @@ fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncCloc
         loop {
             let real_uuid = {
                 let str_uuid = current_uuid.as_str();
-                String::from(str_uuid.ok_or_else(|| format_err!("Current id ({}) is not a UUID", current_uuid))?)
+                String::from(str_uuid.ok_or_else(|| anyhow!("Current id ({}) is not a UUID", current_uuid))?)
             };
             let current_url = format!("{}/log/{}", host_url, real_uuid);
             debug!("Get {} from {}", real_uuid, host_url);
             let res = client.get(&current_url).send();
             let current_entry = match parse_object_from_request(res) {
                 Ok(val) => val,
-                Err(err) => bail!(NodesError::HostRetrieveError {
+                Err(err) => bail!(anyhow::Error::new(NodesError::HostRetrieveError {
                     host_url: host_url.to_string(),
-                    cause: err
-                }),
+                    cause: err,
+                })),
             };
             let next = current_entry.get("next").ok_or(NodesError::NoNextKey)?;
             let timestamp: Timestamp<WallT> =
@@ -222,7 +220,7 @@ fn get_uuid_from_map(map: &serde_json::value::Map<String, serde_json::Value>, ke
     }
 }
 
-pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<(), Error> {
+pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
     debug!("Inserting {:?}", log);
     if let Some(prev) = log.prev {
         conn.execute(&format!(
@@ -251,7 +249,7 @@ pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<(), Error> {
     Ok(())
 }
 
-fn check_new_nodes(host_url: &str, conn: &db::Connection, nodelist: &NodeList) -> Result<(), Error> {
+fn check_new_nodes(host_url: &str, conn: &db::Connection, nodelist: &NodeList) -> Result<()> {
     let client = reqwest::Client::new();
     let check_url = format!("{}/nodes?query_port=8000", host_url);
     info!("Checking {} ({})", host_url, check_url);
@@ -325,7 +323,7 @@ fn check_host(host_url: &str, nodelist: &NodeList, recv: &Receiver<()>) {
     }
 }
 
-pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList, Error> {
+pub fn initial_nodes(pool: db::Pool, clock_state: SyncClock) -> Result<NodeList> {
     let conn = pool.get()?;
     let locked_nodes = Arc::new(RwLock::new(HashMap::new()));
     let mut nodes = locked_nodes.write().unwrap();
@@ -407,7 +405,7 @@ pub fn notify_everyone(state: &State<AppState>, log_arc: &Arc<Log>) {
 enum InsertResult {
     Inserted,
     Existing,
-    Error(Error),
+    Error(anyhow::Error),
 }
 
 fn node_insert(conn: &db::Connection, url: &str) -> InsertResult {
@@ -418,7 +416,7 @@ fn node_insert(conn: &db::Connection, url: &str) -> InsertResult {
     }
 }
 
-fn node_add_core(conn: &db::Connection, url: &str, state: &AppState) -> Result<(), Error> {
+fn node_add_core(conn: &db::Connection, url: &str, state: &AppState) -> Result<()> {
     match node_insert(&conn, url) {
         InsertResult::Inserted => {
             insert_node(state, url);
@@ -477,7 +475,7 @@ fn add_node_from_req(
     req: HttpRequest<AppState>,
     nodes: &[String],
     conn: &db::Connection,
-) -> Result<(), Error> {
+) -> Result<()> {
     let host = resolve::resolver::resolve_addr(&req.connection_info().remote().unwrap().parse()?)?;
     let query_url = format!("http://{}:{}", host, query.query_port.unwrap());
     if !nodes.contains(&query_url) {

@@ -9,10 +9,10 @@
 )]
 
 use actix_web::server;
-use failure::Error;
+use anyhow::Result;
 use log::info;
 
-pub fn main() -> Result<(), Error> {
+pub fn main() -> Result<()> {
     log4rs::init_file("log.yaml", Default::default())?;
     let pool = kv::db_setup()?;
     let client = reqwest::Client::new();
