@@ -9,7 +9,7 @@ name = "pigtail"
 path = "src/main.rs"
 
 [dependencies]
-actix-web = "0.7"
+actix-web = "0.7.15"
 serde = "1.0"
 serde_json = "1.0"
 serde_derive = "1.0"
@@ -20,7 +20,7 @@ reqwest ="*"
 
 potboiler_common = { path = "../potboiler_common" }
 
-log = "*"
+log = "0.4"
 log4rs = {version = "0.8", features=["yaml_format"]}
 
 lazy_static = "1"
