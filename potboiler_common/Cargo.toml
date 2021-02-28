@@ -5,7 +5,7 @@ authors = ["Tom Parker-Shemilt <palfrey@tevp.net>"]
 edition = "2018"
 
 [dependencies]
-actix-web = "0.7"
+actix-web = "0.7.15"
 actix-net = "0.2"
 actix = "0.7"
 futures = "0.1"
@@ -18,7 +18,7 @@ r2d2_postgres = "0.14"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-log = "*"
+log = "0.4"
 hybrid-clocks = { version = "^0.3.4", features = ["serde"] }
 regex = "*"
 thiserror = "1"
