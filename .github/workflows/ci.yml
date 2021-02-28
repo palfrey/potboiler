@@ -99,6 +99,8 @@ jobs:
       matrix:
         target: 
           - //core:potboiler
+          - //kv:kv
+          - //pigtail:pigtail
     steps:
       - name: Checkout
         uses: actions/checkout@v2
