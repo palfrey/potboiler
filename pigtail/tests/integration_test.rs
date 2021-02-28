@@ -77,5 +77,5 @@ fn test_add_entry() {
     assert_eq!(response.status(), StatusCode::CREATED);
     let re = Regex::new(r"/queue/foo/([a-z0-9-]+)").unwrap();
     let location = format!("{:?}", response.headers()[header::LOCATION]);
-    assert!(re.is_match(&location), location);
+    assert!(re.is_match(&location), "{}", location);
 }
