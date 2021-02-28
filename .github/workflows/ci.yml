@@ -7,91 +7,91 @@ on:
 name: CI
 
 jobs:
-  test:
-    name: Rust tests
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust:
-          - stable
-          - beta
-          - nightly
-        project:
-          - potboiler_common
-          - core
-          - kv
-          - pigtail          
-    services:
-      postgres:
-        image: postgres:12.1
-        env:
-          POSTGRES_PASSWORD: postgres        
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5          
-        ports:
-          - 5432:5432          
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: ${{ matrix.rust }}
-          override: true
-      - uses: Swatinem/rust-cache@v1
-      - name: Build and test
-        uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432
-        with:
-          command: test
-          working-directory: "${{ matrix.project }}"          
+  # test:
+  #   name: Rust tests
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     matrix:
+  #       rust:
+  #         - stable
+  #         - beta
+  #         - nightly
+  #       project:
+  #         - potboiler_common
+  #         - core
+  #         - kv
+  #         - pigtail          
+  #   services:
+  #     postgres:
+  #       image: postgres:12.1
+  #       env:
+  #         POSTGRES_PASSWORD: postgres        
+  #       options: >-
+  #         --health-cmd pg_isready
+  #         --health-interval 10s
+  #         --health-timeout 5s
+  #         --health-retries 5          
+  #       ports:
+  #         - 5432:5432          
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         profile: minimal
+  #         toolchain: ${{ matrix.rust }}
+  #         override: true
+  #     - uses: Swatinem/rust-cache@v1
+  #     - name: Build and test
+  #       uses: marcopolo/cargo@master # TODO: - uses: actions-rs/cargo@v1 https://github.com/actions-rs/cargo/pull/59
+  #       env:
+  #         DATABASE_URL: postgresql://postgres:postgres@localhost:5432
+  #       with:
+  #         command: test
+  #         working-directory: "${{ matrix.project }}"          
 
-  linter:
-    name: Clippy/Rustfmt
-    runs-on: ubuntu-latest    
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-          components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@v1
-      - name: Clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-      - name: Rustfmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: -- --check
+  # linter:
+  #   name: Clippy/Rustfmt
+  #   runs-on: ubuntu-latest    
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - uses: actions-rs/toolchain@v1
+  #       with:
+  #         profile: minimal
+  #         toolchain: stable
+  #         override: true
+  #         components: clippy, rustfmt
+  #     - uses: Swatinem/rust-cache@v1
+  #     - name: Clippy
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: clippy
+  #     - name: Rustfmt
+  #       uses: actions-rs/cargo@v1
+  #       with:
+  #         command: fmt
+  #         args: -- --check
 
-  docker:
-    name: Docker tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2    
-      - name: Setup python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 2.7
-      - name: Install dependencies
-        run: pip install PyYAML requests
-      - name: Create docker-compose
-        run: python generate-compose.py 1 > docker-compose.yml
-      - name: Boot docker-compose
-        run: |
-          docker-compose build
-          docker-compose up -d
-      - name: Check responses
-        run: |
-          python3 wait-for-http.py http://localhost:8000/log
-          python3 wait-for-http.py http://localhost:8001/kv/_config
+  # docker:
+  #   name: Docker tests
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v2    
+  #     - name: Setup python
+  #       uses: actions/setup-python@v2
+  #       with:
+  #         python-version: 2.7
+  #     - name: Install dependencies
+  #       run: pip install PyYAML requests
+  #     - name: Create docker-compose
+  #       run: python generate-compose.py 1 > docker-compose.yml
+  #     - name: Boot docker-compose
+  #       run: |
+  #         docker-compose build
+  #         docker-compose up -d
+  #     - name: Check responses
+  #       run: |
+  #         python3 wait-for-http.py http://localhost:8000/log
+  #         python3 wait-for-http.py http://localhost:8001/kv/_config
 
   bazel:
     runs-on: ubuntu-20.04
