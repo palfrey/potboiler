@@ -1,23 +1,24 @@
-use failure::Fail;
+use anyhow::Result;
 use log::warn;
 use std::{collections::HashMap, convert::From, fmt, iter};
+use thiserror::Error;
 use uuid::Uuid;
 
-#[derive(Debug, Fail, Clone)]
+#[derive(Debug, Error, Clone)]
 pub enum Error {
-    #[fail(display = "UniqueViolation")]
+    #[error("UniqueViolation")]
     UniqueViolation,
-    #[fail(display = "NoTestQuery")]
+    #[error("NoTestQuery")]
     NoTestQuery { cmd: String },
-    #[fail(display = "NoTestExecute")]
+    #[error("NoTestExecute")]
     NoTestExecute { cmd: String },
-    #[fail(display = "PostgresError")]
+    #[error("PostgresError")]
     PostgresError { query: String, cause: String },
-    #[fail(display = "R2D2Error")]
+    #[error("R2D2Error")]
     R2D2Error { cause: String },
-    #[fail(display = "NoSuchTable")]
+    #[error("NoSuchTable")]
     NoSuchTable,
-    #[fail(display = "Value was NULL")]
+    #[error("Value was NULL")]
     NullValue,
 }
 
@@ -133,7 +134,7 @@ macro_rules! get_row {
                 R: RowIndex + fmt::Display,
             {
                 if !self.data.contains_key(&id.val()) {
-                    panic!(format!("Can't find key {} in row", id));
+                    panic!("Can't find key {} in row", id);
                 }
                 match self.data[&id.val()] {
                     $kind(ref val) => val.clone(),
@@ -148,7 +149,7 @@ macro_rules! get_row {
                 R: RowIndex + fmt::Display,
             {
                 if !self.data.contains_key(&id.val()) {
-                    panic!(format!("Can't find key {} in row", id));
+                    panic!("Can't find key {} in row", id);
                 }
                 match self.data[&id.val()] {
                     $kind(ref val) => Some(val.clone()),
@@ -333,7 +334,10 @@ impl TestConnection {
     fn get_rows(&self, cmd: &str) -> Result<Vec<TestRow>, Error> {
         for &(ref patt, ref res) in self.query_results.iter() {
             if patt.is_match(cmd) {
-                return res.clone();
+                return match res {
+                    Ok(val) => Ok(val.clone()),
+                    Err(err) => Err(err.clone()),
+                };
             }
         }
         Err(Error::NoTestQuery { cmd: String::from(cmd) })
@@ -341,7 +345,10 @@ impl TestConnection {
     fn execute(&self, cmd: &str) -> Result<u64, Error> {
         for &(ref patt, ref res) in self.execute_results.iter() {
             if patt.is_match(cmd) {
-                return res.clone();
+                return match res {
+                    Ok(val) => Ok(*val),
+                    Err(err) => Err(err.clone()),
+                };
             }
         }
         Err(Error::NoTestExecute { cmd: String::from(cmd) })
@@ -396,7 +403,7 @@ pub enum Pool {
 }
 
 impl Pool {
-    pub fn get(&self) -> Result<Connection, Error> {
+    pub fn get(&self) -> Result<Connection> {
         match *self {
             Pool::Postgres(ref pool) => {
                 let conn = pool.get().map_err(|e| Error::R2D2Error { cause: e.to_string() })?;
@@ -406,7 +413,7 @@ impl Pool {
         }
     }
 
-    pub fn wipe_db(&self) -> Result<(), Error> {
+    pub fn wipe_db(&self) -> Result<()> {
         let conn = self.get()?;
         conn.execute("DROP SCHEMA public CASCADE")?;
         conn.execute("CREATE SCHEMA public")?;

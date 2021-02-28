@@ -1,21 +1,21 @@
 use crate::{nodes, AppState};
-use actix_web::{HttpRequest, HttpResponse, Json, Path, State};
-use failure::{bail, Error, Fail};
+use actix_web::{HttpRequest, HttpResponse, Json, Path, Result, State};
 use log::info;
 use potboiler_common::types::Log;
 use serde_derive::Serialize;
 use serde_json::{self, Map, Value};
 use std::{io::Cursor, sync::Arc};
+use thiserror::Error;
 use url::form_urlencoded;
 use uuid::{self, Uuid};
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 enum LogsError {
-    #[fail(display = "Bad query key: {}", name)]
+    #[error("Bad query key: {}", name)]
     BadQueryKey { name: String },
-    #[fail(display = "Bad dependency uuid")]
+    #[error("Bad dependency uuid")]
     BadDepUuid {
-        #[cause]
+        #[source]
         cause: uuid::ParseError,
     },
 }
@@ -83,7 +83,7 @@ pub fn new_log(
     state: State<AppState>,
     json: Json<serde_json::Value>,
     req: HttpRequest<AppState>,
-) -> Result<HttpResponse, Error> {
+) -> Result<HttpResponse> {
     let conn = state.pool.get().unwrap();
     let id = Uuid::new_v4();
     let hyphenated = id.hyphenated().to_string();
@@ -92,9 +92,13 @@ pub fn new_log(
     let mut dependencies: Vec<Uuid> = Vec::new();
     for (name, value) in form_urlencoded::parse(req.query_string().as_bytes()) {
         if name != "dependency" {
-            bail!(LogsError::BadQueryKey { name: name.to_string() });
+            return Err(LogsError::BadQueryKey { name: name.to_string() }).unwrap();
         }
-        dependencies.push(Uuid::parse_str(&value).map_err(|e| LogsError::BadDepUuid { cause: e })?);
+        dependencies.push(
+            Uuid::parse_str(&value)
+                .map_err(|e| LogsError::BadDepUuid { cause: e })
+                .unwrap(),
+        );
     }
     let results = conn
         .query(&format!(

@@ -1,6 +1,6 @@
 use actix_web::{http::StatusCode, server};
+use anyhow::Result;
 use env_logger;
-use failure::{Error, Fail};
 use potboiler;
 use potboiler_common::{pg, server_id, test::ServerThread};
 use regex::Regex;
@@ -8,17 +8,18 @@ use reqwest::{header, Client};
 use serde_json::json;
 use serial_test_derive::serial;
 use std::{env, str};
+use thiserror::Error;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 enum IntegrationError {
-    #[fail(display = "IoError")]
+    #[error("IoError")]
     IoError {
-        #[cause]
+        #[source]
         cause: std::io::Error,
     },
 }
 
-fn boot_potboiler() -> Result<ServerThread, Error> {
+fn boot_potboiler() -> Result<ServerThread> {
     let _ = env_logger::try_init();
     let pool = potboiler::db_setup()?;
     let app_state = potboiler::AppState::new(pool, server_id::test()).unwrap();
@@ -28,7 +29,7 @@ fn boot_potboiler() -> Result<ServerThread, Error> {
     .map_err(|e| IntegrationError::IoError { cause: e }.into());
 }
 
-fn test_setup() -> Result<(ServerThread, ServerThread), Error> {
+fn test_setup() -> Result<(ServerThread, ServerThread)> {
     let _ = env_logger::try_init();
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = pg::get_pool(db_url).unwrap();
@@ -76,5 +77,5 @@ fn test_add_entry() {
     assert_eq!(response.status(), StatusCode::CREATED);
     let re = Regex::new(r"/queue/foo/([a-z0-9-]+)").unwrap();
     let location = format!("{:?}", response.headers()[header::LOCATION]);
-    assert!(re.is_match(&location), location);
+    assert!(re.is_match(&location), "{}", location);
 }

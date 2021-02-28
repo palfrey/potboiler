@@ -9,12 +9,12 @@
 )]
 
 use actix_web::server;
-use failure::Error;
+use anyhow::Result;
 use log::info;
 use potboiler_common::pg;
 use std::env;
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<()> {
     log4rs::init_file("log.yaml", Default::default()).expect("log config ok");
     let db_url: &str = &env::var("DATABASE_URL").expect("Needed DATABASE_URL");
     let pool = pg::get_pool(db_url).unwrap();
