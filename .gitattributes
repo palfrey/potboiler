@@ -1,0 +1,2 @@
+*.bazel linguist-vendored
+*.bzl linguist-vendored
