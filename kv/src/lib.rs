@@ -7,6 +7,7 @@
     unused,
     future_incompatible
 )]
+#![allow(clippy::upper_case_acronyms)]
 
 use crate::serde_types::*;
 use actix_web::{

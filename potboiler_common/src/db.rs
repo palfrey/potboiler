@@ -192,10 +192,9 @@ impl<'a> Row<'a> {
         TestRow: GetRow<T>,
     {
         match *self {
-            Row::Postgres(ref rows) => match rows.get_opt(id) {
-                None => None,
-                Some(val) => Some(val.map_err(|e| convert_postgres_error(e, ""))),
-            },
+            Row::Postgres(ref rows) => rows
+                .get_opt(id)
+                .map(|val| val.map_err(|e| convert_postgres_error(e, ""))),
             Row::Test(ref rows) => Some(Ok(rows.get(id))),
         }
     }

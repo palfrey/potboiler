@@ -20,7 +20,10 @@ mod types;
 lazy_static! {
     static ref SERVER_URL: String = env::var("SERVER_URL").expect("Needed SERVER_URL");
     static ref HOST: String = env::var("HOST").unwrap_or_else(|_| "localhost".to_string());
-    static ref PORT: u16 = u16::from_str_radix(&env::var("PORT").unwrap_or_else(|_| "8000".to_string()), 10).unwrap();
+    pub static ref PORT: u16 = env::var("PORT")
+        .unwrap_or_else(|_| "8000".to_string())
+        .parse::<u16>()
+        .unwrap();
 }
 
 #[derive(Deserialize)]

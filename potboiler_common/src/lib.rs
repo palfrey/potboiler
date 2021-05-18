@@ -7,6 +7,7 @@
     unused,
     future_incompatible
 )]
+#![allow(clippy::upper_case_acronyms)]
 
 pub mod clock;
 pub mod db;
