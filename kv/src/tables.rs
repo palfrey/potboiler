@@ -58,7 +58,7 @@ pub fn make_table(conn: &db::Connection, table_name: &str, kind: CRDT) -> Result
 
 impl Tables {
     pub fn new(conn: &db::Connection) -> Result<Tables, TableError> {
-        match make_table(&conn, CONFIG_TABLE, CRDT::LWW) {
+        match make_table(conn, CONFIG_TABLE, CRDT::LWW) {
             Ok(_) => {}
             Err(err) => {
                 return Err(TableError::ConfigTableCreation { cause: err });

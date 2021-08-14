@@ -181,7 +181,7 @@ impl<'a> Row<'a> {
     {
         match *self {
             Row::Postgres(ref rows) => rows.get(id),
-            Row::Test(ref rows) => rows.get(id),
+            Row::Test(rows) => rows.get(id),
         }
     }
 
@@ -195,7 +195,7 @@ impl<'a> Row<'a> {
             Row::Postgres(ref rows) => rows
                 .get_opt(id)
                 .map(|val| val.map_err(|e| convert_postgres_error(e, ""))),
-            Row::Test(ref rows) => Some(Ok(rows.get(id))),
+            Row::Test(rows) => Some(Ok(rows.get(id))),
         }
     }
 

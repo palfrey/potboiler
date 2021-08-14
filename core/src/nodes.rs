@@ -269,7 +269,7 @@ fn check_new_nodes(host_url: &str, conn: &db::Connection, nodelist: &NodeList) -
     info!("Extra nodes from {}: {:?}", check_url, extra_nodes);
     let mut nodes = nodelist.nodes.write().map_err(|_| NodesError::PoisonError)?;
     for extra in extra_nodes {
-        match node_insert(&conn, &extra) {
+        match node_insert(conn, &extra) {
             InsertResult::Inserted => {
                 let (send, recv) = channel();
                 nodes.insert(
@@ -417,7 +417,7 @@ fn node_insert(conn: &db::Connection, url: &str) -> InsertResult {
 }
 
 fn node_add_core(conn: &db::Connection, url: &str, state: &AppState) -> Result<()> {
-    match node_insert(&conn, url) {
+    match node_insert(conn, url) {
         InsertResult::Inserted => {
             insert_node(state, url);
             Ok(())
@@ -436,9 +436,9 @@ pub fn node_add(state: State<AppState>, body: Json<UrlJson>) -> HttpResponse {
     let conn = state.pool.get().unwrap();
     let url = &body.url;
     debug!("Registering node {}", url);
-    match Url::parse(&url) {
+    match Url::parse(url) {
         Err(_) => HttpResponse::BadRequest().reason("Bad URL").finish(),
-        Ok(_) => match node_add_core(&conn, &url, state.borrow()) {
+        Ok(_) => match node_add_core(&conn, url, state.borrow()) {
             Ok(_) => HttpResponse::Created().finish(),
             Err(_err) => HttpResponse::BadRequest().reason("Some other error").finish(),
         },

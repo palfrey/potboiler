@@ -51,7 +51,7 @@ fn notify_everyone(state: &State<AppState>, log_arc: &Arc<Log>) {
 
     // notifiers however require dependencies
     for dep in &log_arc.dependencies {
-        if read_log(&state, dep).is_none() {
+        if read_log(state, dep).is_none() {
             info!("Missing dependency {} for {}", dep, log_arc.id);
             return;
         }
@@ -70,7 +70,7 @@ fn notify_everyone(state: &State<AppState>, log_arc: &Arc<Log>) {
         .map(|r| r.get("id"))
         .collect();
     for dep in &deps {
-        if let Some(other_log) = read_log(&state, dep) {
+        if let Some(other_log) = read_log(state, dep) {
             // i.e. `log` is a dep of `other_log`, so start telling others about other_log
             let other_log_arc = Arc::new(other_log);
             // note we only need to tell notifiers, as nodes already know

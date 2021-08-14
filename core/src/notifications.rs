@@ -62,7 +62,7 @@ pub fn log_register(state: State<AppState>, body: Json<UrlJson>) -> HttpResponse
     let conn = state.pool.get().unwrap();
     let url = &body.url;
     debug!("Registering {:?}", url);
-    match Url::parse(&url) {
+    match Url::parse(url) {
         Err(_) => HttpResponse::BadRequest().reason("Bad URL").finish(),
         Ok(_) => match conn.execute(&format!("insert into notifications (url) values('{}')", &url)) {
             Ok(_) => {
