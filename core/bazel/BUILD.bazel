@@ -13,8 +13,26 @@ licenses([
 
 # Aliased targets
 alias(
+    name = "actix",
+    actual = "@raze__actix__0_7_9//:actix",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "actix_net",
+    actual = "@raze__actix_net__0_2_6//:actix_net",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
     name = "actix_web",
-    actual = "@raze__actix_web__0_7_18//:actix_web",
+    actual = "@raze__actix_web__0_7_19//:actix_web",
     tags = [
         "cargo-raze",
         "manual",
@@ -40,6 +58,15 @@ alias(
 )
 
 alias(
+    name = "futures",
+    actual = "@raze__futures__0_1_25//:futures",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
     name = "hybrid_clocks",
     actual = "@raze__hybrid_clocks__0_3_4//:hybrid_clocks",
     tags = [
@@ -49,8 +76,8 @@ alias(
 )
 
 alias(
-    name = "log",
-    actual = "@raze__log__0_4_6//:log",
+    name = "lazy_static",
+    actual = "@raze__lazy_static__1_2_0//:lazy_static",
     tags = [
         "cargo-raze",
         "manual",
@@ -67,8 +94,35 @@ alias(
 )
 
 alias(
+    name = "log",
+    actual = "@raze__log__0_4_6//:log",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "mockito",
+    actual = "@raze__mockito__0_14_1//:mockito",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
     name = "postgres",
     actual = "@raze__postgres__0_15_2//:postgres",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "postgres_shared",
+    actual = "@raze__postgres_shared__0_4_2//:postgres_shared",
     tags = [
         "cargo-raze",
         "manual",
@@ -202,6 +256,15 @@ alias(
 )
 
 alias(
+    name = "time",
+    actual = "@raze__time__0_1_42//:time",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
     name = "url",
     actual = "@raze__url__1_7_2//:url",
     tags = [
@@ -218,3 +281,4 @@ alias(
         "manual",
     ],
 )
+

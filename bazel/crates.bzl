@@ -43,12 +43,12 @@ def raze_fetch_remote_crates():
 
     maybe(
         http_archive,
-        name = "raze__actix_web__0_7_18",
-        url = "https://crates.io/api/v1/crates/actix-web/0.7.18/download",
+        name = "raze__actix_web__0_7_19",
+        url = "https://crates.io/api/v1/crates/actix-web/0.7.19/download",
         type = "tar.gz",
-        sha256 = "e9f33c941e5e69a58a6bfef33853228042ed3799fc4b5a4923a36a85776fb690",
-        strip_prefix = "actix-web-0.7.18",
-        build_file = Label("//bazel/remote:BUILD.actix-web-0.7.18.bazel"),
+        sha256 = "b0ac60f86c65a50b140139f499f4f7c6e49e4b5d88fbfba08e4e3975991f7bf4",
+        strip_prefix = "actix-web-0.7.19",
+        build_file = Label("//bazel/remote:BUILD.actix-web-0.7.19.bazel"),
     )
 
     maybe(
@@ -2543,32 +2543,32 @@ def raze_fetch_remote_crates():
 
     maybe(
         http_archive,
-        name = "raze__v_escape__0_3_2",
-        url = "https://crates.io/api/v1/crates/v_escape/0.3.2/download",
+        name = "raze__v_escape__0_7_4",
+        url = "https://crates.io/api/v1/crates/v_escape/0.7.4/download",
         type = "tar.gz",
-        sha256 = "c8b50688edb86f4c092a1a9fe8bda004b0faa3197100897653809e97e09a2814",
-        strip_prefix = "v_escape-0.3.2",
-        build_file = Label("//bazel/remote:BUILD.v_escape-0.3.2.bazel"),
+        sha256 = "660b101c07b5d0863deb9e7fb3138777e858d6d2a79f9e6049a27d1cc77c6da6",
+        strip_prefix = "v_escape-0.7.4",
+        build_file = Label("//bazel/remote:BUILD.v_escape-0.7.4.bazel"),
     )
 
     maybe(
         http_archive,
-        name = "raze__v_escape_derive__0_2_1",
-        url = "https://crates.io/api/v1/crates/v_escape_derive/0.2.1/download",
+        name = "raze__v_escape_derive__0_5_6",
+        url = "https://crates.io/api/v1/crates/v_escape_derive/0.5.6/download",
         type = "tar.gz",
-        sha256 = "7cd994c63b487fef7aad31e5394ec04b9e24de7b32ea5251c9fb499cd2cbf44c",
-        strip_prefix = "v_escape_derive-0.2.1",
-        build_file = Label("//bazel/remote:BUILD.v_escape_derive-0.2.1.bazel"),
+        sha256 = "c2ca2a14bc3fc5b64d188b087a7d3a927df87b152e941ccfbc66672e20c467ae",
+        strip_prefix = "v_escape_derive-0.5.6",
+        build_file = Label("//bazel/remote:BUILD.v_escape_derive-0.5.6.bazel"),
     )
 
     maybe(
         http_archive,
-        name = "raze__v_htmlescape__0_3_2",
-        url = "https://crates.io/api/v1/crates/v_htmlescape/0.3.2/download",
+        name = "raze__v_htmlescape__0_4_5",
+        url = "https://crates.io/api/v1/crates/v_htmlescape/0.4.5/download",
         type = "tar.gz",
-        sha256 = "020cae817dc82693aa523f01087b291b1c7a9ac8cea5c12297963f21769fb27f",
-        strip_prefix = "v_htmlescape-0.3.2",
-        build_file = Label("//bazel/remote:BUILD.v_htmlescape-0.3.2.bazel"),
+        sha256 = "e33e939c0d8cf047514fb6ba7d5aac78bc56677a6938b2ee67000b91f2e97e41",
+        strip_prefix = "v_htmlescape-0.4.5",
+        build_file = Label("//bazel/remote:BUILD.v_htmlescape-0.4.5.bazel"),
     )
 
     maybe(

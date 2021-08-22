@@ -49,6 +49,7 @@ cargo_build_script(
         "printing",
         "proc-macro",
         "quote",
+        "visit",
     ],
     crate_root = "build.rs",
     data = glob(["**"]),
@@ -66,6 +67,7 @@ cargo_build_script(
     ],
 )
 
+
 # Unsupported target "file" with type "bench" omitted
 
 # Unsupported target "rust" with type "bench" omitted
@@ -81,6 +83,7 @@ rust_library(
         "printing",
         "proc-macro",
         "quote",
+        "visit",
     ],
     crate_root = "src/lib.rs",
     crate_type = "lib",

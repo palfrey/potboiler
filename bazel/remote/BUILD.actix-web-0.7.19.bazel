@@ -60,12 +60,13 @@ cargo_build_script(
         "cargo-raze",
         "manual",
     ],
-    version = "0.7.18",
+    version = "0.7.19",
     visibility = ["//visibility:private"],
     deps = [
         "@raze__version_check__0_1_5//:version_check",
     ],
 )
+
 
 rust_library(
     name = "actix_web",
@@ -90,7 +91,7 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "0.7.18",
+    version = "0.7.19",
     # buildifier: leave-alone
     deps = [
         ":actix_web_build_script",
@@ -137,7 +138,7 @@ rust_library(
         "@raze__tokio_tcp__0_1_3//:tokio_tcp",
         "@raze__tokio_timer__0_2_10//:tokio_timer",
         "@raze__url__1_7_2//:url",
-        "@raze__v_htmlescape__0_3_2//:v_htmlescape",
+        "@raze__v_htmlescape__0_4_5//:v_htmlescape",
     ],
 )
 

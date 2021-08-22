@@ -29,44 +29,14 @@ licenses([
 ])
 
 # Generated Targets
-# buildifier: disable=out-of-order-load
-# buildifier: disable=load-on-top
-load(
-    "@rules_rust//cargo:cargo_build_script.bzl",
-    "cargo_build_script",
-)
-
-cargo_build_script(
-    name = "v_htmlescape_build_script",
-    srcs = glob(["**/*.rs"]),
-    build_script_env = {
-    },
-    crate_features = [
-    ],
-    crate_root = "build.rs",
-    data = glob(["**"]),
-    edition = "2018",
-    rustc_flags = [
-        "--cap-lints=allow",
-    ],
-    tags = [
-        "cargo-raze",
-        "manual",
-    ],
-    version = "0.3.2",
-    visibility = ["//visibility:private"],
-    deps = [
-        "@raze__version_check__0_1_5//:version_check",
-    ],
-)
 
 rust_library(
-    name = "v_htmlescape",
+    name = "v_escape_derive",
     srcs = glob(["**/*.rs"]),
     crate_features = [
     ],
     crate_root = "src/lib.rs",
-    crate_type = "lib",
+    crate_type = "proc-macro",
     data = [],
     edition = "2018",
     rustc_flags = [
@@ -76,13 +46,12 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "0.3.2",
+    version = "0.5.6",
     # buildifier: leave-alone
     deps = [
-        ":v_htmlescape_build_script",
-        "@raze__cfg_if__0_1_6//:cfg_if",
-        "@raze__v_escape__0_3_2//:v_escape",
+        "@raze__nom__4_2_0//:nom",
+        "@raze__proc_macro2__1_0_24//:proc_macro2",
+        "@raze__quote__1_0_9//:quote",
+        "@raze__syn__1_0_60//:syn",
     ],
 )
-
-# Unsupported target "lib" with type "test" omitted

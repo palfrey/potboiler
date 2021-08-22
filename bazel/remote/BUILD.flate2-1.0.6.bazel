@@ -97,9 +97,17 @@ rust_library(
     deps = [
         "@raze__crc32fast__1_1_2//:crc32fast",
         "@raze__libc__0_2_48//:libc",
-        "@raze__miniz_oxide_c_api__0_2_1//:miniz_oxide_c_api",
         "@raze__miniz_sys__0_1_11//:miniz_sys",
-    ],
+    ] + selects.with_or({
+        # cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))
+        (
+          "@rules_rust//rust/platform:wasm32-unknown-unknown",
+          "@rules_rust//rust/platform:wasm32-wasi",
+        ): [
+            "@raze__miniz_oxide_c_api__0_2_1//:miniz_oxide_c_api",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 # Unsupported target "early-flush" with type "test" omitted

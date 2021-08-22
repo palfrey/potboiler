@@ -59,13 +59,14 @@ cargo_build_script(
     ] + selects.with_or({
         # cfg(windows)
         (
-            "@rules_rust//rust/platform:i686-pc-windows-msvc",
-            "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
+          "@rules_rust//rust/platform:i686-pc-windows-msvc",
+          "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
         ): [
         ],
         "//conditions:default": [],
     }),
 )
+
 
 rust_library(
     name = "ipconfig",
@@ -92,8 +93,8 @@ rust_library(
     ] + selects.with_or({
         # cfg(windows)
         (
-            "@rules_rust//rust/platform:i686-pc-windows-msvc",
-            "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
+          "@rules_rust//rust/platform:i686-pc-windows-msvc",
+          "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
         ): [
             "@raze__error_chain__0_8_1//:error_chain",
             "@raze__socket2__0_3_8//:socket2",

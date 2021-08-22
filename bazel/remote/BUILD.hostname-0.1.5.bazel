@@ -54,22 +54,22 @@ rust_library(
     ] + selects.with_or({
         # cfg(any(unix, target_os = "redox"))
         (
-            "@rules_rust//rust/platform:aarch64-apple-darwin",
-            "@rules_rust//rust/platform:aarch64-apple-ios",
-            "@rules_rust//rust/platform:aarch64-linux-android",
-            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
-            "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
-            "@rules_rust//rust/platform:i686-apple-darwin",
-            "@rules_rust//rust/platform:i686-linux-android",
-            "@rules_rust//rust/platform:i686-unknown-freebsd",
-            "@rules_rust//rust/platform:i686-unknown-linux-gnu",
-            "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
-            "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
-            "@rules_rust//rust/platform:x86_64-apple-darwin",
-            "@rules_rust//rust/platform:x86_64-apple-ios",
-            "@rules_rust//rust/platform:x86_64-linux-android",
-            "@rules_rust//rust/platform:x86_64-unknown-freebsd",
-            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:i686-apple-darwin",
+          "@rules_rust//rust/platform:i686-unknown-linux-gnu",
+          "@rules_rust//rust/platform:x86_64-apple-darwin",
+          "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:aarch64-apple-darwin",
+          "@rules_rust//rust/platform:aarch64-apple-ios",
+          "@rules_rust//rust/platform:aarch64-linux-android",
+          "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
+          "@rules_rust//rust/platform:i686-linux-android",
+          "@rules_rust//rust/platform:i686-unknown-freebsd",
+          "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
+          "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
+          "@rules_rust//rust/platform:x86_64-apple-ios",
+          "@rules_rust//rust/platform:x86_64-linux-android",
+          "@rules_rust//rust/platform:x86_64-unknown-freebsd",
         ): [
             "@raze__libc__0_2_48//:libc",
         ],
@@ -77,8 +77,8 @@ rust_library(
     }) + selects.with_or({
         # cfg(windows)
         (
-            "@rules_rust//rust/platform:i686-pc-windows-msvc",
-            "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
+          "@rules_rust//rust/platform:i686-pc-windows-msvc",
+          "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
         ): [
             "@raze__winutil__0_1_1//:winutil",
         ],

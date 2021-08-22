@@ -46,6 +46,7 @@ cargo_build_script(
     crate_root = "build.rs",
     data = glob(["**"]),
     edition = "2015",
+    links = "brotli",
     rustc_flags = [
         "--cap-lints=allow",
     ],
@@ -59,6 +60,7 @@ cargo_build_script(
         "@raze__cc__1_0_29//:cc",
     ],
 )
+
 
 rust_library(
     name = "brotli_sys",

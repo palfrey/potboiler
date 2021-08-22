@@ -68,17 +68,17 @@ cargo_build_script(
     ] + selects.with_or({
         # cfg(all(unix, not(target_os = "fuchsia"), not(target_os = "emscripten"), not(target_os = "macos"), not(target_os = "ios")))
         (
-            "@rules_rust//rust/platform:aarch64-linux-android",
-            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
-            "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
-            "@rules_rust//rust/platform:i686-linux-android",
-            "@rules_rust//rust/platform:i686-unknown-freebsd",
-            "@rules_rust//rust/platform:i686-unknown-linux-gnu",
-            "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
-            "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
-            "@rules_rust//rust/platform:x86_64-linux-android",
-            "@rules_rust//rust/platform:x86_64-unknown-freebsd",
-            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:i686-unknown-linux-gnu",
+          "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:aarch64-linux-android",
+          "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
+          "@rules_rust//rust/platform:i686-linux-android",
+          "@rules_rust//rust/platform:i686-unknown-freebsd",
+          "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
+          "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
+          "@rules_rust//rust/platform:x86_64-linux-android",
+          "@rules_rust//rust/platform:x86_64-unknown-freebsd",
         ): [
             "@raze__backtrace_sys__0_1_28//:backtrace_sys",
         ],
@@ -86,35 +86,36 @@ cargo_build_script(
     }) + selects.with_or({
         # cfg(unix)
         (
-            "@rules_rust//rust/platform:aarch64-apple-darwin",
-            "@rules_rust//rust/platform:aarch64-apple-ios",
-            "@rules_rust//rust/platform:aarch64-linux-android",
-            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
-            "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
-            "@rules_rust//rust/platform:i686-apple-darwin",
-            "@rules_rust//rust/platform:i686-linux-android",
-            "@rules_rust//rust/platform:i686-unknown-freebsd",
-            "@rules_rust//rust/platform:i686-unknown-linux-gnu",
-            "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
-            "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
-            "@rules_rust//rust/platform:x86_64-apple-darwin",
-            "@rules_rust//rust/platform:x86_64-apple-ios",
-            "@rules_rust//rust/platform:x86_64-linux-android",
-            "@rules_rust//rust/platform:x86_64-unknown-freebsd",
-            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:i686-apple-darwin",
+          "@rules_rust//rust/platform:i686-unknown-linux-gnu",
+          "@rules_rust//rust/platform:x86_64-apple-darwin",
+          "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:aarch64-apple-darwin",
+          "@rules_rust//rust/platform:aarch64-apple-ios",
+          "@rules_rust//rust/platform:aarch64-linux-android",
+          "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
+          "@rules_rust//rust/platform:i686-linux-android",
+          "@rules_rust//rust/platform:i686-unknown-freebsd",
+          "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
+          "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
+          "@rules_rust//rust/platform:x86_64-apple-ios",
+          "@rules_rust//rust/platform:x86_64-linux-android",
+          "@rules_rust//rust/platform:x86_64-unknown-freebsd",
         ): [
         ],
         "//conditions:default": [],
     }) + selects.with_or({
         # cfg(windows)
         (
-            "@rules_rust//rust/platform:i686-pc-windows-msvc",
-            "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
+          "@rules_rust//rust/platform:i686-pc-windows-msvc",
+          "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
         ): [
         ],
         "//conditions:default": [],
     }),
 )
+
 
 # Unsupported target "backtrace" with type "example" omitted
 
@@ -155,17 +156,17 @@ rust_library(
     ] + selects.with_or({
         # cfg(all(unix, not(target_os = "fuchsia"), not(target_os = "emscripten"), not(target_os = "macos"), not(target_os = "ios")))
         (
-            "@rules_rust//rust/platform:aarch64-linux-android",
-            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
-            "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
-            "@rules_rust//rust/platform:i686-linux-android",
-            "@rules_rust//rust/platform:i686-unknown-freebsd",
-            "@rules_rust//rust/platform:i686-unknown-linux-gnu",
-            "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
-            "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
-            "@rules_rust//rust/platform:x86_64-linux-android",
-            "@rules_rust//rust/platform:x86_64-unknown-freebsd",
-            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:i686-unknown-linux-gnu",
+          "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:aarch64-linux-android",
+          "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
+          "@rules_rust//rust/platform:i686-linux-android",
+          "@rules_rust//rust/platform:i686-unknown-freebsd",
+          "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
+          "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
+          "@rules_rust//rust/platform:x86_64-linux-android",
+          "@rules_rust//rust/platform:x86_64-unknown-freebsd",
         ): [
             "@raze__backtrace_sys__0_1_28//:backtrace_sys",
         ],
@@ -173,22 +174,22 @@ rust_library(
     }) + selects.with_or({
         # cfg(unix)
         (
-            "@rules_rust//rust/platform:aarch64-apple-darwin",
-            "@rules_rust//rust/platform:aarch64-apple-ios",
-            "@rules_rust//rust/platform:aarch64-linux-android",
-            "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
-            "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
-            "@rules_rust//rust/platform:i686-apple-darwin",
-            "@rules_rust//rust/platform:i686-linux-android",
-            "@rules_rust//rust/platform:i686-unknown-freebsd",
-            "@rules_rust//rust/platform:i686-unknown-linux-gnu",
-            "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
-            "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
-            "@rules_rust//rust/platform:x86_64-apple-darwin",
-            "@rules_rust//rust/platform:x86_64-apple-ios",
-            "@rules_rust//rust/platform:x86_64-linux-android",
-            "@rules_rust//rust/platform:x86_64-unknown-freebsd",
-            "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:i686-apple-darwin",
+          "@rules_rust//rust/platform:i686-unknown-linux-gnu",
+          "@rules_rust//rust/platform:x86_64-apple-darwin",
+          "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:aarch64-apple-darwin",
+          "@rules_rust//rust/platform:aarch64-apple-ios",
+          "@rules_rust//rust/platform:aarch64-linux-android",
+          "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:arm-unknown-linux-gnueabi",
+          "@rules_rust//rust/platform:i686-linux-android",
+          "@rules_rust//rust/platform:i686-unknown-freebsd",
+          "@rules_rust//rust/platform:powerpc-unknown-linux-gnu",
+          "@rules_rust//rust/platform:s390x-unknown-linux-gnu",
+          "@rules_rust//rust/platform:x86_64-apple-ios",
+          "@rules_rust//rust/platform:x86_64-linux-android",
+          "@rules_rust//rust/platform:x86_64-unknown-freebsd",
         ): [
             "@raze__libc__0_2_48//:libc",
         ],
@@ -196,8 +197,8 @@ rust_library(
     }) + selects.with_or({
         # cfg(windows)
         (
-            "@rules_rust//rust/platform:i686-pc-windows-msvc",
-            "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
+          "@rules_rust//rust/platform:i686-pc-windows-msvc",
+          "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
         ): [
             "@raze__winapi__0_3_6//:winapi",
         ],

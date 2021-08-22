@@ -32,7 +32,7 @@ alias(
 
 alias(
     name = "actix_web",
-    actual = "@raze__actix_web__0_7_18//:actix_web",
+    actual = "@raze__actix_web__0_7_19//:actix_web",
     tags = [
         "cargo-raze",
         "manual",
@@ -42,6 +42,15 @@ alias(
 alias(
     name = "anyhow",
     actual = "@raze__anyhow__1_0_38//:anyhow",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "env_logger",
+    actual = "@raze__env_logger__0_6_0//:env_logger",
     tags = [
         "cargo-raze",
         "manual",
@@ -67,8 +76,35 @@ alias(
 )
 
 alias(
+    name = "lazy_static",
+    actual = "@raze__lazy_static__1_2_0//:lazy_static",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "log4rs",
+    actual = "@raze__log4rs__0_8_1//:log4rs",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
     name = "log",
     actual = "@raze__log__0_4_6//:log",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "mockito",
+    actual = "@raze__mockito__0_14_1//:mockito",
     tags = [
         "cargo-raze",
         "manual",
@@ -87,6 +123,15 @@ alias(
 alias(
     name = "postgres_shared",
     actual = "@raze__postgres_shared__0_4_2//:postgres_shared",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "pretty_assertions",
+    actual = "@raze__pretty_assertions__0_5_1//:pretty_assertions",
     tags = [
         "cargo-raze",
         "manual",
@@ -121,6 +166,42 @@ alias(
 )
 
 alias(
+    name = "reqwest",
+    actual = "@raze__reqwest__0_9_9//:reqwest",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "resolve",
+    actual = "@raze__resolve__0_2_0//:resolve",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "schemamama",
+    actual = "@raze__schemamama__0_3_0//:schemamama",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "schemamama_postgres",
+    actual = "@raze__schemamama_postgres__0_2_3//:schemamama_postgres",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
     name = "serde",
     actual = "@raze__serde__1_0_88//:serde",
     tags = [
@@ -148,8 +229,44 @@ alias(
 )
 
 alias(
+    name = "serial_test",
+    actual = "@raze__serial_test__0_2_0//:serial_test",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "serial_test_derive",
+    actual = "@raze__serial_test_derive__0_2_0//:serial_test_derive",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
     name = "thiserror",
     actual = "@raze__thiserror__1_0_24//:thiserror",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "time",
+    actual = "@raze__time__0_1_42//:time",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "url",
+    actual = "@raze__url__1_7_2//:url",
     tags = [
         "cargo-raze",
         "manual",
@@ -164,3 +281,4 @@ alias(
         "manual",
     ],
 )
+

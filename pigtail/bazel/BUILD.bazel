@@ -13,8 +13,26 @@ licenses([
 
 # Aliased targets
 alias(
+    name = "actix",
+    actual = "@raze__actix__0_7_9//:actix",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "actix_net",
+    actual = "@raze__actix_net__0_2_6//:actix_net",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
     name = "actix_web",
-    actual = "@raze__actix_web__0_7_18//:actix_web",
+    actual = "@raze__actix_web__0_7_19//:actix_web",
     tags = [
         "cargo-raze",
         "manual",
@@ -40,6 +58,15 @@ alias(
 )
 
 alias(
+    name = "futures",
+    actual = "@raze__futures__0_1_25//:futures",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
     name = "hybrid_clocks",
     actual = "@raze__hybrid_clocks__0_3_4//:hybrid_clocks",
     tags = [
@@ -58,6 +85,15 @@ alias(
 )
 
 alias(
+    name = "log4rs",
+    actual = "@raze__log4rs__0_8_1//:log4rs",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
     name = "log",
     actual = "@raze__log__0_4_6//:log",
     tags = [
@@ -67,8 +103,53 @@ alias(
 )
 
 alias(
-    name = "log4rs",
-    actual = "@raze__log4rs__0_8_1//:log4rs",
+    name = "mockito",
+    actual = "@raze__mockito__0_14_1//:mockito",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "postgres",
+    actual = "@raze__postgres__0_15_2//:postgres",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "postgres_shared",
+    actual = "@raze__postgres_shared__0_4_2//:postgres_shared",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "pretty_assertions",
+    actual = "@raze__pretty_assertions__0_5_1//:pretty_assertions",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "r2d2",
+    actual = "@raze__r2d2__0_8_3//:r2d2",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "r2d2_postgres",
+    actual = "@raze__r2d2_postgres__0_14_0//:r2d2_postgres",
     tags = [
         "cargo-raze",
         "manual",
@@ -87,6 +168,33 @@ alias(
 alias(
     name = "reqwest",
     actual = "@raze__reqwest__0_9_9//:reqwest",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "resolve",
+    actual = "@raze__resolve__0_2_0//:resolve",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "schemamama",
+    actual = "@raze__schemamama__0_3_0//:schemamama",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
+    name = "schemamama_postgres",
+    actual = "@raze__schemamama_postgres__0_2_3//:schemamama_postgres",
     tags = [
         "cargo-raze",
         "manual",
@@ -173,3 +281,4 @@ alias(
         "manual",
     ],
 )
+
