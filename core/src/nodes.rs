@@ -235,7 +235,7 @@ pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
         &log.owner,
         &log.data,
         log.prev
-            .map(|u| format!("'{}'", u.to_string()))
+            .map(|u| format!("'{}'", u))
             .unwrap_or_else(|| String::from("NULL")),
         &raw_timestamp.sql()
     ))?;

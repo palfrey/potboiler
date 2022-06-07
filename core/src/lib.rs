@@ -167,7 +167,7 @@ mod test {
             let re = Regex::new(r"/log/([a-z0-9-]+)").unwrap();
             let url = response.headers()[header::LOCATION].to_str().unwrap();
             assert!(url.starts_with("/log/"));
-            String::from(re.captures(&url).unwrap().get(1).unwrap().as_str())
+            String::from(re.captures(url).unwrap().get(1).unwrap().as_str())
         };
         assert!(v.is_object());
         assert_eq!(v["id"].as_str().unwrap(), uuid);
