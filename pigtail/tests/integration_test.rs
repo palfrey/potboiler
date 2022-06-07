@@ -1,7 +1,6 @@
 use actix_web::{http::StatusCode, server};
 use anyhow::Result;
-use env_logger;
-use potboiler;
+
 use potboiler_common::{pg, server_id, test::ServerThread};
 use regex::Regex;
 use reqwest::{header, Client};
@@ -23,10 +22,10 @@ fn boot_potboiler() -> Result<ServerThread> {
     let _ = env_logger::try_init();
     let pool = potboiler::db_setup()?;
     let app_state = potboiler::AppState::new(pool, server_id::test()).unwrap();
-    return ServerThread::new({
+    ServerThread::new({
         move || server::new(move || potboiler::app_router(app_state.clone()).unwrap()).bind("0.0.0.0:8000")
     })
-    .map_err(|e| IntegrationError::IoError { cause: e }.into());
+    .map_err(|e| IntegrationError::IoError { cause: e }.into())
 }
 
 fn test_setup() -> Result<(ServerThread, ServerThread)> {
@@ -42,7 +41,7 @@ fn test_setup() -> Result<(ServerThread, ServerThread)> {
         move || server::new(move || pigtail::app_router(app_state.clone()).unwrap()).bind("0.0.0.0:8001")
     })?;
     pigtail::register();
-    return Ok((pb_server, pigtail_server));
+    Ok((pb_server, pigtail_server))
 }
 
 #[test]

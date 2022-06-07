@@ -1,7 +1,6 @@
 use actix_web::{server, test::TestServer};
 use anyhow::{ensure, Result};
-use kv;
-use potboiler;
+
 use potboiler_common::{server_id, test::wait_for_action, test::ServerThread};
 use pretty_assertions::assert_eq;
 use reqwest::{Client, StatusCode};
@@ -23,10 +22,10 @@ fn boot_potboiler() -> Result<ServerThread> {
     let _ = env_logger::try_init();
     let pool = potboiler::db_setup()?;
     let app_state = potboiler::AppState::new(pool, server_id::test()).unwrap();
-    return ServerThread::new({
+    ServerThread::new({
         move || server::new(move || potboiler::app_router(app_state.clone()).unwrap()).bind("0.0.0.0:8000")
     })
-    .map_err(|e| IntegrationError::IoError { cause: e }.into());
+    .map_err(|e| IntegrationError::IoError { cause: e }.into())
 }
 
 fn test_setup() -> Result<(ServerThread, TestServer)> {
@@ -40,7 +39,7 @@ fn test_setup() -> Result<(ServerThread, TestServer)> {
     let kv_server = TestServer::with_factory(move || kv::app_router(app_state.clone()).unwrap());
     env::set_var("KV_ROOT", kv_server.url("/"));
     kv::register(&client).unwrap();
-    return Ok((pb_server, kv_server));
+    Ok((pb_server, kv_server))
 }
 
 #[test]

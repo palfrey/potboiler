@@ -1,8 +1,8 @@
 use actix_web::test::TestServer;
 use anyhow::ensure;
-use env_logger;
+
 use hybrid_clocks::Clock;
-use potboiler;
+
 use potboiler_common::{
     server_id,
     test::{wait_for_action, RecordServer},
@@ -22,7 +22,7 @@ fn test_setup() -> TestServer {
     conn.execute("delete from log").unwrap();
     conn.execute("delete from nodes").unwrap();
     let app_state = potboiler::AppState::new(pool, server_id::test()).unwrap();
-    return TestServer::with_factory(move || potboiler::app_router(app_state.clone()).unwrap());
+    TestServer::with_factory(move || potboiler::app_router(app_state.clone()).unwrap())
 }
 
 #[test]
