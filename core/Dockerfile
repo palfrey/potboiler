@@ -1,5 +1,5 @@
 FROM rust:1.52-slim
-RUN cargo install cargo-watch
+RUN cargo install cargo-watch --version 7.8.0
 RUN apt-get update && apt-get install -y libssl-dev pkg-config
 WORKDIR /code/core
 ADD . /code
