@@ -1,7 +1,6 @@
 use actix_web::{server, test::TestServer};
 use anyhow::{ensure, Result};
 
-
 use potboiler_common::{server_id, test::wait_for_action, test::ServerThread};
 use pretty_assertions::assert_eq;
 use reqwest::{Client, StatusCode};
