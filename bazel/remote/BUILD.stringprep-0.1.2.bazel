@@ -50,7 +50,7 @@ rust_library(
     # buildifier: leave-alone
     deps = [
         "@raze__unicode_bidi__0_3_4//:unicode_bidi",
-        "@raze__unicode_normalization__0_1_8//:unicode_normalization",
+        "@raze__unicode_normalization__0_1_19//:unicode_normalization",
     ],
 )
 

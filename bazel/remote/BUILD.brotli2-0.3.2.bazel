@@ -52,7 +52,7 @@ rust_library(
     # buildifier: leave-alone
     deps = [
         "@raze__brotli_sys__0_3_2//:brotli_sys",
-        "@raze__libc__0_2_48//:libc",
+        "@raze__libc__0_2_126//:libc",
     ],
 )
 

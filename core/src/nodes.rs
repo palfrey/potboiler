@@ -19,6 +19,7 @@ use std::{
     time::Duration,
 };
 use thiserror::Error;
+use trust_dns_resolver::Resolver;
 use url::Url;
 use uuid::Uuid;
 
@@ -476,8 +477,9 @@ fn add_node_from_req(
     nodes: &[String],
     conn: &db::Connection,
 ) -> Result<()> {
-    let host = resolve::resolver::resolve_addr(&req.connection_info().remote().unwrap().parse()?)?;
-    let query_url = format!("http://{}:{}", host, query.query_port.unwrap());
+    let resolver = Resolver::from_system_conf().unwrap();
+    let hosts = resolver.lookup_ip(req.connection_info().remote().unwrap())?;
+    let query_url = format!("http://{}:{}", hosts.iter().next().unwrap(), query.query_port.unwrap());
     if !nodes.contains(&query_url) {
         info!("{} is missing from nodes", query_url);
         return node_add_core(conn, &query_url, req.state());

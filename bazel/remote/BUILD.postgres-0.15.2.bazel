@@ -53,10 +53,10 @@ rust_library(
     deps = [
         "@raze__bytes__0_4_11//:bytes",
         "@raze__fallible_iterator__0_1_6//:fallible_iterator",
-        "@raze__log__0_4_6//:log",
+        "@raze__log__0_4_17//:log",
         "@raze__postgres_protocol__0_3_2//:postgres_protocol",
         "@raze__postgres_shared__0_4_2//:postgres_shared",
-        "@raze__socket2__0_3_8//:socket2",
+        "@raze__socket2__0_3_19//:socket2",
     ],
 )
 

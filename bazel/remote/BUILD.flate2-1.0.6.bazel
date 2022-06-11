@@ -78,7 +78,6 @@ rust_library(
     aliases = {
     },
     crate_features = [
-        "default",
         "miniz-sys",
     ],
     crate_root = "src/lib.rs",
@@ -96,7 +95,7 @@ rust_library(
     # buildifier: leave-alone
     deps = [
         "@raze__crc32fast__1_1_2//:crc32fast",
-        "@raze__libc__0_2_48//:libc",
+        "@raze__libc__0_2_126//:libc",
         "@raze__miniz_sys__0_1_11//:miniz_sys",
     ] + selects.with_or({
         # cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))

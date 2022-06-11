@@ -145,7 +145,7 @@ rust_library(
           "@rules_rust//rust/platform:x86_64-apple-ios",
         ): [
             "@raze__lazy_static__1_2_0//:lazy_static",
-            "@raze__libc__0_2_48//:libc",
+            "@raze__libc__0_2_126//:libc",
             "@raze__security_framework__0_2_2//:security_framework",
             "@raze__security_framework_sys__0_2_3//:security_framework_sys",
             "@raze__tempfile__3_0_7//:tempfile",
@@ -180,7 +180,7 @@ rust_library(
           "@rules_rust//rust/platform:i686-linux-android",
           "@rules_rust//rust/platform:x86_64-linux-android",
         ): [
-            "@raze__log__0_4_6//:log",
+            "@raze__log__0_4_17//:log",
         ],
         "//conditions:default": [],
     }) + selects.with_or({

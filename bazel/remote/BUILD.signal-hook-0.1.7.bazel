@@ -50,7 +50,7 @@ rust_library(
     # buildifier: leave-alone
     deps = [
         "@raze__arc_swap__0_3_7//:arc_swap",
-        "@raze__libc__0_2_48//:libc",
+        "@raze__libc__0_2_126//:libc",
     ],
 )
 

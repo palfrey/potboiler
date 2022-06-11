@@ -64,15 +64,15 @@ rust_library(
     version = "0.7.9",
     # buildifier: leave-alone
     deps = [
-        "@raze__bitflags__1_0_4//:bitflags",
+        "@raze__bitflags__1_3_2//:bitflags",
         "@raze__bytes__0_4_11//:bytes",
         "@raze__crossbeam_channel__0_3_8//:crossbeam_channel",
         "@raze__failure__0_1_5//:failure",
         "@raze__fnv__1_0_6//:fnv",
         "@raze__futures__0_1_25//:futures",
-        "@raze__log__0_4_6//:log",
+        "@raze__log__0_4_17//:log",
         "@raze__parking_lot__0_7_1//:parking_lot",
-        "@raze__smallvec__0_6_10//:smallvec",
+        "@raze__smallvec__0_6_14//:smallvec",
         "@raze__tokio__0_1_15//:tokio",
         "@raze__tokio_codec__0_1_1//:tokio_codec",
         "@raze__tokio_executor__0_1_6//:tokio_executor",
@@ -104,7 +104,7 @@ rust_library(
           "@rules_rust//rust/platform:x86_64-linux-android",
           "@rules_rust//rust/platform:x86_64-unknown-freebsd",
         ): [
-            "@raze__libc__0_2_48//:libc",
+            "@raze__libc__0_2_126//:libc",
         ],
         "//conditions:default": [],
     }),

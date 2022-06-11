@@ -64,7 +64,7 @@ rust_library(
         "@raze__crossbeam_deque__0_6_3//:crossbeam_deque",
         "@raze__crossbeam_utils__0_6_5//:crossbeam_utils",
         "@raze__futures__0_1_25//:futures",
-        "@raze__log__0_4_6//:log",
+        "@raze__log__0_4_17//:log",
         "@raze__num_cpus__1_10_0//:num_cpus",
         "@raze__rand__0_6_5//:rand",
         "@raze__slab__0_4_2//:slab",

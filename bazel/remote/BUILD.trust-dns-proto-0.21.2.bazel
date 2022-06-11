@@ -1,0 +1,82 @@
+"""
+@generated
+cargo-raze crate build file.
+
+DO NOT EDIT! Replaced on runs of cargo-raze
+"""
+
+# buildifier: disable=load
+load("@bazel_skylib//lib:selects.bzl", "selects")
+
+# buildifier: disable=load
+load(
+    "@rules_rust//rust:rust.bzl",
+    "rust_binary",
+    "rust_library",
+    "rust_test",
+)
+
+package(default_visibility = [
+    # Public for visibility by "@raze__crate__version//" targets.
+    #
+    # Prefer access through "//bazel", which limits external
+    # visibility to explicit Cargo.toml dependencies.
+    "//visibility:public",
+])
+
+licenses([
+    "notice",  # MIT from expression "MIT OR Apache-2.0"
+])
+
+# Generated Targets
+
+# Unsupported target "lib" with type "bench" omitted
+
+# Unsupported target "name_benches" with type "bench" omitted
+
+rust_library(
+    name = "trust_dns_proto",
+    srcs = glob(["**/*.rs"]),
+    crate_features = [
+        "tokio",
+        "tokio-runtime",
+    ],
+    crate_root = "src/lib.rs",
+    crate_type = "lib",
+    data = [],
+    edition = "2018",
+    proc_macro_deps = [
+        "@raze__async_trait__0_1_56//:async_trait",
+        "@raze__enum_as_inner__0_4_0//:enum_as_inner",
+    ],
+    rustc_flags = [
+        "--cap-lints=allow",
+    ],
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+    version = "0.21.2",
+    # buildifier: leave-alone
+    deps = [
+        "@raze__cfg_if__1_0_0//:cfg_if",
+        "@raze__data_encoding__2_3_2//:data_encoding",
+        "@raze__futures_channel__0_3_21//:futures_channel",
+        "@raze__futures_io__0_3_21//:futures_io",
+        "@raze__futures_util__0_3_21//:futures_util",
+        "@raze__idna__0_2_3//:idna",
+        "@raze__ipnet__2_5_0//:ipnet",
+        "@raze__lazy_static__1_2_0//:lazy_static",
+        "@raze__log__0_4_17//:log",
+        "@raze__rand__0_8_5//:rand",
+        "@raze__smallvec__1_8_0//:smallvec",
+        "@raze__thiserror__1_0_24//:thiserror",
+        "@raze__tinyvec__1_6_0//:tinyvec",
+        "@raze__tokio__1_19_2//:tokio",
+        "@raze__url__2_2_2//:url",
+    ],
+)
+
+# Unsupported target "dnssec_presentation_format_tests" with type "test" omitted
+
+# Unsupported target "openssl_tests" with type "test" omitted

@@ -57,8 +57,8 @@ rust_library(
     deps = [
         "@raze__iovec__0_1_2//:iovec",
         "@raze__lazycell__1_2_1//:lazycell",
-        "@raze__log__0_4_6//:log",
-        "@raze__net2__0_2_33//:net2",
+        "@raze__log__0_4_17//:log",
+        "@raze__net2__0_2_37//:net2",
         "@raze__slab__0_4_2//:slab",
     ] + selects.with_or({
         # cfg(unix)
@@ -80,7 +80,7 @@ rust_library(
           "@rules_rust//rust/platform:x86_64-linux-android",
           "@rules_rust//rust/platform:x86_64-unknown-freebsd",
         ): [
-            "@raze__libc__0_2_48//:libc",
+            "@raze__libc__0_2_126//:libc",
         ],
         "//conditions:default": [],
     }) + selects.with_or({
@@ -90,7 +90,7 @@ rust_library(
           "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
         ): [
             "@raze__kernel32_sys__0_2_2//:kernel32_sys",
-            "@raze__miow__0_2_1//:miow",
+            "@raze__miow__0_2_2//:miow",
             "@raze__winapi__0_2_8//:winapi",
         ],
         "//conditions:default": [],
