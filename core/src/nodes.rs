@@ -5,7 +5,6 @@ use hybrid_clocks::{Timestamp, WallT};
 use log::{debug, info, warn};
 use potboiler_common::{db, get_raw_timestamp, types::Log};
 use serde_derive::Deserialize;
-use trust_dns_resolver::Resolver;
 use std::{
     borrow::Borrow,
     collections::{HashMap, HashSet},
@@ -20,6 +19,7 @@ use std::{
     time::Duration,
 };
 use thiserror::Error;
+use trust_dns_resolver::Resolver;
 use url::Url;
 use uuid::Uuid;
 
