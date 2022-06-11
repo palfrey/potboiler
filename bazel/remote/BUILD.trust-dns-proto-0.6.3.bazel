@@ -57,7 +57,7 @@ rust_library(
         "@raze__failure__0_1_5//:failure",
         "@raze__futures__0_1_25//:futures",
         "@raze__idna__0_1_5//:idna",
-        "@raze__lazy_static__1_2_0//:lazy_static",
+        "@raze__lazy_static__1_4_0//:lazy_static",
         "@raze__log__0_4_17//:log",
         "@raze__rand__0_5_6//:rand",
         "@raze__smallvec__0_6_14//:smallvec",

@@ -56,7 +56,7 @@ rust_library(
         "@raze__crossbeam_deque__0_6_3//:crossbeam_deque",
         "@raze__crossbeam_epoch__0_7_1//:crossbeam_epoch",
         "@raze__crossbeam_utils__0_6_5//:crossbeam_utils",
-        "@raze__lazy_static__1_2_0//:lazy_static",
+        "@raze__lazy_static__1_4_0//:lazy_static",
         "@raze__num_cpus__1_10_0//:num_cpus",
         "@raze__parking_lot__0_7_1//:parking_lot",
     ],

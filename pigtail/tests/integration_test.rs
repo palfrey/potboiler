@@ -1,9 +1,9 @@
-use actix_web::{http::StatusCode, server};
+use actix_web::server;
 use anyhow::Result;
 
 use potboiler_common::{pg, server_id, test::ServerThread};
 use regex::Regex;
-use reqwest::{header, Client};
+use reqwest::{blocking::Client, header, StatusCode};
 use serde_json::json;
 use serial_test_derive::serial;
 use std::{env, str};

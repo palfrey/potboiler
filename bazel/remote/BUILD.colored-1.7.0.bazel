@@ -57,7 +57,7 @@ rust_library(
     version = "1.7.0",
     # buildifier: leave-alone
     deps = [
-        "@raze__lazy_static__1_2_0//:lazy_static",
+        "@raze__lazy_static__1_4_0//:lazy_static",
     ],
 )
 

@@ -400,11 +400,11 @@ pub fn db_setup() -> Result<db::Pool> {
 pub struct AppState {
     pool: db::Pool,
     tables: tables::Tables,
-    client: Arc<RwLock<reqwest::Client>>,
+    client: Arc<RwLock<reqwest::blocking::Client>>,
 }
 
 impl AppState {
-    pub fn new(pool: db::Pool, client: reqwest::Client) -> Result<AppState> {
+    pub fn new(pool: db::Pool, client: reqwest::blocking::Client) -> Result<AppState> {
         let conn = pool.get()?;
         let tables = tables::Tables::new(&conn)?;
         Ok(AppState {
@@ -414,7 +414,7 @@ impl AppState {
         })
     }
 
-    pub fn client(&self) -> reqwest::Client {
+    pub fn client(&self) -> reqwest::blocking::Client {
         self.client.read().unwrap().deref().clone()
     }
 }
@@ -430,7 +430,7 @@ pub fn app_router(state: AppState) -> Result<App<AppState>> {
         }))
 }
 
-pub fn register(client: &reqwest::Client) -> Result<()> {
+pub fn register(client: &reqwest::blocking::Client) -> Result<()> {
     let mut map = serde_json::Map::new();
     let root: &str = &env::var("KV_ROOT").unwrap_or_else(|_| "http://localhost:8001/".to_string());
     map.insert(
@@ -499,7 +499,7 @@ mod test {
     fn setup_server(conn: db::TestConnection) -> test::TestServer {
         super::env::set_var("SERVER_URL", mockito::SERVER_URL);
         let pool = super::db::Pool::TestPool(conn);
-        let app_state = AppState::new(pool, reqwest::Client::new()).unwrap();
+        let app_state = AppState::new(pool, reqwest::blocking::Client::new()).unwrap();
         test::TestServer::with_factory(move || app_router(app_state.clone()).unwrap())
     }
 

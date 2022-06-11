@@ -53,7 +53,7 @@ rust_library(
     deps = [
         "@raze__crossbeam_utils__0_6_5//:crossbeam_utils",
         "@raze__futures__0_1_25//:futures",
-        "@raze__lazy_static__1_2_0//:lazy_static",
+        "@raze__lazy_static__1_4_0//:lazy_static",
         "@raze__log__0_4_17//:log",
         "@raze__mio__0_6_16//:mio",
         "@raze__num_cpus__1_10_0//:num_cpus",
