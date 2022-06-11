@@ -3,7 +3,7 @@ use anyhow::{ensure, Result};
 
 use potboiler_common::{server_id, test::wait_for_action, test::ServerThread};
 use pretty_assertions::assert_eq;
-use reqwest::{Client, StatusCode};
+use reqwest::{blocking::Client, StatusCode};
 use serde_json::json;
 use serial_test_derive::serial;
 use std::env;
@@ -34,7 +34,7 @@ fn test_setup() -> Result<(ServerThread, TestServer)> {
     pool.wipe_db()?;
     let pb_server = boot_potboiler()?;
     env::set_var("SERVER_URL", "http://localhost:8000/log");
-    let client = reqwest::Client::new();
+    let client = reqwest::blocking::Client::new();
     let app_state = kv::AppState::new(pool, client.clone()).unwrap();
     let kv_server = TestServer::with_factory(move || kv::app_router(app_state.clone()).unwrap());
     env::set_var("KV_ROOT", kv_server.url("/"));
@@ -47,7 +47,7 @@ fn test_setup() -> Result<(ServerThread, TestServer)> {
 fn test_empty_table() {
     let (_pb_server, kv_server) = test_setup().unwrap();
     let client = Client::new();
-    let mut response = client.get(&kv_server.url("/kv/_config/test")).send().unwrap();
+    let response = client.get(&kv_server.url("/kv/_config/test")).send().unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert_eq!(response.text().unwrap(), "No such key 'test'");
 }
@@ -57,7 +57,7 @@ fn test_empty_table() {
 fn test_no_such_table() {
     let (_pb_server, kv_server) = test_setup().unwrap();
     let client = Client::new();
-    let mut response = client.get(&kv_server.url("/kv/test/foo")).send().unwrap();
+    let response = client.get(&kv_server.url("/kv/test/foo")).send().unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert_eq!(response.text().unwrap(), "No such table 'test'");
 }
@@ -83,10 +83,10 @@ fn test_create_table() {
     assert_eq!(response.status(), StatusCode::OK);
 
     wait_for_action(|| {
-        let mut r = client.get(&kv_server.url("/kv/test/foo")).send()?;
+        let r = client.get(&kv_server.url("/kv/test/foo")).send()?;
         ensure!(r.status() == StatusCode::NOT_FOUND, "Not found");
         ensure!(r.text().unwrap() == "No such key 'foo'", "No foo key");
-        Ok(r)
+        Ok(())
     })
     .unwrap();
 }
@@ -126,7 +126,7 @@ fn test_create_orset_table() {
             text == "[{\"item\":\"[item]\",\"key\":\"[key]\",\"metadata\":\"[metadata]\"}]",
             text
         );
-        Ok(response)
+        Ok(())
     })
     .unwrap();
 }

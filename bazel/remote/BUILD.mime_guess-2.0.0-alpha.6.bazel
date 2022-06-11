@@ -84,7 +84,7 @@ rust_library(
     # buildifier: leave-alone
     deps = [
         ":mime_guess_build_script",
-        "@raze__mime__0_3_13//:mime",
+        "@raze__mime__0_3_16//:mime",
         "@raze__phf__0_7_24//:phf",
         "@raze__unicase__1_4_2//:unicase",
     ],

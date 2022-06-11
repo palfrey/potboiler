@@ -8,7 +8,7 @@ use potboiler_common::{
     test::{wait_for_action, RecordServer},
 };
 use pretty_assertions::assert_eq;
-use reqwest::{self, Client, StatusCode};
+use reqwest::{self, blocking::Client, StatusCode};
 use serde_derive::Deserialize;
 use serde_json::{json, Value};
 use serial_test_derive::serial;
@@ -30,7 +30,7 @@ fn test_setup() -> TestServer {
 fn test_empty_log() {
     let test_server = test_setup();
     let client = Client::new();
-    let mut response = client.get(&test_server.url("/log")).send().unwrap();
+    let response = client.get(&test_server.url("/log")).send().unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.text().unwrap(), "{}");
 }
@@ -123,7 +123,7 @@ fn test_other_log() {
     let test_server = test_setup();
     let log = create_log(None);
     make_log(&test_server, &log, StatusCode::OK);
-    let mut response = reqwest::get(&test_server.url("/log")).unwrap();
+    let response = reqwest::blocking::get(&test_server.url("/log")).unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let v: Value = serde_json::from_str(&response.text().unwrap()).unwrap();
     let objv = v.as_object().unwrap();
@@ -172,7 +172,7 @@ fn test_create_blocked_dependency() {
     let client = Client::new();
     let rs = RecordServer::new();
     register(&test_server, &rs.server.url("/"));
-    let mut response = client
+    let response = client
         .post(&test_server.url(&format!("/log?dependency={}", &block_id)))
         .json(&json!({
             "type": "blocked"
@@ -239,7 +239,7 @@ fn test_deregister() {
 #[serial]
 fn test_list_nodes() {
     let test_server = test_setup();
-    let mut response = reqwest::get(&test_server.url("/nodes")).unwrap();
+    let response = reqwest::blocking::get(&test_server.url("/nodes")).unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.text().unwrap(), "[]");
 }

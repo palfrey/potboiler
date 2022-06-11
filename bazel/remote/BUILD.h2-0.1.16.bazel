@@ -60,7 +60,7 @@ rust_library(
         "@raze__fnv__1_0_6//:fnv",
         "@raze__futures__0_1_25//:futures",
         "@raze__http__0_1_21//:http",
-        "@raze__indexmap__1_0_2//:indexmap",
+        "@raze__indexmap__1_8_2//:indexmap",
         "@raze__log__0_4_17//:log",
         "@raze__slab__0_4_2//:slab",
         "@raze__string__0_1_3//:string",

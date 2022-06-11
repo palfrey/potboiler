@@ -15,7 +15,7 @@ use log::info;
 pub fn main() -> Result<()> {
     log4rs::init_file("log.yaml", Default::default())?;
     let pool = kv::db_setup()?;
-    let client = reqwest::Client::new();
+    let client = reqwest::blocking::Client::new();
     let app_state = kv::AppState::new(pool, client.clone())?;
     server::new(move || kv::app_router(app_state.clone()).unwrap().finish())
         .bind("0.0.0.0:8001")?

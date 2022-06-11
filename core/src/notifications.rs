@@ -35,7 +35,7 @@ impl Notifications {
             let local_log = log_arc.clone();
             let local_notifier = notifier.clone();
             thread::spawn(move || {
-                let client = reqwest::Client::new();
+                let client = reqwest::blocking::Client::new();
                 debug!("Notifying {:?}", local_notifier);
                 let res = client.post(&local_notifier).json(&local_log.deref()).send();
                 match res {

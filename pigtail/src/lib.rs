@@ -32,8 +32,8 @@ struct NewLogResponse {
 }
 
 fn add_queue_operation(op: &QueueOperation) -> actix_web::Result<NewLogResponse> {
-    let client = reqwest::Client::new();
-    let mut res = client.post(SERVER_URL.deref()).json(op).send().expect("sender ok");
+    let client = reqwest::blocking::Client::new();
+    let res = client.post(SERVER_URL.deref()).json(op).send().expect("sender ok");
     assert_eq!(res.status(), reqwest::StatusCode::CREATED);
     Ok(res.json().unwrap())
 }
@@ -329,7 +329,7 @@ pub fn app_router(state: AppState) -> Result<App<AppState>> {
 }
 
 pub fn register() {
-    let client = reqwest::Client::new();
+    let client = reqwest::blocking::Client::new();
     let mut map = serde_json::Map::new();
     map.insert(
         "url".to_string(),

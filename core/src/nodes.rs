@@ -68,7 +68,7 @@ enum NodesError {
 }
 
 fn parse_object_from_request(
-    raw_result: Result<reqwest::Response, reqwest::Error>,
+    raw_result: reqwest::Result<reqwest::blocking::Response>,
 ) -> Result<serde_json::value::Map<String, serde_json::Value>> {
     let json: serde_json::Value = raw_result?.json()?;
     match json.as_object() {
@@ -81,7 +81,9 @@ fn parse_object_from_request(
 }
 
 fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncClock) -> Result<()> {
-    let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build()?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()?;
     let check_url = format!("{}/log", &host_url);
     info!("Checking {} ({})", host_url, check_url);
     let raw_result = client.get(&check_url).send();
@@ -251,7 +253,7 @@ pub fn insert_log(conn: &db::Connection, log: &Log) -> Result<()> {
 }
 
 fn check_new_nodes(host_url: &str, conn: &db::Connection, nodelist: &NodeList) -> Result<()> {
-    let client = reqwest::Client::new();
+    let client = reqwest::blocking::Client::new();
     let check_url = format!("{}/nodes?query_port=8000", host_url);
     info!("Checking {} ({})", host_url, check_url);
     let raw_result = client.get(&check_url).send();
@@ -385,7 +387,7 @@ pub fn notify_everyone(state: &State<AppState>, log_arc: &Arc<Log>) {
     for node in nodes {
         let local_log = log_arc.clone();
         thread::spawn(move || {
-            let client = reqwest::Client::new();
+            let client = reqwest::blocking::Client::new();
             let notify_url = format!("{}/log/other", node);
             debug!("Notifying (node) {}", notify_url);
             let res = client.post(&notify_url).json(&local_log.deref()).send();
