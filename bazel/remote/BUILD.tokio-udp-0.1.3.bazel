@@ -51,7 +51,7 @@ rust_library(
     deps = [
         "@raze__bytes__0_4_11//:bytes",
         "@raze__futures__0_1_25//:futures",
-        "@raze__log__0_4_6//:log",
+        "@raze__log__0_4_17//:log",
         "@raze__mio__0_6_16//:mio",
         "@raze__tokio_codec__0_1_1//:tokio_codec",
         "@raze__tokio_io__0_1_11//:tokio_io",

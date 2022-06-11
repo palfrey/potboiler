@@ -49,7 +49,7 @@ rust_library(
     version = "1.0.1",
     # buildifier: leave-alone
     deps = [
-        "@raze__winapi__0_3_6//:winapi",
+        "@raze__winapi__0_3_9//:winapi",
         "@raze__winapi_util__0_1_2//:winapi_util",
     ],
 )

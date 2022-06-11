@@ -49,7 +49,7 @@ rust_library(
     version = "0.3.3",
     # buildifier: leave-alone
     deps = [
-        "@raze__bitflags__1_0_4//:bitflags",
+        "@raze__bitflags__1_3_2//:bitflags",
         "@raze__fuchsia_zircon_sys__0_3_3//:fuchsia_zircon_sys",
     ],
 )

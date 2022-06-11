@@ -22,7 +22,7 @@ rust_library(
         "//core/bazel:anyhow",
         "//core/bazel:thiserror",
         "//core/bazel:reqwest",
-        "//core/bazel:resolve",
+        "//core/bazel:trust_dns_resolver",
     ],    
     proc_macro_deps = [
         "//core/bazel:serde_derive",

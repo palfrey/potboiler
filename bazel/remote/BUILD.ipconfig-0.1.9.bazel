@@ -97,9 +97,9 @@ rust_library(
           "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
         ): [
             "@raze__error_chain__0_8_1//:error_chain",
-            "@raze__socket2__0_3_8//:socket2",
+            "@raze__socket2__0_3_19//:socket2",
             "@raze__widestring__0_2_2//:widestring",
-            "@raze__winapi__0_3_6//:winapi",
+            "@raze__winapi__0_3_9//:winapi",
             "@raze__winreg__0_5_1//:winreg",
         ],
         "//conditions:default": [],

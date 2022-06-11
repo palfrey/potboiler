@@ -86,7 +86,7 @@ alias(
 
 alias(
     name = "log4rs",
-    actual = "@raze__log4rs__0_8_1//:log4rs",
+    actual = "@raze__log4rs__1_1_1//:log4rs",
     tags = [
         "cargo-raze",
         "manual",
@@ -95,7 +95,7 @@ alias(
 
 alias(
     name = "log",
-    actual = "@raze__log__0_4_6//:log",
+    actual = "@raze__log__0_4_17//:log",
     tags = [
         "cargo-raze",
         "manual",
@@ -168,15 +168,6 @@ alias(
 alias(
     name = "reqwest",
     actual = "@raze__reqwest__0_9_9//:reqwest",
-    tags = [
-        "cargo-raze",
-        "manual",
-    ],
-)
-
-alias(
-    name = "resolve",
-    actual = "@raze__resolve__0_2_0//:resolve",
     tags = [
         "cargo-raze",
         "manual",
@@ -265,8 +256,17 @@ alias(
 )
 
 alias(
+    name = "trust_dns_resolver",
+    actual = "@raze__trust_dns_resolver__0_21_2//:trust_dns_resolver",
+    tags = [
+        "cargo-raze",
+        "manual",
+    ],
+)
+
+alias(
     name = "url",
-    actual = "@raze__url__1_7_2//:url",
+    actual = "@raze__url__2_2_2//:url",
     tags = [
         "cargo-raze",
         "manual",

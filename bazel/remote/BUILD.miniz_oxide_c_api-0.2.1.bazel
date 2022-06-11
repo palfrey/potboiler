@@ -88,7 +88,7 @@ rust_library(
     deps = [
         ":miniz_oxide_c_api_build_script",
         "@raze__crc__1_8_1//:crc",
-        "@raze__libc__0_2_48//:libc",
+        "@raze__libc__0_2_126//:libc",
         "@raze__miniz_oxide__0_2_1//:miniz_oxide",
     ],
 )

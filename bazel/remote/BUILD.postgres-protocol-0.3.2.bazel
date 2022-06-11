@@ -53,7 +53,7 @@ rust_library(
         "@raze__byteorder__1_3_1//:byteorder",
         "@raze__bytes__0_4_11//:bytes",
         "@raze__fallible_iterator__0_1_6//:fallible_iterator",
-        "@raze__generic_array__0_9_0//:generic_array",
+        "@raze__generic_array__0_9_1//:generic_array",
         "@raze__hmac__0_5_0//:hmac",
         "@raze__md5__0_3_8//:md5",
         "@raze__memchr__1_0_2//:memchr",

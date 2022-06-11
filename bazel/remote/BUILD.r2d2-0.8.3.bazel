@@ -50,7 +50,7 @@ rust_library(
     # buildifier: leave-alone
     deps = [
         "@raze__antidote__1_0_0//:antidote",
-        "@raze__log__0_4_6//:log",
+        "@raze__log__0_4_17//:log",
         "@raze__scheduled_thread_pool__0_2_0//:scheduled_thread_pool",
     ],
 )

@@ -50,6 +50,6 @@ rust_library(
     # buildifier: leave-alone
     deps = [
         "@raze__constant_time_eq__0_1_3//:constant_time_eq",
-        "@raze__generic_array__0_9_0//:generic_array",
+        "@raze__generic_array__0_9_1//:generic_array",
     ],
 )

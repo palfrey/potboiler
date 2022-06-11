@@ -56,7 +56,7 @@ rust_library(
     # buildifier: leave-alone
     deps = [
         "@raze__crossbeam_utils__0_6_5//:crossbeam_utils",
-        "@raze__smallvec__0_6_10//:smallvec",
+        "@raze__smallvec__0_6_14//:smallvec",
     ],
 )
 

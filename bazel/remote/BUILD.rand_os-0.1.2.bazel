@@ -72,7 +72,7 @@ rust_library(
           "@rules_rust//rust/platform:x86_64-linux-android",
           "@rules_rust//rust/platform:x86_64-unknown-freebsd",
         ): [
-            "@raze__libc__0_2_48//:libc",
+            "@raze__libc__0_2_126//:libc",
         ],
         "//conditions:default": [],
     }) + selects.with_or({
@@ -81,7 +81,7 @@ rust_library(
           "@rules_rust//rust/platform:i686-pc-windows-msvc",
           "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
         ): [
-            "@raze__winapi__0_3_6//:winapi",
+            "@raze__winapi__0_3_9//:winapi",
         ],
         "//conditions:default": [],
     }),

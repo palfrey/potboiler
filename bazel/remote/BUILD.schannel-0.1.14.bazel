@@ -50,6 +50,6 @@ rust_library(
     # buildifier: leave-alone
     deps = [
         "@raze__lazy_static__1_2_0//:lazy_static",
-        "@raze__winapi__0_3_6//:winapi",
+        "@raze__winapi__0_3_9//:winapi",
     ],
 )

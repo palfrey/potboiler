@@ -36,6 +36,7 @@ rust_library(
     name = "bytes",
     srcs = glob(["**/*.rs"]),
     crate_features = [
+        "either",
     ],
     crate_root = "src/lib.rs",
     crate_type = "lib",
@@ -52,6 +53,7 @@ rust_library(
     # buildifier: leave-alone
     deps = [
         "@raze__byteorder__1_3_1//:byteorder",
+        "@raze__either__1_6_1//:either",
         "@raze__iovec__0_1_2//:iovec",
     ],
 )

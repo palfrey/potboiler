@@ -84,6 +84,6 @@ rust_library(
         ":security_framework_sys_build_script",
         "@raze__MacTypes_sys__2_1_0//:MacTypes_sys",
         "@raze__core_foundation_sys__0_5_1//:core_foundation_sys",
-        "@raze__libc__0_2_48//:libc",
+        "@raze__libc__0_2_126//:libc",
     ],
 )
