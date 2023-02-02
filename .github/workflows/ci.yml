@@ -122,3 +122,5 @@ jobs:
         
       - name: Bazel build ${{ matrix.target }}
         run: "bazel build ${{ matrix.target }}"
+        env:
+          USE_BAZEL_VERSION: "3.5.1"
