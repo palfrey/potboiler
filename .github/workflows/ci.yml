@@ -59,7 +59,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: stable
+          toolchain: 1.52
           override: true
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v1
@@ -122,3 +122,5 @@ jobs:
         
       - name: Bazel build ${{ matrix.target }}
         run: "bazel build ${{ matrix.target }}"
+        env:
+          USE_BAZEL_VERSION: "3.5.1"
