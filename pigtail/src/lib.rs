@@ -336,7 +336,7 @@ pub fn register() {
         serde_json::Value::String(format!("http://{}:{}/event", HOST.deref(), PORT.deref())),
     );
     let res = client
-        .post(&format!("{}/register", SERVER_URL.deref()))
+        .post(format!("{}/register", SERVER_URL.deref()))
         .json(&map)
         .send()
         .expect("Register ok");
