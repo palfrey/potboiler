@@ -25,15 +25,27 @@ package(default_visibility = [
 ])
 
 licenses([
-    "notice",  # MIT from expression "MIT"
+    "notice",  # MIT from expression "MIT OR Apache-2.0"
 ])
 
 # Generated Targets
 
 rust_library(
-    name = "schannel",
+    name = "cookie",
     srcs = glob(["**/*.rs"]),
     crate_features = [
+        "aes-gcm",
+        "base64",
+        "hkdf",
+        "hmac",
+        "key-expansion",
+        "percent-encode",
+        "percent-encoding",
+        "private",
+        "rand",
+        "secure",
+        "sha2",
+        "signed",
     ],
     crate_root = "src/lib.rs",
     crate_type = "lib",
@@ -46,10 +58,16 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "0.1.20",
+    version = "0.11.5",
     # buildifier: leave-alone
     deps = [
-        "@raze__lazy_static__1_4_0//:lazy_static",
-        "@raze__windows_sys__0_36_1//:windows_sys",
+        "@raze__aes_gcm__0_8_0//:aes_gcm",
+        "@raze__base64__0_13_0//:base64",
+        "@raze__hkdf__0_10_0//:hkdf",
+        "@raze__hmac__0_10_1//:hmac",
+        "@raze__percent_encoding__2_1_0//:percent_encoding",
+        "@raze__rand__0_8_5//:rand",
+        "@raze__sha2__0_9_9//:sha2",
+        "@raze__time__0_1_42//:time",
     ],
 )

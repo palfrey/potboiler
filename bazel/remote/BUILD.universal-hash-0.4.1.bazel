@@ -31,14 +31,14 @@ licenses([
 # Generated Targets
 
 rust_library(
-    name = "core_foundation",
+    name = "universal_hash",
     srcs = glob(["**/*.rs"]),
     crate_features = [
     ],
     crate_root = "src/lib.rs",
     crate_type = "lib",
     data = [],
-    edition = "2015",
+    edition = "2018",
     rustc_flags = [
         "--cap-lints=allow",
     ],
@@ -46,12 +46,10 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "0.9.3",
+    version = "0.4.1",
     # buildifier: leave-alone
     deps = [
-        "@raze__core_foundation_sys__0_8_3//:core_foundation_sys",
-        "@raze__libc__0_2_126//:libc",
+        "@raze__generic_array__0_14_6//:generic_array",
+        "@raze__subtle__2_4_1//:subtle",
     ],
 )
-
-# Unsupported target "use_macro_outside_crate" with type "test" omitted

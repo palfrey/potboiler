@@ -25,15 +25,17 @@ package(default_visibility = [
 ])
 
 licenses([
-    "notice",  # MIT from expression "MIT OR Apache-2.0"
+    "notice",  # Apache-2.0 from expression "Apache-2.0 OR (ISC OR MIT)"
 ])
 
 # Generated Targets
 
 # Unsupported target "client" with type "example" omitted
 
+# Unsupported target "server" with type "example" omitted
+
 rust_library(
-    name = "hyper_tls",
+    name = "hyper_rustls",
     srcs = glob(["**/*.rs"]),
     crate_features = [
     ],
@@ -48,13 +50,15 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "0.5.0",
+    version = "0.23.2",
     # buildifier: leave-alone
     deps = [
-        "@raze__bytes__1_1_0//:bytes",
+        "@raze__http__0_2_8//:http",
         "@raze__hyper__0_14_5//:hyper",
-        "@raze__native_tls__0_2_10//:native_tls",
+        "@raze__rustls__0_20_8//:rustls",
         "@raze__tokio__1_19_2//:tokio",
-        "@raze__tokio_native_tls__0_3_0//:tokio_native_tls",
+        "@raze__tokio_rustls__0_23_4//:tokio_rustls",
     ],
 )
+
+# Unsupported target "tests" with type "test" omitted

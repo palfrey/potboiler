@@ -11,7 +11,7 @@ http_archive(
 )
 
 load("@rules_rust//rust:repositories.bzl", "rust_repositories")
-rust_repositories(version = "1.50.0", edition="2018")
+rust_repositories(version = "1.60.0", edition="2018")
 
 http_archive(
     name = "io_bazel_rules_docker",

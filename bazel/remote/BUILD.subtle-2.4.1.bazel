@@ -25,45 +25,13 @@ package(default_visibility = [
 ])
 
 licenses([
-    "notice",  # MIT from expression "MIT OR Apache-2.0"
+    "notice",  # BSD-3-Clause from expression "BSD-3-Clause"
 ])
 
 # Generated Targets
-# buildifier: disable=out-of-order-load
-# buildifier: disable=load-on-top
-load(
-    "@rules_rust//cargo:cargo_build_script.bzl",
-    "cargo_build_script",
-)
-
-cargo_build_script(
-    name = "brotli_sys_build_script",
-    srcs = glob(["**/*.rs"]),
-    build_script_env = {
-    },
-    crate_features = [
-    ],
-    crate_root = "build.rs",
-    data = glob(["**"]),
-    edition = "2015",
-    links = "brotli",
-    rustc_flags = [
-        "--cap-lints=allow",
-    ],
-    tags = [
-        "cargo-raze",
-        "manual",
-    ],
-    version = "0.3.2",
-    visibility = ["//visibility:private"],
-    deps = [
-        "@raze__cc__1_0_79//:cc",
-    ],
-)
-
 
 rust_library(
-    name = "brotli_sys",
+    name = "subtle",
     srcs = glob(["**/*.rs"]),
     crate_features = [
     ],
@@ -78,10 +46,10 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "0.3.2",
+    version = "2.4.1",
     # buildifier: leave-alone
     deps = [
-        ":brotli_sys_build_script",
-        "@raze__libc__0_2_126//:libc",
     ],
 )
+
+# Unsupported target "mod" with type "test" omitted

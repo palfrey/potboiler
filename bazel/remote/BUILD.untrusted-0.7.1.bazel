@@ -25,20 +25,20 @@ package(default_visibility = [
 ])
 
 licenses([
-    "notice",  # MIT from expression "MIT OR Apache-2.0"
+    "notice",  # ISC from expression "ISC"
 ])
 
 # Generated Targets
 
 rust_library(
-    name = "pkg_config",
+    name = "untrusted",
     srcs = glob(["**/*.rs"]),
     crate_features = [
     ],
-    crate_root = "src/lib.rs",
+    crate_root = "src/untrusted.rs",
     crate_type = "lib",
     data = [],
-    edition = "2015",
+    edition = "2018",
     rustc_flags = [
         "--cap-lints=allow",
     ],
@@ -46,10 +46,10 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "0.3.14",
+    version = "0.7.1",
     # buildifier: leave-alone
     deps = [
     ],
 )
 
-# Unsupported target "test" with type "test" omitted
+# Unsupported target "tests" with type "test" omitted

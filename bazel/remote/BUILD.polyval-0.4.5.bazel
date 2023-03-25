@@ -30,14 +30,15 @@ licenses([
 
 # Generated Targets
 
-# Unsupported target "bench" with type "bench" omitted
+# Unsupported target "polyval" with type "bench" omitted
 
 rust_library(
-    name = "fastrand",
+    name = "polyval",
     srcs = glob(["**/*.rs"]),
     aliases = {
     },
     crate_features = [
+        "mulx",
     ],
     crate_root = "src/lib.rs",
     crate_type = "lib",
@@ -50,21 +51,30 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "1.7.0",
+    version = "0.4.5",
     # buildifier: leave-alone
     deps = [
+        "@raze__opaque_debug__0_3_0//:opaque_debug",
+        "@raze__universal_hash__0_4_1//:universal_hash",
     ] + selects.with_or({
-        # cfg(target_arch = "wasm32")
+        # cfg(any(target_arch = "x86_64", target_arch = "x86"))
         (
-          "@rules_rust//rust/platform:wasm32-unknown-unknown",
-          "@rules_rust//rust/platform:wasm32-wasi",
+          "@rules_rust//rust/platform:i686-apple-darwin",
+          "@rules_rust//rust/platform:i686-pc-windows-msvc",
+          "@rules_rust//rust/platform:i686-unknown-linux-gnu",
+          "@rules_rust//rust/platform:x86_64-apple-darwin",
+          "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
+          "@rules_rust//rust/platform:x86_64-unknown-linux-gnu",
+          "@rules_rust//rust/platform:i686-linux-android",
+          "@rules_rust//rust/platform:i686-unknown-freebsd",
+          "@rules_rust//rust/platform:x86_64-apple-ios",
+          "@rules_rust//rust/platform:x86_64-linux-android",
+          "@rules_rust//rust/platform:x86_64-unknown-freebsd",
         ): [
-            "@raze__instant__0_1_12//:instant",
+            "@raze__cpuid_bool__0_2_0//:cpuid_bool",
         ],
         "//conditions:default": [],
     }),
 )
 
-# Unsupported target "char" with type "test" omitted
-
-# Unsupported target "smoke" with type "test" omitted
+# Unsupported target "lib" with type "test" omitted

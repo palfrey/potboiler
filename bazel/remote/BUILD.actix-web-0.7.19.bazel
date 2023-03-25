@@ -102,7 +102,7 @@ rust_library(
         "@raze__brotli2__0_3_2//:brotli2",
         "@raze__byteorder__1_3_1//:byteorder",
         "@raze__bytes__0_4_11//:bytes",
-        "@raze__cookie__0_11_0//:cookie",
+        "@raze__cookie__0_11_5//:cookie",
         "@raze__encoding__0_2_33//:encoding",
         "@raze__failure__0_1_5//:failure",
         "@raze__flate2__1_0_6//:flate2",

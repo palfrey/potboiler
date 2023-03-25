@@ -31,7 +31,7 @@ licenses([
 # Generated Targets
 
 rust_library(
-    name = "openssl_probe",
+    name = "version_check",
     srcs = glob(["**/*.rs"]),
     crate_features = [
     ],
@@ -46,7 +46,7 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "0.1.2",
+    version = "0.9.4",
     # buildifier: leave-alone
     deps = [
     ],
