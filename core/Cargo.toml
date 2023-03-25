@@ -9,7 +9,7 @@ name = "potboiler"
 path = "src/main.rs"
 
 [dependencies]
-hybrid-clocks = { version = "^0.3.4", features = ["serde"] }
+hybrid-clocks = { version = "^0.5", features = ["serialization"] }
 uuid = {version = "0.5", features=["v4","serde"]} # Required by Postgres
 log = "0.4"
 log4rs = {version = "1", features=["yaml_format"]}

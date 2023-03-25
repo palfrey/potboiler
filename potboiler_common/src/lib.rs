@@ -16,11 +16,13 @@ pub mod server_id;
 pub mod test;
 pub mod types;
 
-use hybrid_clocks::{Timestamp, WallT};
+use std::io::Write;
 
-pub fn get_raw_timestamp(timestamp: &Timestamp<WallT>) -> Result<db::HexSlice, ::std::io::Error> {
+use hybrid_clocks::{Timestamp, WallMST};
+
+pub fn get_raw_timestamp(timestamp: &Timestamp<WallMST>) -> Result<db::HexSlice, ::std::io::Error> {
     let mut raw_timestamp: Vec<u8> = Vec::new();
-    timestamp.write_bytes(&mut raw_timestamp)?;
+    raw_timestamp.write_all(&timestamp.to_bytes())?;
     Ok(db::HexSlice::new(raw_timestamp))
 }
 

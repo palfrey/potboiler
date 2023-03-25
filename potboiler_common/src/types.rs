@@ -1,4 +1,4 @@
-use hybrid_clocks::{Timestamp, WallT};
+use hybrid_clocks::{Timestamp, WallMST};
 use serde_derive::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -64,7 +64,7 @@ pub struct Log {
     pub owner: Uuid,
     pub prev: Option<Uuid>,
     pub next: Option<Uuid>,
-    pub when: Timestamp<WallT>,
+    pub when: Timestamp<WallMST>,
     pub data: serde_json::Value,
     #[serde(default)]
     pub dependencies: Vec<Uuid>,
