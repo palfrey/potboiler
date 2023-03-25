@@ -16,7 +16,7 @@ serde_derive = "1.0"
 hybrid-clocks = { version = "^0.3.4", features = ["serde"] }
 uuid = {version = "0.5", features=["use_std","v4","serde"]}
 url = "*"
-reqwest = {version="0.11", features=["json", "blocking"]}
+reqwest = {version="0.11", features=["json", "blocking", "rustls-tls"], default_features=false}
 
 potboiler_common = { path = "../potboiler_common" }
 

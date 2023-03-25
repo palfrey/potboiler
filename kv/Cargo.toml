@@ -24,7 +24,7 @@ potboiler_common = { path = "../potboiler_common" }
 log = "0.4"
 log4rs = {version = "1", features=["yaml_format"]}
 
-reqwest = {version="0.11", features=["json"]}
+reqwest = {version="0.11", features=["json", "rustls-tls"], default_features=false}
 
 lazy_static = "1"
 
