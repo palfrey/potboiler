@@ -24,7 +24,7 @@ log = "0.4"
 log4rs = {version = "1", features=["yaml_format"]}
 
 lazy_static = "1"
-time = "0.1"
+time = "0.2"
 thiserror = "1"
 anyhow = "1"
 

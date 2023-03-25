@@ -98,7 +98,7 @@ dependencies = [
  "sha1",
  "slab",
  "smallvec 0.6.14",
- "time",
+ "time 0.1.43",
  "tokio 0.1.15",
  "tokio-current-thread",
  "tokio-io",
@@ -438,7 +438,7 @@ checksum = "45912881121cb26fad7c38c17ba7daa18764771836b34fab7d3fbd93ed633878"
 dependencies = [
  "num-integer",
  "num-traits",
- "time",
+ "time 0.1.43",
 ]
 
 [[package]]
@@ -487,7 +487,7 @@ dependencies = [
  "percent-encoding 2.1.0",
  "rand 0.8.5",
  "sha2 0.9.9",
- "time",
+ "time 0.1.43",
 ]
 
 [[package]]
@@ -1136,7 +1136,7 @@ dependencies = [
  "quick-error",
  "serde",
  "suppositions",
- "time",
+ "time 0.1.43",
 ]
 
 [[package]]
@@ -1781,7 +1781,7 @@ dependencies = [
  "serial_test",
  "serial_test_derive",
  "thiserror",
- "time",
+ "time 0.2.0",
  "url 2.2.2",
  "uuid 0.5.1",
 ]
@@ -2754,14 +2754,19 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.1.42"
+version = "0.1.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db8dcfca086c1143c9270ac42a2bbd8a7ee477b78ac8e45b19abfb0cbede4b6f"
+checksum = "ca8a50ef2360fbd1eeb0ecd46795a87a19024eb4b53c5dc916ca1fd95fe62438"
 dependencies = [
  "libc",
- "redox_syscall 0.1.51",
  "winapi 0.3.9",
 ]
+
+[[package]]
+name = "time"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcc26de0a81a07c8352b548977862908fa9863e0e6e4f0eb36b2a9f4f8845585"
 
 [[package]]
 name = "tinyvec"
