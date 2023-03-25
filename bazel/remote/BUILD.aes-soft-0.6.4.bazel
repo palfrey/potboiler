@@ -30,18 +30,16 @@ licenses([
 
 # Generated Targets
 
-# Unsupported target "client" with type "example" omitted
+# Unsupported target "aes128" with type "bench" omitted
 
-# Unsupported target "find_internet_password" with type "example" omitted
+# Unsupported target "aes192" with type "bench" omitted
 
-# Unsupported target "set_internet_password" with type "example" omitted
+# Unsupported target "aes256" with type "bench" omitted
 
 rust_library(
-    name = "security_framework",
+    name = "aes_soft",
     srcs = glob(["**/*.rs"]),
     crate_features = [
-        "OSX_10_9",
-        "default",
     ],
     crate_root = "src/lib.rs",
     crate_type = "lib",
@@ -54,13 +52,12 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "2.6.1",
+    version = "0.6.4",
     # buildifier: leave-alone
     deps = [
-        "@raze__bitflags__1_3_2//:bitflags",
-        "@raze__core_foundation__0_9_3//:core_foundation",
-        "@raze__core_foundation_sys__0_8_3//:core_foundation_sys",
-        "@raze__libc__0_2_126//:libc",
-        "@raze__security_framework_sys__2_6_1//:security_framework_sys",
+        "@raze__cipher__0_2_5//:cipher",
+        "@raze__opaque_debug__0_3_0//:opaque_debug",
     ],
 )
+
+# Unsupported target "lib" with type "test" omitted

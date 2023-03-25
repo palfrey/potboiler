@@ -25,17 +25,15 @@ package(default_visibility = [
 ])
 
 licenses([
-    "notice",  # MIT from expression "MIT OR Apache-2.0"
+    "notice",  # MIT from expression "MIT"
 ])
 
 # Generated Targets
 
-# Unsupported target "benchmarks" with type "bench" omitted
-
-# Unsupported target "make_tables" with type "example" omitted
+# Unsupported target "debug" with type "example" omitted
 
 rust_library(
-    name = "base64",
+    name = "spin",
     srcs = glob(["**/*.rs"]),
     crate_features = [
     ],
@@ -50,18 +48,8 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "0.9.3",
+    version = "0.5.2",
     # buildifier: leave-alone
     deps = [
-        "@raze__byteorder__1_3_1//:byteorder",
-        "@raze__safemem__0_3_0//:safemem",
     ],
 )
-
-# Unsupported target "decode" with type "test" omitted
-
-# Unsupported target "encode" with type "test" omitted
-
-# Unsupported target "helpers" with type "test" omitted
-
-# Unsupported target "tests" with type "test" omitted

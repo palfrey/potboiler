@@ -31,25 +31,11 @@ licenses([
 # Generated Targets
 
 rust_library(
-    name = "windows_sys",
+    name = "cpufeatures",
     srcs = glob(["**/*.rs"]),
     aliases = {
     },
     crate_features = [
-        "Win32",
-        "Win32_Foundation",
-        "Win32_Networking",
-        "Win32_Networking_WinSock",
-        "Win32_Security",
-        "Win32_Storage",
-        "Win32_Storage_FileSystem",
-        "Win32_System",
-        "Win32_System_IO",
-        "Win32_System_LibraryLoader",
-        "Win32_System_Pipes",
-        "Win32_System_SystemServices",
-        "Win32_System_WindowsProgramming",
-        "default",
     ],
     crate_root = "src/lib.rs",
     crate_type = "lib",
@@ -62,24 +48,20 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "0.36.1",
+    version = "0.2.6",
     # buildifier: leave-alone
     deps = [
     ] + selects.with_or({
-        # i686-pc-windows-msvc
+        # cfg(all(target_arch = "aarch64", target_os = "linux"))
         (
-          "@rules_rust//rust/platform:i686-pc-windows-msvc",
+          "@rules_rust//rust/platform:aarch64-unknown-linux-gnu",
         ): [
-            "@raze__windows_i686_msvc__0_36_1//:windows_i686_msvc",
-        ],
-        "//conditions:default": [],
-    }) + selects.with_or({
-        # x86_64-pc-windows-msvc
-        (
-          "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
-        ): [
-            "@raze__windows_x86_64_msvc__0_36_1//:windows_x86_64_msvc",
+            "@raze__libc__0_2_126//:libc",
         ],
         "//conditions:default": [],
     }),
 )
+
+# Unsupported target "aarch64" with type "test" omitted
+
+# Unsupported target "x86" with type "test" omitted

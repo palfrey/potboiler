@@ -438,7 +438,7 @@ pub fn register(client: &reqwest::blocking::Client) -> Result<()> {
         serde_json::Value::String(format!("{}kv/event", &root)),
     );
     let res = client
-        .post(&format!("{}/register", SERVER_URL.deref()))
+        .post(format!("{}/register", SERVER_URL.deref()))
         .json(&map)
         .send()?;
     assert_eq!(res.status(), reqwest::StatusCode::CREATED);

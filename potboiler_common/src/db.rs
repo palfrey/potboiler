@@ -267,7 +267,7 @@ pub enum Rows {
     Test(Vec<TestRow>),
 }
 
-impl<'stmt> Rows {
+impl Rows {
     pub fn get(&self, id: usize) -> Row {
         match *self {
             Rows::Postgres(ref rows) => Row::Postgres(rows.get(id)),
@@ -331,7 +331,7 @@ impl TestConnection {
     }
 
     fn get_rows(&self, cmd: &str) -> Result<Vec<TestRow>, Error> {
-        for &(ref patt, ref res) in self.query_results.iter() {
+        for (ref patt, ref res) in self.query_results.iter() {
             if patt.is_match(cmd) {
                 return match res {
                     Ok(val) => Ok(val.clone()),
@@ -342,7 +342,7 @@ impl TestConnection {
         Err(Error::NoTestQuery { cmd: String::from(cmd) })
     }
     fn execute(&self, cmd: &str) -> Result<u64, Error> {
-        for &(ref patt, ref res) in self.execute_results.iter() {
+        for (ref patt, ref res) in self.execute_results.iter() {
             if patt.is_match(cmd) {
                 return match res {
                     Ok(val) => Ok(*val),
