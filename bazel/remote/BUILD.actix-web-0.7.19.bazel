@@ -130,7 +130,7 @@ rust_library(
         "@raze__sha1__0_6_0//:sha1",
         "@raze__slab__0_4_2//:slab",
         "@raze__smallvec__0_6_14//:smallvec",
-        "@raze__time__0_1_42//:time",
+        "@raze__time__0_1_43//:time",
         "@raze__tokio__0_1_15//:tokio",
         "@raze__tokio_current_thread__0_1_4//:tokio_current_thread",
         "@raze__tokio_io__0_1_11//:tokio_io",

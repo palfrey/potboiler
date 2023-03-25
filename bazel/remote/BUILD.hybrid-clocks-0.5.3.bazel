@@ -25,24 +25,28 @@ package(default_visibility = [
 ])
 
 licenses([
-    "notice",  # MIT from expression "MIT OR Apache-2.0"
+    "notice",  # MIT from expression "MIT"
 ])
 
 # Generated Targets
 
-# Unsupported target "precise_time_ns" with type "bench" omitted
+# Unsupported target "simple" with type "example" omitted
 
 rust_library(
-    name = "time",
+    name = "hybrid_clocks",
     srcs = glob(["**/*.rs"]),
-    aliases = {
-    },
     crate_features = [
+        "serde",
+        "serde_derive",
+        "serialization",
     ],
     crate_root = "src/lib.rs",
     crate_type = "lib",
     data = [],
-    edition = "2015",
+    edition = "2018",
+    proc_macro_deps = [
+        "@raze__serde_derive__1_0_88//:serde_derive",
+    ],
     rustc_flags = [
         "--cap-lints=allow",
     ],
@@ -50,18 +54,12 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "0.1.42",
+    version = "0.5.3",
     # buildifier: leave-alone
     deps = [
-        "@raze__libc__0_2_126//:libc",
-    ] + selects.with_or({
-        # cfg(windows)
-        (
-          "@rules_rust//rust/platform:i686-pc-windows-msvc",
-          "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
-        ): [
-            "@raze__winapi__0_3_9//:winapi",
-        ],
-        "//conditions:default": [],
-    }),
+        "@raze__serde__1_0_88//:serde",
+        "@raze__thiserror__1_0_24//:thiserror",
+    ],
 )
+
+# Unsupported target "clocks" with type "test" omitted
