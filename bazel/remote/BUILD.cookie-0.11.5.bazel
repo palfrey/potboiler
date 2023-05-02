@@ -68,6 +68,6 @@ rust_library(
         "@raze__percent_encoding__2_1_0//:percent_encoding",
         "@raze__rand__0_8_5//:rand",
         "@raze__sha2__0_9_9//:sha2",
-        "@raze__time__0_1_42//:time",
+        "@raze__time__0_1_43//:time",
     ],
 )

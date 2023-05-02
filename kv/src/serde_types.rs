@@ -1,4 +1,4 @@
-use hybrid_clocks::{Timestamp, WallT};
+use hybrid_clocks::{Timestamp, WallMST};
 use potboiler_common::{enum_str, types::CRDT};
 use serde_derive::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt};
@@ -25,7 +25,7 @@ pub struct LWWConfigOp {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LWW {
-    pub when: Timestamp<WallT>,
+    pub when: Timestamp<WallMST>,
     pub data: serde_json::Value,
 }
 

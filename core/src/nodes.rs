@@ -1,7 +1,7 @@
 use crate::{clock::SyncClock, AppState};
 use actix_web::{HttpRequest, HttpResponse, Json, Query, State};
 use anyhow::{anyhow, bail, Result};
-use hybrid_clocks::{Timestamp, WallT};
+use hybrid_clocks::{Timestamp, WallMST};
 use log::{debug, info, warn};
 use potboiler_common::{db, get_raw_timestamp, types::Log};
 use serde_derive::Deserialize;
@@ -179,7 +179,7 @@ fn check_host_once(host_url: &str, conn: &db::Connection, clock_state: &SyncCloc
                 })),
             };
             let next = current_entry.get("next").ok_or(NodesError::NoNextKey)?;
-            let timestamp: Timestamp<WallT> =
+            let timestamp: Timestamp<WallMST> =
                 serde_json::value::from_value(current_entry.get("when").ok_or(NodesError::NoWhenKey)?.clone())?;
             clock_state.observe_timestamp(timestamp);
             let log = Log {

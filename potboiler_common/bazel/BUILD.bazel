@@ -68,7 +68,7 @@ alias(
 
 alias(
     name = "hybrid_clocks",
-    actual = "@raze__hybrid_clocks__0_3_4//:hybrid_clocks",
+    actual = "@raze__hybrid_clocks__0_5_3//:hybrid_clocks",
     tags = [
         "cargo-raze",
         "manual",
@@ -248,7 +248,7 @@ alias(
 
 alias(
     name = "time",
-    actual = "@raze__time__0_1_42//:time",
+    actual = "@raze__time__0_2_0//:time",
     tags = [
         "cargo-raze",
         "manual",

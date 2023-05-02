@@ -1,10 +1,14 @@
 use crate::{nodes, AppState};
 use actix_web::{HttpRequest, HttpResponse, Json, Path, Result, State};
+use hybrid_clocks::{Timestamp, WallMST};
 use log::info;
 use potboiler_common::types::Log;
 use serde_derive::Serialize;
 use serde_json::{self, Map, Value};
-use std::{io::Cursor, sync::Arc};
+use std::{
+    io::{Cursor, Read},
+    sync::Arc,
+};
 use thiserror::Error;
 use url::form_urlencoded;
 use uuid::{self, Uuid};
@@ -162,7 +166,9 @@ fn read_log(state: &State<AppState>, id: &Uuid) -> Option<Log> {
     } else {
         let row = results.get(0);
         let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
-        let when = hybrid_clocks::Timestamp::read_bytes(Cursor::new(hlc_tstamp)).unwrap();
+        let mut timestamp_buf = [0u8; 16];
+        Cursor::new(hlc_tstamp).read_exact(&mut timestamp_buf).unwrap();
+        let when = Timestamp::<WallMST>::from_bytes(timestamp_buf);
         let deps = conn
             .query(&format!("select depends_on from dependency where id = '{}'", id))
             .unwrap()

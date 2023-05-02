@@ -5,13 +5,17 @@ use actix_web::{
     App, HttpResponse, Json, Path, State,
 };
 use anyhow::Result;
-use hybrid_clocks::{Timestamp, WallT};
+use hybrid_clocks::{Timestamp, WallMST};
 use lazy_static::lazy_static;
 use log::{debug, info};
 use potboiler_common::{clock, db, get_raw_timestamp, types::Log};
 use serde_derive::Deserialize;
 use serde_json::{self, Map, Value};
-use std::{env, io::Cursor, ops::Deref};
+use std::{
+    env,
+    io::{Cursor, Read},
+    ops::Deref,
+};
 use time::Duration;
 use uuid::{self, Uuid};
 
@@ -67,7 +71,7 @@ fn row_to_state(row: &db::Row) -> Result<types::QueueState> {
 
 fn parse_progress<F>(state: &AppState, progress: &types::QueueProgress, should_update: F) -> Result<HttpResponse>
 where
-    F: Fn(&types::QueueState, &Timestamp<WallT>) -> Option<(Timestamp<WallT>, String)>,
+    F: Fn(&types::QueueState, &Timestamp<WallMST>) -> Option<(Timestamp<WallMST>, String)>,
 {
     let conn = state.pool.get().unwrap();
     let results = conn.query(&format!(
@@ -80,7 +84,11 @@ where
         let row = results.get(0);
         let state = row_to_state(&row)?;
         let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
-        let when = Timestamp::read_bytes(Cursor::new(hlc_tstamp))?;
+
+        let mut timestamp_buf = [0u8; 16];
+        Cursor::new(hlc_tstamp).read_exact(&mut timestamp_buf)?;
+        let when = Timestamp::<WallMST>::from_bytes(timestamp_buf);
+
         if let Some((log_when, status)) = should_update(&state, &when) {
             let raw_timestamp = get_raw_timestamp(&log_when)?;
             conn.execute(&format!(
@@ -195,7 +203,7 @@ fn get_queue_items(state: State<AppState>, path: Path<NamedQueueRoute>) -> actix
         ))
         .unwrap();
     let mut queue = Map::new();
-    let now = state.clock.get_timestamp().time.as_timespec();
+    let now = state.clock.get_timestamp().time.as_systemtime().unwrap();
     let max_diff = Duration::milliseconds(config.timeout_ms);
     for row in &results {
         let id: Uuid = row.get("id");
@@ -206,7 +214,7 @@ fn get_queue_items(state: State<AppState>, path: Path<NamedQueueRoute>) -> actix
         if state == types::QueueState::Working {
             let hlc_tstamp: Vec<u8> = row.get("hlc_tstamp");
             let when = Timestamp::read_bytes(Cursor::new(hlc_tstamp))?;
-            let diff = now - when.time.as_timespec();
+            let diff = now.duration_since(when.time.as_systemtime()).unwrap();
             if diff > max_diff {
                 debug!("{} is out of date, so marking as pending", id);
                 state = types::QueueState::Pending;

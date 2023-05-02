@@ -25,16 +25,16 @@ package(default_visibility = [
 ])
 
 licenses([
-    "notice",  # Apache-2.0 from expression "Apache-2.0"
+    "notice",  # MIT from expression "MIT OR Apache-2.0"
 ])
 
 # Generated Targets
 
-# Unsupported target "die-hard" with type "example" omitted
-
 rust_library(
-    name = "suppositions",
+    name = "time",
     srcs = glob(["**/*.rs"]),
+    aliases = {
+    },
     crate_features = [
     ],
     crate_root = "src/lib.rs",
@@ -48,17 +48,18 @@ rust_library(
         "cargo-raze",
         "manual",
     ],
-    version = "0.1.4",
+    version = "0.1.43",
     # buildifier: leave-alone
     deps = [
-        "@raze__hex_slice__0_1_4//:hex_slice",
-        "@raze__log__0_3_9//:log",
-        "@raze__rand__0_3_23//:rand",
-    ],
+        "@raze__libc__0_2_126//:libc",
+    ] + selects.with_or({
+        # cfg(windows)
+        (
+          "@rules_rust//rust/platform:i686-pc-windows-msvc",
+          "@rules_rust//rust/platform:x86_64-pc-windows-msvc",
+        ): [
+            "@raze__winapi__0_3_9//:winapi",
+        ],
+        "//conditions:default": [],
+    }),
 )
-
-# Unsupported target "generators" with type "test" omitted
-
-# Unsupported target "recursive" with type "test" omitted
-
-# Unsupported target "smoketest" with type "test" omitted
